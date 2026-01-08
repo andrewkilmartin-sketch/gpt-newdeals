@@ -96,6 +96,10 @@ export default function ShopSearch() {
 
     const startTime = performance.now();
     try {
+      // Add 30-second timeout to prevent infinite spinning
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch("/api/shop/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,8 +112,11 @@ export default function ShopSearch() {
           filterBrand: appliedFilters.brand,
           filterMinPrice: appliedFilters.minPrice,
           filterMaxPrice: appliedFilters.maxPrice
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       const data: SearchResponse = await response.json();
       
@@ -132,7 +139,11 @@ export default function ShopSearch() {
         }
       }
     } catch (err) {
-      setError("Failed to connect to search service");
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError("Search timed out after 30 seconds. Try a simpler search term.");
+      } else {
+        setError("Failed to connect to search service");
+      }
       if (isNewSearch) setProducts([]);
     } finally {
       setIsLoading(false);
