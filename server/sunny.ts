@@ -177,7 +177,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: "object",
         properties: {
           query: { type: "string", description: "Products we stock: blanket, pyjamas, animal toys, lego, sweets, colouring, craft, party, birthday" },
-          limit: { type: "number", description: "Max results, default 3" }
+          limit: { type: "number", description: "Max results, default 8" }
         },
         required: ["query"]
       }
@@ -272,7 +272,8 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
         
       case "search_products": {
         const productQuery = (args.query as string || "").toLowerCase();
-        url = `${BASE_URL}/shopping/awin-link?query=${encodeURIComponent(productQuery)}&limit=${Math.min(limit * 3, 30)}`;
+        const productLimit = (args.limit as number) || 8; // Default to 8 for products
+        url = `${BASE_URL}/shopping/awin-link?query=${encodeURIComponent(productQuery)}&limit=${Math.min(productLimit * 3, 30)}`;
         
         // Fetch more results and filter for relevance
         const productResponse = await fetch(url);
@@ -301,8 +302,8 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
           if (filteredResults.length > 0) {
             return {
               ...productData,
-              results: filteredResults.slice(0, limit),
-              count: filteredResults.slice(0, limit).length,
+              results: filteredResults.slice(0, productLimit),
+              count: filteredResults.slice(0, productLimit).length,
               filtered: true
             };
           } else {
@@ -733,6 +734,7 @@ export async function handleChat(
 
   const session = getOrCreateSession(sessionId);
   const toolsUsed: { tool: string; args: unknown; resultCount?: number }[] = [];
+  const allRawResults: { tool: string; results: unknown[] }[] = [];
   
   // Request-scoped context for anti-fabrication validation (thread-safe)
   const requestCtx = createRequestContext();
@@ -775,6 +777,8 @@ export async function handleChat(
           // Track valid products for anti-fabrication validation (request-scoped)
           if ((result as any).results && Array.isArray((result as any).results)) {
             addValidProductsToContext(requestCtx, (result as any).results);
+            // Save raw results for logging
+            allRawResults.push({ tool: "search_products", results: (result as any).results });
           }
         }
         
@@ -818,6 +822,8 @@ export async function handleChat(
           if (resultCount > 0) {
             addValidProductsToContext(requestCtx, (productResult as any).results);
             forcedProductResults.push({ query: requiredSearch, result: productResult });
+            // Save raw results for logging
+            allRawResults.push({ tool: "search_products (forced)", results: (productResult as any).results });
           } else {
             console.log(`[COMMERCE] No products found for "${requiredSearch}" - skipping injection`);
           }
@@ -867,6 +873,8 @@ export async function handleChat(
           if (resultCount > 0) {
             addValidProductsToContext(requestCtx, (result as any).results);
             productResults.push({ query: search, result });
+            // Save raw results for logging
+            allRawResults.push({ tool: "search_products (forced)", results: (result as any).results });
           } else {
             console.log(`[COMMERCE] No products found for "${search}" - skipping injection`);
           }
@@ -923,6 +931,7 @@ export async function handleChat(
           userMessage: message,
           sunnyResponse: finalResponse,
           toolsUsed: JSON.stringify(toolsUsed),
+          rawResults: allRawResults.length > 0 ? allRawResults : null,
           createdAt: new Date()
         });
       } catch (dbError) {
