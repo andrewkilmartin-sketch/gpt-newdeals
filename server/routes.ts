@@ -531,6 +531,9 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
     'sony', 'bose', 'apple', 'samsung', 'jbl',
     // Toys
     'lego', 'playmobil', 'barbie', 'hot wheels', 'sylvanian families', 'fisher price', 'vtech', 'hasbro', 'mattel', 'leapfrog', 'melissa and doug',
+    'orchard toys', 'ravensburger', 'galt', 'tomy', 'little tikes', 'mega bloks', 'duplo', 'brio', 'hape', 'djeco', 'janod', 'early learning centre',
+    // Baby products
+    'sophie giraffe', 'sophie la girafe', 'snuzpod', 'sleepyhead', 'dockatot', 'grobag', 'ergo', 'tula',
     // Baby
     'tommee tippee', 'mam', 'chicco', 'baby bjorn', 'silver cross', 'bugaboo', 'joie', 'maxi cosi',
     // Characters/Licenses (treat same as brands)
@@ -1559,6 +1562,30 @@ Format: ["id1", "id2", ...]`
             ));
             console.log(`[Shop Search] Applying GPT-extracted brand filter: ${gptBrand}`);
           }
+          
+          // CRITICAL FIX: Apply mustHaveAll as hard SQL filters in keyword search path
+          // This was missing! mustHaveAll terms must appear in results
+          if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
+            for (const term of interpretation.mustHaveAll) {
+              // Skip brand terms already handled by brand filter above
+              if (interpretation.attributes?.brand && 
+                  term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
+                continue;
+              }
+              // Add as hard filter: term must appear in name, description, or category
+              const mustHaveCondition = or(
+                ilike(products.name, `%${term}%`),
+                ilike(products.description, `%${term}%`),
+                ilike(products.category, `%${term}%`),
+                ilike(products.brand, `%${term}%`)
+              );
+              if (mustHaveCondition) {
+                baseConditions.push(mustHaveCondition as any);
+                console.log(`[Shop Search] Keyword path: Requiring "${term}" in results (mustHaveAll)`);
+              }
+            }
+          }
+          
           if (filterMinPrice !== undefined) {
             baseConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filterMinPrice}`);
           }
