@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunny Search Quality Audit</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; color: #e2e8f0; padding: 20px; line-height: 1.5;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #f8fafc; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #94a3b8; margin-bottom: 30px; }
+        
+        .controls { 
+            background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px;
+            display: flex; gap: 15px; flex-wrap: wrap; align-items: center;
+        }
+        button { 
+            background: #3b82f6; color: white; border: none; padding: 12px 24px;
+            border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        button.secondary { background: #475569; }
+        button.secondary:hover { background: #64748b; }
+        
+        select, input { 
+            background: #334155; border: 1px solid #475569; color: #e2e8f0;
+            padding: 10px 15px; border-radius: 8px; font-size: 14px;
+        }
+        
+        .summary { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px; margin-bottom: 20px;
+        }
+        .stat-card { 
+            background: #1e293b; border-radius: 12px; padding: 20px; text-align: center;
+        }
+        .stat-value { font-size: 36px; font-weight: bold; }
+        .stat-label { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+        .pass .stat-value { color: #22c55e; }
+        .partial .stat-value { color: #eab308; }
+        .fail .stat-value { color: #ef4444; }
+        .total .stat-value { color: #3b82f6; }
+        
+        .progress-bar { 
+            background: #334155; border-radius: 8px; height: 12px; margin: 20px 0;
+            overflow: hidden; display: flex;
+        }
+        .progress-pass { background: #22c55e; transition: width 0.3s; }
+        .progress-partial { background: #eab308; transition: width 0.3s; }
+        .progress-fail { background: #ef4444; transition: width 0.3s; }
+        
+        .results { background: #1e293b; border-radius: 12px; padding: 20px; }
+        .results h2 { margin-bottom: 15px; font-size: 20px; }
+        
+        .result-item { 
+            background: #0f172a; border-radius: 8px; padding: 15px; margin-bottom: 10px;
+            border-left: 4px solid #475569;
+        }
+        .result-item.pass { border-left-color: #22c55e; }
+        .result-item.partial { border-left-color: #eab308; }
+        .result-item.fail { border-left-color: #ef4444; }
+        
+        .result-header { 
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px;
+        }
+        .query-text { font-weight: 600; font-size: 16px; }
+        .status-badge { 
+            padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+        }
+        .status-badge.pass { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .status-badge.partial { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+        .status-badge.fail { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        
+        .result-meta { 
+            display: flex; gap: 20px; font-size: 13px; color: #94a3b8; margin-bottom: 10px;
+        }
+        .result-products { font-size: 13px; }
+        .product-tag { 
+            display: inline-block; background: #334155; padding: 4px 10px;
+            border-radius: 4px; margin: 2px; font-size: 12px;
+        }
+        .product-tag.relevant { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .product-tag.irrelevant { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        
+        .log { 
+            background: #0f172a; border-radius: 8px; padding: 15px; margin-top: 15px;
+            font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;
+        }
+        .log-entry { padding: 2px 0; }
+        .log-entry.info { color: #3b82f6; }
+        .log-entry.success { color: #22c55e; }
+        .log-entry.warning { color: #eab308; }
+        .log-entry.error { color: #ef4444; }
+        
+        .filter-row { 
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+        }
+        .filter-row label { color: #94a3b8; font-size: 14px; }
+        
+        .hidden { display: none; }
+        
+        .loading { 
+            display: flex; align-items: center; gap: 10px; color: #94a3b8;
+        }
+        .spinner { 
+            width: 20px; height: 20px; border: 2px solid #475569;
+            border-top-color: #3b82f6; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sunny Search Quality Audit</h1>
+        <p class="subtitle">Testing search relevance across 355 real-world queries</p>
+        
+        <div class="controls">
+            <button id="runAudit" data-testid="button-run-audit">Run Full Audit</button>
+            <button id="runSample" class="secondary" data-testid="button-run-sample">Run Sample (20)</button>
+            
+            <div class="filter-row">
+                <label>Filter:</label>
+                <select id="categoryFilter" data-testid="select-category">
+                    <option value="">All Categories</option>
+                    <option value="brand_shoe">Brand + Shoe</option>
+                    <option value="brand_clothing">Brand + Clothing</option>
+                    <option value="character_toy">Character + Toy</option>
+                    <option value="character_product">Character + Product</option>
+                    <option value="age_interest_budget">Age + Interest + Budget</option>
+                    <option value="brand_budget">Brand + Budget</option>
+                    <option value="product_feature">Product + Feature</option>
+                </select>
+            </div>
+            
+            <div class="filter-row">
+                <label>Show:</label>
+                <select id="statusFilter" data-testid="select-status">
+                    <option value="">All Results</option>
+                    <option value="fail">Failures Only</option>
+                    <option value="partial">Partial Only</option>
+                    <option value="pass">Passes Only</option>
+                </select>
+            </div>
+            
+            <button id="downloadResults" class="secondary" data-testid="button-download">Download CSV</button>
+        </div>
+        
+        <div class="summary">
+            <div class="stat-card total">
+                <div class="stat-value" id="totalCount">0</div>
+                <div class="stat-label">Total Queries</div>
+            </div>
+            <div class="stat-card pass">
+                <div class="stat-value" id="passCount">0</div>
+                <div class="stat-label">Pass (80%+)</div>
+            </div>
+            <div class="stat-card partial">
+                <div class="stat-value" id="partialCount">0</div>
+                <div class="stat-label">Partial (50-79%)</div>
+            </div>
+            <div class="stat-card fail">
+                <div class="stat-value" id="failCount">0</div>
+                <div class="stat-label">Fail (&lt;50%)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="passRate">-</div>
+                <div class="stat-label">Pass Rate</div>
+            </div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-pass" id="progressPass" style="width: 0%"></div>
+            <div class="progress-partial" id="progressPartial" style="width: 0%"></div>
+            <div class="progress-fail" id="progressFail" style="width: 0%"></div>
+        </div>
+        
+        <div class="log" id="log">
+            <div class="log-entry info">Ready to run audit. Click "Run Full Audit" to start.</div>
+        </div>
+        
+        <div class="results" id="results">
+            <h2>Results <span id="resultCount"></span></h2>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+    
+    <script>
+        let allResults = [];
+        let allQueries = [];
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStats(summary) {
+            document.getElementById('totalCount').textContent = summary.total;
+            document.getElementById('passCount').textContent = summary.pass;
+            document.getElementById('partialCount').textContent = summary.partial;
+            document.getElementById('failCount').textContent = summary.fail;
+            document.getElementById('passRate').textContent = summary.pass_rate;
+            
+            const total = summary.total || 1;
+            document.getElementById('progressPass').style.width = (summary.pass / total * 100) + '%';
+            document.getElementById('progressPartial').style.width = (summary.partial / total * 100) + '%';
+            document.getElementById('progressFail').style.width = (summary.fail / total * 100) + '%';
+        }
+        
+        function renderResult(result) {
+            const status = result.analysis.status.toLowerCase();
+            const products = result.search_result.products || [];
+            
+            return `
+                <div class="result-item ${status}" data-category="${result.category || ''}" data-status="${status}">
+                    <div class="result-header">
+                        <span class="query-text">${result.query}</span>
+                        <span class="status-badge ${status}">${result.analysis.status}</span>
+                    </div>
+                    <div class="result-meta">
+                        <span>DB: ${result.database_check.exists ? result.database_check.count + ' products' : 'None found'}</span>
+                        <span>Returned: ${result.search_result.count}</span>
+                        <span>Relevant: ${result.analysis.relevant_count}/${result.analysis.total_returned} (${Math.round(result.analysis.relevance_score * 100)}%)</span>
+                        <span>Time: ${result.search_result.time_ms}ms</span>
+                    </div>
+                    <div class="result-products">
+                        ${products.map(p => `
+                            <span class="product-tag ${p.relevant ? 'relevant' : 'irrelevant'}">
+                                ${p.name?.substring(0, 50)}${p.name?.length > 50 ? '...' : ''} - £${p.price?.toFixed(2) || '?'}
+                                ${p.issues ? ' [' + p.issues.join(', ') + ']' : ''}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderResults(results) {
+            const category = document.getElementById('categoryFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            
+            const filtered = results.filter(r => {
+                if (category && r.category !== category) return false;
+                if (status && r.analysis.status.toLowerCase() !== status) return false;
+                return true;
+            });
+            
+            document.getElementById('resultCount').textContent = `(${filtered.length} shown)`;
+            document.getElementById('resultsList').innerHTML = filtered.map(renderResult).join('');
+        }
+        
+        async function loadQueries() {
+            try {
+                const res = await fetch('/api/audit/queries');
+                const data = await res.json();
+                allQueries = data.queries || [];
+                log(`Loaded ${allQueries.length} test queries`, 'success');
+                return allQueries;
+            } catch (e) {
+                log(`Failed to load queries: ${e.message}`, 'error');
+                return [];
+            }
+        }
+        
+        async function runAudit(queries) {
+            const btn = document.getElementById('runAudit');
+            const sampleBtn = document.getElementById('runSample');
+            btn.disabled = true;
+            sampleBtn.disabled = true;
+            btn.innerHTML = '<span class="loading"><span class="spinner"></span> Running...</span>';
+            
+            log(`Starting audit with ${queries.length} queries...`);
+            allResults = [];
+            
+            const batchSize = 10;
+            let pass = 0, partial = 0, fail = 0;
+            
+            for (let i = 0; i < queries.length; i += batchSize) {
+                const batch = queries.slice(i, i + batchSize);
+                log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(queries.length/batchSize)}...`);
+                
+                try {
+                    const res = await fetch('/api/audit/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ queries: batch, check_relevance: true, limit: 10 })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.results) {
+                        allResults.push(...data.results);
+                        pass += data.summary.pass;
+                        partial += data.summary.partial;
+                        fail += data.summary.fail;
+                        
+                        updateStats({ total: allResults.length, pass, partial, fail, pass_rate: Math.round(pass/allResults.length*100) + '%' });
+                        renderResults(allResults);
+                        
+                        for (const r of data.results) {
+                            const s = r.analysis.status;
+                            log(`${r.query}: ${s} (${r.search_result.count} results, ${Math.round(r.analysis.relevance_score*100)}% relevant)`, 
+                                s === 'PASS' ? 'success' : s === 'PARTIAL' ? 'warning' : 'error');
+                        }
+                    }
+                } catch (e) {
+                    log(`Batch failed: ${e.message}`, 'error');
+                }
+            }
+            
+            log(`Audit complete! Pass: ${pass}, Partial: ${partial}, Fail: ${fail}`, 'success');
+            
+            btn.disabled = false;
+            sampleBtn.disabled = false;
+            btn.textContent = 'Run Full Audit';
+        }
+        
+        function downloadCSV() {
+            if (allResults.length === 0) {
+                alert('No results to download. Run an audit first.');
+                return;
+            }
+            
+            const headers = ['Query', 'Category', 'Status', 'DB Exists', 'DB Count', 'Search Count', 'Relevant', 'Relevance %', 'Time (ms)'];
+            const rows = allResults.map(r => [
+                `"${r.query}"`,
+                r.category || '',
+                r.analysis.status,
+                r.database_check.exists ? 'Yes' : 'No',
+                r.database_check.count,
+                r.search_result.count,
+                r.analysis.relevant_count,
+                Math.round(r.analysis.relevance_score * 100),
+                r.search_result.time_ms
+            ]);
+            
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-results-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+        
+        document.getElementById('runAudit').addEventListener('click', async () => {
+            if (allQueries.length === 0) await loadQueries();
+            runAudit(allQueries);
+        });
+        
+        document.getElementById('runSample').addEventListener('click', async () => {
+            if (allQueries.length === 0) await loadQueries();
+            const sample = allQueries.sort(() => Math.random() - 0.5).slice(0, 20);
+            runAudit(sample);
+        });
+        
+        document.getElementById('categoryFilter').addEventListener('change', () => renderResults(allResults));
+        document.getElementById('statusFilter').addEventListener('change', () => renderResults(allResults));
+        document.getElementById('downloadResults').addEventListener('click', downloadCSV);
+        
+        loadQueries();
+    </script>
+</body>
+</html>

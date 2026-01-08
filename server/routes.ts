@@ -3528,6 +3528,267 @@ ONLY use IDs from the list. Never invent IDs.`
   });
 
   // ============================================================
+  // SEARCH QUALITY AUDIT ENDPOINTS
+  // ============================================================
+  
+  // Database check - verify products exist for given keywords
+  app.get("/api/audit/db-check", async (req, res) => {
+    try {
+      const keywords = (req.query.keywords as string || '').split(',').filter(k => k.trim());
+      const maxPrice = req.query.max_price ? parseFloat(req.query.max_price as string) : undefined;
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+      
+      if (keywords.length === 0) {
+        return res.status(400).json({ error: 'keywords parameter required (comma-separated)' });
+      }
+      
+      // Build SQL to check if products exist
+      const conditions: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+      
+      for (const keyword of keywords) {
+        conditions.push(`(LOWER(name) LIKE $${paramIndex} OR LOWER(description) LIKE $${paramIndex} OR LOWER(brand) LIKE $${paramIndex})`);
+        params.push(`%${keyword.toLowerCase().trim()}%`);
+        paramIndex++;
+      }
+      
+      let sql = `SELECT id, name, brand, price, merchant, category FROM products WHERE ${conditions.join(' AND ')}`;
+      
+      if (maxPrice !== undefined && !isNaN(maxPrice)) {
+        sql += ` AND price <= $${paramIndex}`;
+        params.push(maxPrice);
+        paramIndex++;
+      }
+      
+      sql += ` LIMIT ${limit}`;
+      
+      const { db } = await import('./db');
+      const { sql: sqlTag } = await import('drizzle-orm');
+      
+      // Use raw query
+      const countSql = `SELECT COUNT(*) as total FROM products WHERE ${conditions.join(' AND ')}${maxPrice !== undefined ? ` AND price <= $${paramIndex - 1}` : ''}`;
+      
+      const countResult = await db.execute(sqlTag.raw(`SELECT COUNT(*) as total FROM products WHERE ${conditions.map((_, i) => `(LOWER(name) LIKE '%${keywords[i].toLowerCase().trim()}%' OR LOWER(description) LIKE '%${keywords[i].toLowerCase().trim()}%' OR LOWER(brand) LIKE '%${keywords[i].toLowerCase().trim()}%')`).join(' AND ')}${maxPrice !== undefined ? ` AND price <= ${maxPrice}` : ''}`)) as any;
+      
+      const sampleResult = await db.execute(sqlTag.raw(`SELECT id, name, brand, price, merchant, category FROM products WHERE ${conditions.map((_, i) => `(LOWER(name) LIKE '%${keywords[i].toLowerCase().trim()}%' OR LOWER(description) LIKE '%${keywords[i].toLowerCase().trim()}%' OR LOWER(brand) LIKE '%${keywords[i].toLowerCase().trim()}%')`).join(' AND ')}${maxPrice !== undefined ? ` AND price <= ${maxPrice}` : ''} LIMIT ${limit}`)) as any;
+      
+      const total = parseInt(countResult[0]?.total || countResult.rows?.[0]?.total || '0');
+      
+      res.json({
+        keywords,
+        max_price: maxPrice,
+        exists: total > 0,
+        count: total,
+        sample_products: sampleResult.rows || sampleResult
+      });
+    } catch (error) {
+      console.error('[Audit] DB check error:', error);
+      res.status(500).json({ error: 'Database check failed', details: String(error) });
+    }
+  });
+  
+  // Run full audit - check queries against search API and score relevance
+  app.post("/api/audit/run", async (req, res) => {
+    try {
+      const { queries, check_relevance = true, limit = 10 } = req.body;
+      
+      if (!queries || !Array.isArray(queries)) {
+        return res.status(400).json({ error: 'queries array required' });
+      }
+      
+      const results: any[] = [];
+      let passCount = 0, partialCount = 0, failCount = 0;
+      
+      for (const testQuery of queries) {
+        const { query, required_keywords, max_price, expected_brand, expected_character, category } = testQuery;
+        const requiredKws = (required_keywords || '').split(',').map((k: string) => k.trim().toLowerCase()).filter((k: string) => k);
+        
+        const startTime = Date.now();
+        
+        // Step 1: Check if products exist in DB
+        let dbExists = false;
+        let dbCount = 0;
+        try {
+          const { db } = await import('./db');
+          const { sql: sqlTag } = await import('drizzle-orm');
+          
+          const kwConditions = requiredKws.length > 0
+            ? requiredKws.map((kw: string) => `(LOWER(name) LIKE '%${kw.replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${kw.replace(/'/g, "''")}%')`).join(' OR ')
+            : `LOWER(name) LIKE '%${query.toLowerCase().replace(/'/g, "''").split(' ')[0]}%'`;
+          
+          const priceCondition = max_price ? ` AND price <= ${parseFloat(max_price)}` : '';
+          const countResult = await db.execute(sqlTag.raw(`SELECT COUNT(*) as total FROM products WHERE (${kwConditions})${priceCondition}`)) as any;
+          dbCount = parseInt(countResult[0]?.total || countResult.rows?.[0]?.total || '0');
+          dbExists = dbCount > 0;
+        } catch (e) {
+          console.error(`[Audit] DB check failed for "${query}":`, e);
+        }
+        
+        // Step 2: Run search API
+        let searchResults: any[] = [];
+        let searchTime = 0;
+        try {
+          const searchStart = Date.now();
+          const products = await fetchAwinProducts(query, undefined, limit);
+          searchTime = Date.now() - searchStart;
+          searchResults = products;
+        } catch (e) {
+          console.error(`[Audit] Search failed for "${query}":`, e);
+        }
+        
+        // Step 3: Score relevance
+        let relevantCount = 0;
+        const scoredProducts: any[] = [];
+        
+        for (const product of searchResults) {
+          const productText = `${product.title} ${product.description || ''} ${product.merchant || ''}`.toLowerCase();
+          let isRelevant = true;
+          const issues: string[] = [];
+          
+          // Check required keywords
+          if (check_relevance && requiredKws.length > 0) {
+            for (const kw of requiredKws) {
+              if (!productText.includes(kw)) {
+                isRelevant = false;
+                issues.push(`Missing: ${kw}`);
+                break; // At least one required keyword missing
+              }
+            }
+          }
+          
+          // Check price constraint
+          if (max_price && product.salePrice > parseFloat(max_price)) {
+            isRelevant = false;
+            issues.push(`Price ${product.salePrice} > ${max_price}`);
+          }
+          
+          // Check expected brand
+          if (expected_brand && !productText.includes(expected_brand.toLowerCase())) {
+            isRelevant = false;
+            issues.push(`Not ${expected_brand}`);
+          }
+          
+          // Check expected character
+          if (expected_character && !productText.includes(expected_character.toLowerCase())) {
+            isRelevant = false;
+            issues.push(`Not ${expected_character}`);
+          }
+          
+          if (isRelevant) relevantCount++;
+          
+          scoredProducts.push({
+            name: product.title,
+            price: product.salePrice,
+            merchant: product.merchant,
+            relevant: isRelevant,
+            issues: issues.length > 0 ? issues : undefined
+          });
+        }
+        
+        // Calculate relevance score
+        const relevanceScore = searchResults.length > 0 ? relevantCount / searchResults.length : 0;
+        
+        // Determine status
+        let status: string;
+        if (searchResults.length === 0 && dbExists) {
+          status = 'FAIL';
+          failCount++;
+        } else if (relevanceScore >= 0.8) {
+          status = 'PASS';
+          passCount++;
+        } else if (relevanceScore >= 0.5) {
+          status = 'PARTIAL';
+          partialCount++;
+        } else {
+          status = 'FAIL';
+          failCount++;
+        }
+        
+        results.push({
+          query,
+          category,
+          database_check: { exists: dbExists, count: dbCount },
+          search_result: {
+            count: searchResults.length,
+            time_ms: searchTime,
+            products: scoredProducts.slice(0, 5) // Limit to first 5 for readability
+          },
+          analysis: {
+            status,
+            relevance_score: Math.round(relevanceScore * 100) / 100,
+            relevant_count: relevantCount,
+            total_returned: searchResults.length
+          }
+        });
+      }
+      
+      const totalTime = Date.now();
+      
+      res.json({
+        summary: {
+          total: results.length,
+          pass: passCount,
+          partial: partialCount,
+          fail: failCount,
+          pass_rate: Math.round((passCount / results.length) * 100) + '%'
+        },
+        results
+      });
+    } catch (error) {
+      console.error('[Audit] Run error:', error);
+      res.status(500).json({ error: 'Audit failed', details: String(error) });
+    }
+  });
+  
+  // Get test queries CSV
+  app.get("/api/audit/queries", async (req, res) => {
+    try {
+      const csvPath = path.join(process.cwd(), 'public', 'test-queries.csv');
+      if (fs.existsSync(csvPath)) {
+        const csv = fs.readFileSync(csvPath, 'utf8');
+        const lines = csv.split('\n').filter(l => l.trim());
+        const headers = lines[0].split(',');
+        const queries = lines.slice(1).map(line => {
+          // Parse CSV properly (handle quoted fields)
+          const values: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (const char of line) {
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current.trim());
+          
+          return {
+            query: values[0]?.replace(/^"|"$/g, ''),
+            category: values[1]?.replace(/^"|"$/g, ''),
+            required_keywords: values[2]?.replace(/^"|"$/g, ''),
+            optional_keywords: values[3]?.replace(/^"|"$/g, ''),
+            max_price: values[4] ? parseFloat(values[4]) : undefined,
+            expected_brand: values[5]?.replace(/^"|"$/g, ''),
+            expected_character: values[6]?.replace(/^"|"$/g, ''),
+            notes: values[7]?.replace(/^"|"$/g, '')
+          };
+        }).filter(q => q.query);
+        
+        res.json({ count: queries.length, queries });
+      } else {
+        res.status(404).json({ error: 'Test queries file not found' });
+      }
+    } catch (error) {
+      console.error('[Audit] Queries error:', error);
+      res.status(500).json({ error: 'Failed to load queries' });
+    }
+  });
+
+  // ============================================================
   // ADMIN EXPORT ENDPOINT - Download all source code as ZIP
   // ============================================================
   app.get("/api/admin/export", async (req, res) => {
