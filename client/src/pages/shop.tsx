@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, ShoppingBag, ExternalLink, Loader2, X } from "lucide-react";
+import { Search, ExternalLink, Loader2, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -79,6 +79,7 @@ export default function ShopSearch() {
   const [currentOffset, setCurrentOffset] = useState(0);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
+  const [searchTime, setSearchTime] = useState<number | null>(null);
 
   const performSearch = async (searchText: string, appliedFilters: ActiveFilters = {}, offset = 0) => {
     if (!searchText.trim()) return;
@@ -87,11 +88,13 @@ export default function ShopSearch() {
     if (isNewSearch) {
       setIsLoading(true);
       setProducts([]);
+      setSearchTime(null);
     } else {
       setIsLoadingMore(true);
     }
     setError(null);
 
+    const startTime = performance.now();
     try {
       const response = await fetch("/api/shop/search", {
         method: "POST",
@@ -124,6 +127,9 @@ export default function ShopSearch() {
         setHasMore(data.hasMore);
         setTotalCount(data.totalCount);
         setCurrentOffset(offset + data.products.length);
+        if (isNewSearch) {
+          setSearchTime((performance.now() - startTime) / 1000);
+        }
       }
     } catch (err) {
       setError("Failed to connect to search service");
@@ -181,15 +187,20 @@ export default function ShopSearch() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <header className="text-center py-8">
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-3 flex items-center justify-center gap-3">
-            <ShoppingBag className="w-10 h-10 text-yellow-300" />
-            <span>Sunny <span className="text-yellow-300">Shop</span></span>
+            <span>Sunny <span className="text-yellow-300">VS01</span></span>
           </h1>
-          <p className="text-lg text-white/80">
-            AI-powered search across 115,000+ family products
+          <p className="text-lg text-white/80 flex items-center justify-center gap-2">
+            <Sparkles className="w-5 h-5 text-yellow-300" />
+            AI Intelligent search across 1,100,000+ products
           </p>
           <p className="text-sm text-white/60 mt-1">
             Zero hallucinations - only real products from real retailers
           </p>
+          {searchTime !== null && (
+            <p className="text-sm text-yellow-300/80 mt-2">
+              Results returned in {searchTime.toFixed(1)} seconds
+            </p>
+          )}
         </header>
 
         <form onSubmit={handleSubmit} className="max-w-2xl mx-auto mb-6">
@@ -336,7 +347,7 @@ export default function ShopSearch() {
         {isLoading && (
           <div className="text-center text-white py-12" data-testid="text-loading">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" />
-            <p>Searching 115,000+ products...</p>
+            <p>Searching 1,100,000+ products...</p>
           </div>
         )}
 
@@ -361,7 +372,7 @@ export default function ShopSearch() {
                         }}
                       />
                     ) : (
-                      <ShoppingBag className="w-16 h-16 text-gray-300" />
+                      <Sparkles className="w-16 h-16 text-gray-300" />
                     )}
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
@@ -431,8 +442,8 @@ export default function ShopSearch() {
         )}
 
         <footer className="text-center text-white/50 text-sm mt-12 py-6">
-          <p>Powered by Awin affiliate network</p>
-          <p className="mt-1">All products are real - sourced directly from retailer datafeeds</p>
+          <p>All products are real - sourced directly from retailer datafeeds</p>
+          <p className="mt-1">Designed by Andrew Kilmartin</p>
         </footer>
       </div>
     </div>
