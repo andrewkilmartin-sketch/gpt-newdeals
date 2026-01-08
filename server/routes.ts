@@ -1834,6 +1834,110 @@ Format: ["id1", "id2", ...]`
         } // Close if (words.length > 0)
       } // Close else (original keyword search)
       
+      // FALLBACK: If 0 results, suggest alternatives based on product category
+      if (candidates.length === 0 && openaiKey) {
+        console.log(`[Shop Search] 0 results for "${query}" - attempting fallback suggestions`);
+        
+        try {
+          const openai = new OpenAI({ apiKey: openaiKey });
+          
+          // Ask GPT to suggest alternative search terms
+          const fallbackResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            temperature: 0.3,
+            max_tokens: 100,
+            messages: [
+              {
+                role: 'system',
+                content: `User searched for a product we don't have. Suggest 2-3 alternative generic search terms.
+Return ONLY a JSON array of search terms, no explanation.
+Examples:
+- "sophie giraffe" → ["teething toys", "baby toys", "sensory toys"]
+- "orchard toys games" → ["kids board games", "educational games", "children puzzles"]
+- "snuzpod crib" → ["bedside crib", "baby crib", "moses basket"]`
+              },
+              { role: 'user', content: `Suggest alternatives for: "${query}"` }
+            ]
+          });
+          
+          const fallbackContent = fallbackResponse.choices[0]?.message?.content?.trim() || '[]';
+          let alternativeTerms: string[] = [];
+          try {
+            alternativeTerms = JSON.parse(fallbackContent);
+          } catch { alternativeTerms = []; }
+          
+          if (alternativeTerms.length > 0) {
+            // Search for first alternative term
+            const altTerm = alternativeTerms[0];
+            console.log(`[Shop Search] Fallback: Searching for "${altTerm}" instead`);
+            
+            const altWords = altTerm.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            if (altWords.length > 0) {
+              const altConditions = altWords.map(w => {
+                const pattern = `%${w}%`;
+                return or(
+                  ilike(products.name, pattern),
+                  ilike(products.description, pattern),
+                  ilike(products.category, pattern)
+                );
+              });
+              
+              const fallbackResults = await db.select({
+                id: products.id,
+                name: products.name,
+                description: products.description,
+                price: products.price,
+                merchant: products.merchant,
+                brand: products.brand,
+                category: products.category,
+                affiliate_link: products.affiliateLink,
+                image_url: products.imageUrl,
+                in_stock: products.inStock
+              }).from(products)
+                .where(and(...altConditions, isNotNull(products.affiliateLink)))
+                .orderBy(sql`RANDOM()`)
+                .limit(safeLimit);
+              
+              if (fallbackResults.length > 0) {
+                console.log(`[Shop Search] Fallback found ${fallbackResults.length} alternatives for "${altTerm}"`);
+                
+                const fallbackProducts = fallbackResults.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  price: parseFloat(p.price) || 0,
+                  merchant: p.merchant,
+                  brand: p.brand,
+                  category: p.category,
+                  affiliateLink: p.affiliate_link,
+                  imageUrl: p.image_url,
+                  inStock: p.in_stock
+                }));
+                
+                return res.json({
+                  success: true,
+                  query,
+                  count: fallbackProducts.length,
+                  totalCount: 0,
+                  hasMore: false,
+                  products: fallbackProducts,
+                  fallback: {
+                    reason: `No exact matches for "${query}"`,
+                    showingAlternative: altTerm,
+                    otherSuggestions: alternativeTerms.slice(1)
+                  },
+                  interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined
+                });
+              }
+            }
+          }
+        } catch (fallbackError) {
+          console.error('[Shop Search] Fallback suggestion failed:', fallbackError);
+        }
+        
+        // If fallback also fails, return empty
+        return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
+      }
+      
       if (candidates.length === 0) {
         return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
       }
