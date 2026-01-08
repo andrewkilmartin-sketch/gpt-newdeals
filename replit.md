@@ -73,6 +73,14 @@ Database state:
 - **Test**: Search "star wars lego under £20" should return LEGO Star Wars products specifically
 - **Note**: V2 uses full-text search for mustHaveAll but has different product data (Nike x Lego only, no actual Lego sets)
 
+**Issue 6: /shopping/awin-link Searching Empty CSV Cache Instead of PostgreSQL (Fixed Jan 8, 2026)**
+- **Symptom**: Search for "shape sorter" returns 0 products even though 51 exist in database
+- **Root Cause**: `fetchAwinProducts()` in `server/services/awin.ts` was searching an in-memory MiniSearch index loaded from CSV files, NOT the PostgreSQL database with 1.1M products
+- **Fix**: Updated `fetchAwinProducts()` to call `storage.searchProducts()` which queries PostgreSQL directly
+- **Location**: `server/services/awin.ts` line ~640 - now uses `storage.searchProducts()` instead of `searchProducts()` from product-feed.ts
+- **Test**: Search "shape sorter" should return Trixie Wooden Shape Sorter, LEGO DUPLO Shape Sorter, etc.
+- **Impact**: This fix potentially improves search accuracy from ~78% to 95%+ for the Sunny chat endpoint
+
 ### Pre-Deployment Checklist
 
 Before every deployment:

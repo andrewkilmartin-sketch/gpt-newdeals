@@ -1,6 +1,7 @@
 import { ShoppingDeal } from "@shared/schema";
 import { indexPromotions, semanticSearch, isEmbeddingsReady, getEmbeddingCount } from "./embeddings";
 import { loadProductFeed, searchProducts, isProductFeedLoaded, getProductCount } from "./product-feed";
+import { storage } from "../storage";
 
 const AWIN_API_KEY = process.env.AWIN_API_KEY;
 const AWIN_PUBLISHER_ID = process.env.AWIN_PUBLISHER_ID;
@@ -633,30 +634,37 @@ export async function fetchAwinProducts(query?: string, category?: string, limit
       return validDeals;
     }
     
-    // PRODUCT QUERIES: Search product datafeed only (no promotion fallback)
-    if (isProductFeedLoaded()) {
-      console.log(`Searching ${getProductCount()} products from datafeed...`);
+    // PRODUCT QUERIES: Search PostgreSQL database (1.1M+ products)
+    const searchQuery = [query, category].filter(Boolean).join(' ');
+    if (searchQuery) {
+      console.log(`Searching PostgreSQL database for: "${searchQuery}"...`);
       
-      const products = searchProducts(query, category, limit);
-      
-      for (const product of products) {
-        deals.push({
-          id: `awin-product-${product.id}`,
-          title: product.name,
-          description: product.description || `${product.brand} product from ${product.merchant}`,
-          merchant: product.merchant,
-          originalPrice: product.price,
-          salePrice: product.price,
-          discount: "Available now",
-          category: product.category || "General",
-          affiliateLink: product.affiliateLink,
-          imageUrl: product.imageUrl
-        });
+      try {
+        const { products } = await storage.searchProducts(searchQuery, limit);
+        console.log(`PostgreSQL returned ${products.length} products for "${searchQuery}"`);
+        
+        for (const product of products) {
+          deals.push({
+            id: `awin-product-${product.id}`,
+            title: product.name,
+            description: product.description || `${product.brand} product from ${product.merchant}`,
+            merchant: product.merchant,
+            originalPrice: product.price,
+            salePrice: product.price,
+            discount: "Available now",
+            category: product.category || undefined,
+            affiliateLink: product.affiliateLink,
+            imageUrl: product.imageUrl
+          });
+        }
+        
+        // Return products from database
+        console.log(`Returning ${deals.length} products from PostgreSQL`);
+        return deals;
+      } catch (error) {
+        console.error('PostgreSQL search error:', error);
+        // Fall through to promotion fallback
       }
-      
-      // For product queries, return just products (no promotion fallback)
-      console.log(`Found ${deals.length} products from datafeed`);
-      return deals;
     }
 
     // FALLBACK: Only if no product datafeed loaded, try promotions
