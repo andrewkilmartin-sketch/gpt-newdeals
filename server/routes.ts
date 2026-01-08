@@ -1372,6 +1372,10 @@ Format: ["id1", "id2", ...]`
         
         // Build filter conditions for semantic queries (same as regular search)
         const filterConditions: ReturnType<typeof ilike>[] = [];
+        
+        // Exclude products with broken/missing images
+        filterConditions.push(sql`${products.imageUrl} NOT ILIKE '%noimage%'` as any);
+        
         if (filterCategory) {
           filterConditions.push(ilike(products.category, `%${filterCategory}%`));
         }
@@ -1506,7 +1510,8 @@ Format: ["id1", "id2", ...]`
           // Build base WHERE clause with keyword matching
           const baseConditions = [
             ...wordConditions,
-            isNotNull(products.affiliateLink)
+            isNotNull(products.affiliateLink),
+            sql`${products.imageUrl} NOT ILIKE '%noimage%'`  // Exclude broken images
           ];
           
           // Apply user's filter selections
@@ -1977,6 +1982,10 @@ ONLY use IDs from the list. Never invent IDs.`
         const seenIds = new Set<string>();
         
         const filterConditions: any[] = [];
+        
+        // Exclude products with broken/missing images
+        filterConditions.push(sql`${productsV2.imageUrl} NOT ILIKE '%noimage%'`);
+        
         if (filterCategory) {
           filterConditions.push(ilike(productsV2.category, `%${filterCategory}%`));
         }
@@ -2497,7 +2506,8 @@ ONLY use IDs from the list. Never invent IDs.`
           
           const baseConditions: any[] = [
             ...wordConditions,
-            isNotNull(productsV2.affiliateLink)
+            isNotNull(productsV2.affiliateLink),
+            sql`${productsV2.imageUrl} NOT ILIKE '%noimage%'`  // Exclude broken images
           ];
           
           if (filterCategory) {
