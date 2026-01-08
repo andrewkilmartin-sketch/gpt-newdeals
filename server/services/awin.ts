@@ -623,15 +623,46 @@ export async function fetchAwinProducts(query?: string, category?: string, limit
         });
       }
       
-      // For brand queries, return just promotions (no product fallback)
+      // For brand queries, filter valid deals first
       const validDeals = deals.filter(deal => {
         if (isBlockedDomain(deal.affiliateLink)) return false;
         if (!isValidAffiliateLink(deal.affiliateLink)) return false;
         return true;
       });
       
-      console.log(`Returning ${validDeals.length} brand promotions for "${query}"`);
-      return validDeals;
+      // If we found promotions, return them
+      if (validDeals.length > 0) {
+        console.log(`Returning ${validDeals.length} brand promotions for "${query}"`);
+        return validDeals;
+      }
+      
+      // FALLBACK: No promotions found for brand - search product database instead
+      console.log(`No promotions found for brand "${query}" - falling back to product database search`);
+      try {
+        const { products } = await storage.searchProducts(query || '', limit);
+        console.log(`PostgreSQL returned ${products.length} products for brand "${query}"`);
+        
+        for (const product of products) {
+          deals.push({
+            id: `awin-product-${product.id}`,
+            title: product.name,
+            description: product.description || `${product.brand} product from ${product.merchant}`,
+            merchant: product.merchant,
+            originalPrice: product.price,
+            salePrice: product.price,
+            discount: "Available now",
+            category: product.category || undefined,
+            affiliateLink: product.affiliateLink,
+            imageUrl: product.imageUrl
+          });
+        }
+        
+        console.log(`Returning ${deals.length} products from PostgreSQL for brand "${query}"`);
+        return deals;
+      } catch (error) {
+        console.error('PostgreSQL brand search error:', error);
+        return [];
+      }
     }
     
     // PRODUCT QUERIES: Search PostgreSQL database (1.1M+ products)
