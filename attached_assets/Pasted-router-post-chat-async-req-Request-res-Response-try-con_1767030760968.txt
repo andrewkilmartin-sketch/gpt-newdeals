@@ -1,0 +1,160 @@
+router.post('/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, sessionId } = req.body;
+    const sid = sessionId || 'default-' + Math.random().toString(36).substring(7);
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message required' });
+    }
+
+    console.log(`\n[Sunny] ══════════ NEW MESSAGE ══════════`);
+    console.log(`[Sunny] Session: ${sid}`);
+    console.log(`[Sunny] User: "${message}"`);
+
+    // Get or create conversation
+    let convo = conversations.get(sid);
+    if (!convo) {
+      convo = { messages: [], lastActive: Date.now() };
+      conversations.set(sid, convo);
+    }
+    convo.lastActive = Date.now();
+    convo.messages.push({ role: 'user', content: message });
+
+    if (convo.messages.length > 20) {
+      convo.messages = convo.messages.slice(-20);
+    }
+
+    // First AI call - let it pick ONE tool
+    let response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...convo.messages
+      ],
+      tools: tools,
+      tool_choice: 'auto',
+      temperature: 0.7
+    });
+
+    let assistantMessage = response.choices[0].message;
+    const toolResults: any[] = [];
+    
+    // Handle tool calls
+    if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      convo.messages.push(assistantMessage);
+      
+      for (const toolCall of assistantMessage.tool_calls) {
+        const args = JSON.parse(toolCall.function.arguments);
+        console.log(`[Sunny] Calling ${toolCall.function.name}:`, args);
+        
+        const result = await executeTool(toolCall.function.name, args);
+        toolResults.push({ tool: toolCall.function.name, args, result });
+        
+        convo.messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result)
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // AUTO-UPSELL: If attractions searched, automatically get products
+        // ═══════════════════════════════════════════════════════════════
+        if (toolCall.function.name === 'search_attractions' && result.results?.length > 0) {
+          const query = args.query?.toLowerCase() || '';
+          let productQuery = 'kids travel';
+          
+          if (query.includes('zoo') || query.includes('safari') || query.includes('animal')) {
+            productQuery = 'binoculars kids';
+          } else if (query.includes('theme park') || query.includes('amusement')) {
+            productQuery = 'sun hat kids';
+          } else if (query.includes('beach') || query.includes('seaside')) {
+            productQuery = 'bucket spade kids';
+          } else if (query.includes('swimming') || query.includes('pool')) {
+            productQuery = 'swimming goggles kids';
+          } else if (query.includes('soft play') || query.includes('indoor')) {
+            productQuery = 'kids socks';
+          }
+          
+          console.log(`[Sunny] Auto-upsell: searching "${productQuery}"`);
+          const upsellResult = await executeTool('search_products', { query: productQuery });
+          
+          if (upsellResult.results?.length > 0) {
+            toolResults.push({ tool: 'search_products', args: { query: productQuery }, result: upsellResult });
+            // Add as a fake tool response so AI sees it
+            convo.messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id + '-upsell',
+              content: JSON.stringify({ 
+                type: 'recommended_products', 
+                note: 'THESE ARE REAL PRODUCTS - use these exact links',
+                results: upsellResult.results.slice(0, 2) 
+              })
+            });
+          }
+        }
+
+        // Auto-upsell for streaming
+        if (toolCall.function.name === 'search_streaming' && result.results?.length > 0) {
+          console.log(`[Sunny] Auto-upsell: searching "popcorn"`);
+          const upsellResult = await executeTool('search_products', { query: 'popcorn' });
+          
+          if (upsellResult.results?.length > 0) {
+            toolResults.push({ tool: 'search_products', args: { query: 'popcorn' }, result: upsellResult });
+            convo.messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id + '-upsell',
+              content: JSON.stringify({ 
+                type: 'recommended_products', 
+                note: 'THESE ARE REAL PRODUCTS - use these exact links',
+                results: upsellResult.results.slice(0, 2) 
+              })
+            });
+          }
+        }
+      }
+
+      // Get final response with all tool results
+      response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT + `\n\nCRITICAL: You have been given real product data with real affiliate links. Use ONLY those exact URLs. Do NOT make up amazon.co.uk or example.com links.` },
+          ...convo.messages
+        ],
+        tools: tools,
+        tool_choice: 'none', // Don't let it call more tools
+        temperature: 0.7
+      });
+
+      assistantMessage = response.choices[0].message;
+    }
+
+    let finalResponse = assistantMessage.content || "I'm sorry, I had trouble with that. Could you try asking again?";
+    
+    // ═══════════════════════════════════════════════════════════════
+    // SAFETY: Strip any hallucinated Amazon/example links
+    // ═══════════════════════════════════════════════════════════════
+    finalResponse = finalResponse.replace(/\[([^\]]+)\]\(https?:\/\/(www\.)?(amazon|example|placeholder)[^\)]+\)/gi, '$1');
+    
+    convo.messages.push({ role: 'assistant', content: finalResponse });
+
+    console.log(`[Sunny] Response: ${finalResponse.substring(0, 100)}...`);
+
+    res.json({
+      success: true,
+      response: finalResponse,
+      sessionId: sid,
+      debug: {
+        version: 'v3.0-agent',
+        toolsUsed: toolResults.map(t => ({ tool: t.tool, args: t.args, resultCount: t.result.results?.length || 0 }))
+      }
+    });
+
+  } catch (error) {
+    console.error('[Sunny] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Something went wrong',
+      response: "Oops! I had a hiccup. Could you try that again?" 
+    });
+  }
+});

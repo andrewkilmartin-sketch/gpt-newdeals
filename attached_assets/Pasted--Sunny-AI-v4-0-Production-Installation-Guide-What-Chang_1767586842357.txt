@@ -1,0 +1,153 @@
+# Sunny AI v4.0 - Production Installation Guide
+
+## What Changed
+
+|v3.0 (Old)                  |v4.0 (New)                        |
+|----------------------------|----------------------------------|
+|4,000+ word system prompt   |~400 word system prompt           |
+|Rigid output formatting     |Natural conversation              |
+|Vague query preprocessing   |Let AI handle naturally           |
+|Complex upsell trigger logic|Simple “if genuinely helpful” rule|
+|No passive revenue          |Sponsor strip on every message    |
+|Lots of banned word lists   |Trust the model                   |
+
+## Quick Install
+
+### Step 1: Backup your current file
+
+```bash
+cp server/sunny.ts server/sunny-v3-backup.ts
+```
+
+### Step 2: Replace sunny.ts
+
+Copy the entire contents of `sunny-v4-production.ts` and paste it into `server/sunny.ts`, replacing everything.
+
+### Step 3: Restart your Replit
+
+Click “Stop” then “Run” in Replit, or:
+
+```bash
+npm run dev
+```
+
+### Step 4: Test it
+
+```bash
+curl -X POST http://localhost:5000/sunny/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"zoos near Manchester"}'
+```
+
+You should get:
+
+- A natural, conversational response
+- Kids Pass link included
+- Maybe a relevant product suggestion
+- A sponsor strip at the bottom
+
+## Files Included
+
+|File                        |Purpose                                 |
+|----------------------------|----------------------------------------|
+|`sunny-v4-production.ts`    |Main server code - replace your sunny.ts|
+|`sunny-instructions-v4.json`|Documentation/reference for the system  |
+
+## API Endpoints (unchanged)
+
+|Endpoint            |Method|Purpose                                   |
+|--------------------|------|------------------------------------------|
+|`/sunny/chat`       |POST  |Main chat - send `{ message, sessionId? }`|
+|`/sunny/health`     |GET   |Health check                              |
+|`/sunny/history`    |GET   |View conversation logs                    |
+|`/sunny/diagnostics`|GET   |System info                               |
+
+## How Monetisation Works Now
+
+### In-Conversation (Natural)
+
+- Sunny mentions Kids Pass discounts when recommending paid attractions
+- Sunny suggests ONE Awin product ONLY if it genuinely helps
+- No forced upsells, no salesy language
+
+### Sponsor Strip (Passive)
+
+Every response includes a separator line at the bottom:
+
+```
+───────────────
+💰 Zavvi: 20% off toys • Debenhams: Kids sale • Wowow: Free delivery
+```
+
+This rotates each session and earns commission even when Sunny doesn’t explicitly upsell.
+
+## Response Format
+
+**Old v3 style:**
+
+```
+Here are some amazing zoos near Birmingham! 🦁
+
+🎟️ **Kids Pass members save up to 40%!** [Browse zoo deals](link)
+
+**1. Dudley Zoo & Castle** - £18 - Historic zoo
+**2. West Midland Safari Park** - £28 - Drive-through safari
+
+🎒 **Don't forget for your trip:**
+- [Kids Safari Binoculars](link) - £8.99
+- [Animal Sticker Book](link) - £4.99
+
+🎬 **Tonight:** Check out "Our Planet" on Netflix!
+
+Which zoo catches your eye? 😊
+```
+
+**New v4 style:**
+
+```
+Birmingham's got some great options! 🦁
+
+Dudley Zoo is lovely - historic castle setting and the kids can feed the animals. West Midland Safari Park is bigger if you want to make a proper day of it, and driving through with lions next to the car is pretty memorable.
+
+Kids Pass gets you about 35% off both which helps.
+
+How old are the kids? That'll help me figure out which suits better.
+
+───────────────
+💰 Zavvi: 20% off toys • Debenhams: Kids sale • Wowow: Free delivery
+```
+
+## Troubleshooting
+
+### “Module not found” errors
+
+Make sure your imports match your project structure. The file assumes:
+
+- `./db` exports your database connection
+- `@shared/schema` has your `chatLogs` table
+- Express and OpenAI are already installed
+
+### Sponsor strip not showing
+
+Check that `/shopping/awin-link` endpoint is working:
+
+```bash
+curl "http://localhost:5000/shopping/awin-link?query=toys&limit=3"
+```
+
+### AI still being too formal
+
+The system prompt is deliberately short. If it’s not being natural enough, you can tweak the PERSONALITY section - but keep it under 500 words total.
+
+## Need Help?
+
+The key insight: **Trust the model.**
+
+GPT-4o-mini is smart enough to:
+
+- Decide when to call tools
+- Format responses naturally
+- Weave in monetisation without being pushy
+- Ask clarifying questions when needed
+
+You don’t need 4,000 words of instructions. You need 400 words of guidance and good data.

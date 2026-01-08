@@ -1,0 +1,1510 @@
+═══════════════════════════════════════════════════════════════
+  SUNNY V3 QUICK TEST - 10 USERS
+═══════════════════════════════════════════════════════════════
+
+
+┌─ USER: sarah-birmingham (Birmingham)
+│  ✅ "Hi, looking for a day out with the kids ..." (7/7)
+│  ✅ "They love animals..." (6/7)
+│  ✅ "Any deals on that?..." (7/7)
+└─ USER SCORE: 20/21 (95%)
+
+┌─ USER: amy-shopping (London)
+│  ✅ "Marvel pyjamas for my 7 year old son..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: frank-streaming (London)
+│  ✅ "Family film for tonight on Netflix..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: kate-cinema (London)
+│  ✅ "What's on at the cinema this weekend..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: mary-deals (Birmingham)
+│  ✅ "Any deals on days out?..." (7/7)
+│  ✅ "Theme park discounts?..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: pete-activities (London)
+│  ✅ "Rainy day activities at home..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: sam-edge (Glasgow)
+│  ✅ "oi mate..." (7/7)
+│  ✅ "soft play near me..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: mike-newcastle (Newcastle)
+│  ✅ "Things to do with kids Newcastle..." (6/7)
+└─ USER SCORE: 6/7 (86%)
+
+┌─ USER: neil-offers (Leeds)
+│  ✅ "What's on offer for families?..." (6/7)
+└─ USER SCORE: 6/7 (86%)
+
+┌─ USER: user-44-hull (Hull)
+│  ❌ "Days out Hull..." (5/7) - ZERO_RESULTS, BANNED_QUERY: "days out"
+└─ USER SCORE: 5/7 (71%)
+
+═══════════════════════════════════════════════════════════════
+  FINAL REPORT
+═══════════════════════════════════════════════════════════════
+  Total Messages:     14
+  Passed (6+/7):      13
+  Failed (<6/7):      1
+  Overall Score:      93/98 (95%)
+
+  TOP ISSUES:
+    3x ZERO_RESULTS
+    1x SHOULD_USE_DEALS
+    1x BANNED_QUERY: "days out"
+
+  ✅ READY FOR PRODUCTION
+═══════════════════════════════════════════════════════════════
+
+
+--- RAW JSON ---
+
+{
+  "summary": {
+    "messages": 14,
+    "passed": 13,
+    "failed": 1,
+    "score": "95%"
+  },
+  "issues": {
+    "ZERO_RESULTS": 3,
+    "SHOULD_USE_DEALS": 1,
+    "BANNED_QUERY: \"days out\"": 1
+  },
+  "users": [
+    {
+      "id": "sarah-birmingham",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Hi, looking for a day out with the kids this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "That sounds like a fantastic idea! 🌟 What type of activity are you thinking about? Maybe a zoo, theme park, or something else? If you let me know you"
+        },
+        {
+          "message": "They love animals",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "ZERO_RESULTS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "zoo",
+                "location": "UK"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like I couldn't find specific zoos at the moment, but don't worry! 🦁 You can still have an animal-themed adventure! Here are some great opti"
+        },
+        {
+          "message": "Any deals on that?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I found some great deals that you might find interesting for your day out! 🎉 \n\n1. **[Out There: An Uncomplicated Field Guide to Outdoor Photography]("
+        }
+      ],
+      "score": 20,
+      "maxScore": 21
+    },
+    {
+      "id": "amy-shopping",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Marvel pyjamas for my 7 year old son",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_products",
+              "args": {
+                "query": "Marvel pyjamas",
+                "ageRange": "7-12 years"
+              },
+              "resultCount": 5
+            }
+          ],
+          "response": "Here are some fantastic Marvel pyjamas for your 7-year-old son! 🦸‍♂️💤\n\n1. **[M&S Marvel™ Pyjamas (3-12 Yrs) Dark Cranberry](https://www.awin1.com/pc"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "frank-streaming",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Family film for tonight on Netflix",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_streaming",
+              "args": {
+                "service": "Netflix",
+                "familyFriendly": true
+              },
+              "resultCount": 6
+            },
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "food home"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I've found some great family-friendly films on Netflix for your movie night! 🎬✨ Here are a couple of options:\n\n1. **Forrest Gump** (1994) - A heartwa"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "kate-cinema",
+      "location": "London",
+      "turns": [
+        {
+          "message": "What's on at the cinema this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_cinema",
+              "args": {
+                "location": "UK"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here’s what’s playing at the cinema this weekend! 🍿🎬\n\n🎟️ **Kids Pass members save up to 40%!** [Check out cinema deals](https://www.kidspass.co.uk/"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "mary-deals",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Any deals on days out?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I've found some fantastic deals on days out that you might love! 🎉\n\n1. **Outdoor Photography Guide**  \n   📚 \"Out There: An Uncomplicated Field Guide"
+        },
+        {
+          "message": "Theme park discounts?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I couldn't find specific theme park discounts at the moment, but don't worry! You can often find great savings for family days out, including theme pa"
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "pete-activities",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Rainy day activities at home",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_activities",
+              "args": {
+                "setting": "INDOOR"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here are some fun and engaging rainy day activities you can do at home with the kids! ☔️🎨\n\n1. **3-Item Challenge**: Have a blast finding three items "
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "sam-edge",
+      "location": "Glasgow",
+      "turns": [
+        {
+          "message": "oi mate",
+          "scores": {
+            "toolCalled": false,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "Hey there! 😊 How can I help you today? Looking for fun activities, deals, or anything family-related? Let me know!"
+        },
+        {
+          "message": "soft play near me",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "I’d love to help you find some awesome soft play areas! Could you please let me know your location or the city you're in? 🏙️"
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "mike-newcastle",
+      "location": "Newcastle",
+      "turns": [
+        {
+          "message": "Things to do with kids Newcastle",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "ZERO_RESULTS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "family activities",
+                "location": "Newcastle"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like there aren't specific activities listed for Newcastle right now, but don't worry! There are plenty of amazing family-friendly experience"
+        }
+      ],
+      "score": 6,
+      "maxScore": 7
+    },
+    {
+      "id": "neil-offers",
+      "location": "Leeds",
+      "turns": [
+        {
+          "message": "What's on offer for families?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": false,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "SHOULD_USE_DEALS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_tips",
+              "args": {
+                "topic": "family"
+              },
+              "resultCount": 3
+            }
+          ],
+          "response": "Here are some fantastic tips for families looking to save money! 💸\n\n1. **Never Pay Full Price for Theme Parks**: \n   - Book your tickets at least 7 d"
+        }
+      ],
+      "score": 6,
+      "maxScore": 7
+    },
+    {
+      "id": "user-44-hull",
+      "location": "Hull",
+      "turns": [
+        {
+          "message": "Days out Hull",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": false,
+            "total": 5,
+            "issues": [
+              "ZERO_RESULTS",
+              "BANNED_QUERY: \"days out\""
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "days out",
+                "location": "Hull"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like I couldn't find specific attractions for days out in Hull at the moment. But don't worry, there are plenty of fun things to do! 🌟 \n\n🎟️"
+        }
+      ],
+      "score": 5,
+      "maxScore": 7
+    }
+  ]
+}
+═══════════════════════════════════════════════════════════════
+  SUNNY V3 QUICK TEST - 10 USERS
+═══════════════════════════════════════════════════════════════
+
+
+┌─ USER: sarah-birmingham (Birmingham)
+│  ✅ "Hi, looking for a day out with the kids ..." (7/7)
+│  ✅ "They love animals..." (6/7)
+│  ✅ "Any deals on that?..." (7/7)
+└─ USER SCORE: 20/21 (95%)
+
+┌─ USER: amy-shopping (London)
+│  ✅ "Marvel pyjamas for my 7 year old son..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: frank-streaming (London)
+│  ✅ "Family film for tonight on Netflix..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: kate-cinema (London)
+│  ✅ "What's on at the cinema this weekend..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: mary-deals (Birmingham)
+│  ✅ "Any deals on days out?..." (7/7)
+│  ✅ "Theme park discounts?..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: pete-activities (London)
+│  ✅ "Rainy day activities at home..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: sam-edge (Glasgow)
+│  ✅ "oi mate..." (7/7)
+│  ✅ "soft play near me..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: mike-newcastle (Newcastle)
+│  ✅ "Things to do with kids Newcastle..." (6/7)
+└─ USER SCORE: 6/7 (86%)
+
+┌─ USER: neil-offers (Leeds)
+│  ✅ "What's on offer for families?..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: user-44-hull (Hull)
+│  ❌ "Days out Hull..." (5/7) - ZERO_RESULTS, BANNED_QUERY: "days out"
+└─ USER SCORE: 5/7 (71%)
+
+═══════════════════════════════════════════════════════════════
+  FINAL REPORT
+═══════════════════════════════════════════════════════════════
+  Total Messages:     14
+  Passed (6+/7):      13
+  Failed (<6/7):      1
+  Overall Score:      94/98 (96%)
+
+  TOP ISSUES:
+    3x ZERO_RESULTS
+    1x BANNED_QUERY: "days out"
+
+  ✅ READY FOR PRODUCTION
+═══════════════════════════════════════════════════════════════
+
+
+--- RAW JSON ---
+
+{
+  "summary": {
+    "messages": 14,
+    "passed": 13,
+    "failed": 1,
+    "score": "96%"
+  },
+  "issues": {
+    "ZERO_RESULTS": 3,
+    "BANNED_QUERY: \"days out\"": 1
+  },
+  "users": [
+    {
+      "id": "sarah-birmingham",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Hi, looking for a day out with the kids this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "That sounds fantastic! 🎉 What kind of experience are you interested in? We could explore a fun zoo, an adventurous theme park, or maybe a great museu"
+        },
+        {
+          "message": "They love animals",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "ZERO_RESULTS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "zoo",
+                "location": "UK"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like I couldn't find specific zoos in the UK right now, but don't worry! 🦁 You can still explore some fantastic options with Kids Pass. 🎟️ "
+        },
+        {
+          "message": "Any deals on that?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I found some deals that could enhance your day out! 🎉 While they may not be specifically zoo-related, they offer some interesting options for family "
+        }
+      ],
+      "score": 20,
+      "maxScore": 21
+    },
+    {
+      "id": "amy-shopping",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Marvel pyjamas for my 7 year old son",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_products",
+              "args": {
+                "query": "Marvel pyjamas",
+                "ageRange": "6-8 years"
+              },
+              "resultCount": 5
+            }
+          ],
+          "response": "Here are some awesome Marvel pyjamas for your 7-year-old son! 🦸‍♂️✨\n\n1. **M&S Marvel™ Pyjamas (3-12 Yrs) Dark Cranberry**\n   - Price: £8\n   - [View h"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "frank-streaming",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Family film for tonight on Netflix",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_streaming",
+              "args": {
+                "service": "Netflix",
+                "familyFriendly": true
+              },
+              "resultCount": 6
+            },
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "food home"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "It looks like there aren't any family-friendly films currently available on Netflix. 😢 But don't worry, here are some great alternatives that you mig"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "kate-cinema",
+      "location": "London",
+      "turns": [
+        {
+          "message": "What's on at the cinema this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_cinema",
+              "args": {
+                "genre": "family"
+              },
+              "resultCount": 2
+            }
+          ],
+          "response": "Here are some fantastic family films playing in cinemas this weekend! 🎬🍿\n\n🎟️ **Kids Pass members save up to 40%!** [Check out cinema deals here](ht"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "mary-deals",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Any deals on days out?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I've found some fantastic deals on days out that you might be interested in! 🌟\n\n1. **Outdoor Photography Guide** - \"Out There: An Uncomplicated Field"
+        },
+        {
+          "message": "Theme park discounts?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I couldn't find specific discounts on theme parks at the moment, but don't worry - there's still plenty of fun to be had! 🎢✨\n\nIn the meantime, here a"
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "pete-activities",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Rainy day activities at home",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_activities",
+              "args": {
+                "setting": "INDOOR"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here are some fun indoor activities to keep the kids entertained on a rainy day! ☔️🎉\n\n1. **3-Item Challenge**: A quick and fun game where kids find t"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "sam-edge",
+      "location": "Glasgow",
+      "turns": [
+        {
+          "message": "oi mate",
+          "scores": {
+            "toolCalled": false,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "Hey there! 😊 How can I help you today? Looking for family fun or some great deals? Let me know! 🎉"
+        },
+        {
+          "message": "soft play near me",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "Could you please let me know your location or the city you're in? That way, I can find the best soft play options for you! 🏰✨"
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "mike-newcastle",
+      "location": "Newcastle",
+      "turns": [
+        {
+          "message": "Things to do with kids Newcastle",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "ZERO_RESULTS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "family activities",
+                "location": "Newcastle"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like I couldn't find specific family activities in Newcastle right now, but don't worry! 🌟 There are plenty of fun experiences you can explo"
+        }
+      ],
+      "score": 6,
+      "maxScore": 7
+    },
+    {
+      "id": "neil-offers",
+      "location": "Leeds",
+      "turns": [
+        {
+          "message": "What's on offer for families?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here are some fantastic family deals currently available! 🎉\n\n1. **Family Face-Off: The Ultimate Book of Family Games**  \n   - **Description**: A fun "
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "user-44-hull",
+      "location": "Hull",
+      "turns": [
+        {
+          "message": "Days out Hull",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": false,
+            "total": 5,
+            "issues": [
+              "ZERO_RESULTS",
+              "BANNED_QUERY: \"days out\""
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "days out",
+                "location": "Hull"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like I couldn't find any specific attractions for days out in Hull. But don't worry! Hull has some fantastic spots you can explore! 🌟\n\n🎟️ *"
+        }
+      ],
+      "score": 5,
+      "maxScore": 7
+    }
+  ]
+}
+═══════════════════════════════════════════════════════════════
+  SUNNY V3 QUICK TEST - 10 USERS
+═══════════════════════════════════════════════════════════════
+
+
+┌─ USER: sarah-birmingham (Birmingham)
+│  ✅ "Hi, looking for a day out with the kids ..." (7/7)
+│  ✅ "They love animals..." (7/7)
+│  ✅ "Any deals on that?..." (7/7)
+└─ USER SCORE: 21/21 (100%)
+
+┌─ USER: amy-shopping (London)
+│  ✅ "Marvel pyjamas for my 7 year old son..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: frank-streaming (London)
+│  ✅ "Family film for tonight on Netflix..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: kate-cinema (London)
+│  ✅ "What's on at the cinema this weekend..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: mary-deals (Birmingham)
+│  ✅ "Any deals on days out?..." (7/7)
+│  ✅ "Theme park discounts?..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: pete-activities (London)
+│  ✅ "Rainy day activities at home..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: sam-edge (Glasgow)
+│  ✅ "oi mate..." (7/7)
+│  ✅ "soft play near me..." (7/7)
+└─ USER SCORE: 14/14 (100%)
+
+┌─ USER: mike-newcastle (Newcastle)
+│  ✅ "Things to do with kids Newcastle..." (6/7)
+└─ USER SCORE: 6/7 (86%)
+
+┌─ USER: neil-offers (Leeds)
+│  ✅ "What's on offer for families?..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: user-44-hull (Hull)
+│  ❌ "Days out Hull..." (5/7) - ZERO_RESULTS, BANNED_QUERY: "days out"
+└─ USER SCORE: 5/7 (71%)
+
+═══════════════════════════════════════════════════════════════
+  FINAL REPORT
+═══════════════════════════════════════════════════════════════
+  Total Messages:     14
+  Passed (6+/7):      13
+  Failed (<6/7):      1
+  Overall Score:      95/98 (97%)
+
+  TOP ISSUES:
+    2x ZERO_RESULTS
+    1x BANNED_QUERY: "days out"
+
+  ✅ READY FOR PRODUCTION
+═══════════════════════════════════════════════════════════════
+
+
+--- RAW JSON ---
+
+{
+  "summary": {
+    "messages": 14,
+    "passed": 13,
+    "failed": 1,
+    "score": "97%"
+  },
+  "issues": {
+    "ZERO_RESULTS": 2,
+    "BANNED_QUERY: \"days out\"": 1
+  },
+  "users": [
+    {
+      "id": "sarah-birmingham",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Hi, looking for a day out with the kids this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "That sounds like a fantastic plan! 🌞 Do you have a specific location in mind, or are you open to suggestions? We can find some amazing attractions ne"
+        },
+        {
+          "message": "They love animals",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "zoo",
+                "location": ""
+              },
+              "resultCount": 8
+            },
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here are some fantastic zoos you can visit this weekend! 🦁🐒\n\n🎟️ **Kids Pass members save up to 40%!** [Browse zoo deals](https://www.kidspass.co.uk"
+        },
+        {
+          "message": "Any deals on that?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I couldn't find any specific deals for the zoos, but you can still enjoy great savings with your **Kids Pass membership**, which offers up to 40% off "
+        }
+      ],
+      "score": 21,
+      "maxScore": 21
+    },
+    {
+      "id": "amy-shopping",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Marvel pyjamas for my 7 year old son",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_products",
+              "args": {
+                "query": "Marvel pyjamas",
+                "ageRange": "7-9 years"
+              },
+              "resultCount": 5
+            }
+          ],
+          "response": "I've found some fantastic Marvel pyjamas for your 7-year-old son! 🦸‍♂️✨\n\n1. **[M&S Marvel™ Pyjamas (3-12 Yrs) Dark Cranberry](https://www.awin1.com/p"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "frank-streaming",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Family film for tonight on Netflix",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_streaming",
+              "args": {
+                "service": "Netflix",
+                "familyFriendly": true
+              },
+              "resultCount": 6
+            },
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "food home"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "It looks like there are some great family-friendly films to watch tonight on Netflix! 🎬 Here are some options:\n\n1. **The Dark Knight** (2008) - Batma"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "kate-cinema",
+      "location": "London",
+      "turns": [
+        {
+          "message": "What's on at the cinema this weekend",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_cinema",
+              "args": {
+                "genre": "family"
+              },
+              "resultCount": 2
+            }
+          ],
+          "response": "This weekend, there are some fantastic family films playing at the cinema! 🎬🍿\n\n1. **The SpongeBob Movie: Search for SquarePants** (U)\n   - **Synopsi"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "mary-deals",
+      "location": "Birmingham",
+      "turns": [
+        {
+          "message": "Any deals on days out?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "days out"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I've found some fantastic deals on days out that you might love! 🎉 Here are a few highlights:\n\n1. **Outdoor Photography Guide**  \n   🖼️ \"Out There: "
+        },
+        {
+          "message": "Theme park discounts?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I found some exciting discounts related to family activities that could complement your theme park visits! 🎢 Here are a few highlights:\n\n1. **Family "
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "pete-activities",
+      "location": "London",
+      "turns": [
+        {
+          "message": "Rainy day activities at home",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_activities",
+              "args": {
+                "setting": "INDOOR"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "Here are some fun indoor activities to keep your kids engaged on a rainy day! 🌧️\n\n1. **3-Item Challenge**: A quick scavenger hunt where you give prom"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "sam-edge",
+      "location": "Glasgow",
+      "turns": [
+        {
+          "message": "oi mate",
+          "scores": {
+            "toolCalled": false,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "Hey there! 😊 How can I help you today? Looking for fun activities or experiences for the family?"
+        },
+        {
+          "message": "soft play near me",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [],
+          "response": "Could you please let me know your location or the city you're in? That way, I can find the best soft play options for you! 🏰✨"
+        }
+      ],
+      "score": 14,
+      "maxScore": 14
+    },
+    {
+      "id": "mike-newcastle",
+      "location": "Newcastle",
+      "turns": [
+        {
+          "message": "Things to do with kids Newcastle",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 6,
+            "issues": [
+              "ZERO_RESULTS"
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "kids",
+                "location": "Newcastle"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like there are a ton of fun activities you can do with kids in Newcastle! 🎉 Although I couldn't find specific attractions right now, I recom"
+        }
+      ],
+      "score": 6,
+      "maxScore": 7
+    },
+    {
+      "id": "neil-offers",
+      "location": "Leeds",
+      "turns": [
+        {
+          "message": "What's on offer for families?",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": true,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": true,
+            "total": 7,
+            "issues": []
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_deals",
+              "args": {
+                "category": "family"
+              },
+              "resultCount": 6
+            }
+          ],
+          "response": "I've found some fantastic family deals that you might love! 🎉\n\n1. **Family Likeness** - A heartbreaking story of belonging and prejudice set in the 1"
+        }
+      ],
+      "score": 7,
+      "maxScore": 7
+    },
+    {
+      "id": "user-44-hull",
+      "location": "Hull",
+      "turns": [
+        {
+          "message": "Days out Hull",
+          "scores": {
+            "toolCalled": true,
+            "rightTool": true,
+            "gotResults": false,
+            "noHallucination": true,
+            "kidsPassPromo": true,
+            "hasAffiliateLinks": true,
+            "noBannedQueries": false,
+            "total": 5,
+            "issues": [
+              "ZERO_RESULTS",
+              "BANNED_QUERY: \"days out\""
+            ]
+          },
+          "toolsUsed": [
+            {
+              "tool": "search_attractions",
+              "args": {
+                "query": "days out",
+                "location": "Hull"
+              },
+              "resultCount": 0
+            }
+          ],
+          "response": "It looks like there aren't any specific attractions showing up for days out in Hull right now. But don't worry! Hull has some great options for family"
+        }
+      ],
+      "score": 5,
+      "maxScore": 7
+    }
+  ]
+}
+═══════════════════════════════════════════════════════════════
+  SUNNY V3 QUICK TEST - 10 USERS
+═══════════════════════════════════════════════════════════════
+
+
+┌─ USER: sarah-birmingham (Birmingham)
+│  ✅ "Hi, looking for a day out with the kids ..." (7/7)
+│  ✅ "They love animals..." (7/7)
+│  ✅ "Any deals on that?..." (7/7)
+└─ USER SCORE: 21/21 (100%)
+
+┌─ USER: amy-shopping (London)
+│  ✅ "Marvel pyjamas for my 7 year old son..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: frank-streaming (London)
+│  ✅ "Family film for tonight on Netflix..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: kate-cinema (London)
+│  ✅ "What's on at the cinema this weekend..." (7/7)
+└─ USER SCORE: 7/7 (100%)
+
+┌─ USER: mary-deals (Birmingham)
+│  ✅ "Any deals on days out?..." (7/7)

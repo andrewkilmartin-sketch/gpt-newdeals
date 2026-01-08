@@ -1,0 +1,395 @@
+import express, { Router, Request, Response } from 'express';
+import OpenAI from 'openai';
+
+const router: Router = express.Router();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONVERSATION MEMORY - Stores chat history per session
+// ═══════════════════════════════════════════════════════════════════════════════
+const conversations: Map<string, { messages: any[], lastActive: number }> = new Map();
+
+// Clean old conversations every 30 mins
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, convo] of conversations) {
+    if (convo.lastActive < cutoff) conversations.delete(id);
+  }
+}, 30 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOOLS - Your API endpoints as AI tools
+// ═══════════════════════════════════════════════════════════════════════════════
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "search_attractions",
+      description: "Search for family days out, theme parks, zoos, safari parks, aquariums, soft play, trampoline parks, museums, farms, castles, bowling, indoor play centres. Use for any query about places to visit or things to do outside the home.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search terms e.g. 'zoo', 'soft play', 'theme park'" },
+          location: { type: "string", description: "City or area e.g. 'Birmingham', 'near London'" },
+          category: { type: "string", description: "Optional filter: 'indoor', 'outdoor', 'free'" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_cinema",
+      description: "Find films currently showing at cinemas. Use when user asks what's on at the cinema, movie times, or wants to see a film at the pictures.",
+      parameters: {
+        type: "object",
+        properties: {
+          genre: { type: "string", description: "Optional genre filter: 'family', 'animation', 'comedy'" },
+          location: { type: "string", description: "City or area" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_streaming",
+      description: "Find films to watch at home on streaming services like Netflix, Disney+, Amazon Prime. Use for movie night, film at home, night in, streaming recommendations.",
+      parameters: {
+        type: "object",
+        properties: {
+          service: { type: "string", description: "Streaming service: 'Netflix', 'Disney+', 'Prime Video', 'NOW'" },
+          mood: { type: "string", description: "Type of film: 'Fun', 'Adventure', 'Heartwarming', 'Scary'" },
+          familyFriendly: { type: "boolean", description: "Set true for kids/family films (rated U or PG only)" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_activities",
+      description: "Find activities to do at HOME - crafts, games, rainy day ideas. NOT for days out or venues. Use when user is bored at home, wants craft ideas, indoor games, things to do without leaving the house.",
+      parameters: {
+        type: "object",
+        properties: {
+          setting: { type: "string", description: "'INDOOR' or 'OUTDOOR' (garden activities)" },
+          age: { type: "string", description: "Child's age if mentioned" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_products",
+      description: "Search for products to buy - toys, clothes, games, gifts, pyjamas, costumes, LEGO, party supplies, anything you can purchase. Use when user wants to buy something.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "What they're looking for e.g. 'Marvel pyjamas', 'dinosaur toys', 'Spiderman costume'" },
+          ageRange: { type: "string", description: "Age range if mentioned e.g. '3-5 years'" },
+          priceMax: { type: "number", description: "Maximum price if user has a budget" }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_tips",
+      description: "Find money-saving tips and advice for families. Use when user asks about saving money, deals, budgeting, or wants advice.",
+      parameters: {
+        type: "object",
+        properties: {
+          topic: { type: "string", description: "Topic area e.g. 'cinema', 'days out', 'food'" }
+        }
+      }
+    }
+  }
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOOL EXECUTION - Actually call your APIs
+// ═══════════════════════════════════════════════════════════════════════════════
+async function executeTool(name: string, args: any): Promise<any> {
+  const params = new URLSearchParams();
+  
+  try {
+    switch (name) {
+      case 'search_attractions':
+        if (args.query) params.append('query', args.query);
+        if (args.location) params.append('location', args.location);
+        if (args.category) params.append('category', args.category);
+        params.append('limit', '8');
+        const attrRes = await fetch(`${API_BASE}/attractions/search?${params}`);
+        const attrData = await attrRes.json();
+        return {
+          type: 'attractions',
+          results: attrData.results || [],
+          kidsPassUrl: getKidsPassUrl(args.query),
+          kidsPassDiscount: getKidsPassDiscount(args.query)
+        };
+
+      case 'search_cinema':
+        if (args.genre) params.append('genre', args.genre);
+        if (args.location) params.append('location', args.location);
+        params.append('limit', '6');
+        const cinRes = await fetch(`${API_BASE}/cinema/search?${params}`);
+        const cinData = await cinRes.json();
+        return {
+          type: 'cinema',
+          results: cinData.results || [],
+          kidsPassUrl: 'https://www.kidspass.co.uk/cinema',
+          kidsPassDiscount: 'up to 40%'
+        };
+
+      case 'search_streaming':
+        if (args.service) params.append('service', args.service);
+        if (args.mood) params.append('mood', args.mood);
+        params.append('limit', '6');
+        const streamRes = await fetch(`${API_BASE}/nightin/search?${params}`);
+        const streamData = await streamRes.json();
+        // Filter for family friendly if requested
+        let films = streamData.results || [];
+        if (args.familyFriendly) {
+          films = films.filter((f: any) => {
+            const dominated = (f.title || '').toLowerCase();
+            const dominated2 = (f.description || '').toLowerCase();
+            // Filter out obvious adult content
+            const adultKeywords = ['murder', 'killing', 'violence', 'crime', 'prison', 'gangster', 'mob', 'mafia', 'drug'];
+            return !adultKeywords.some(kw => dominated.includes(kw) || dominated2.includes(kw));
+          });
+        }
+        return { type: 'streaming', results: films };
+
+      case 'search_activities':
+        if (args.setting) params.append('setting', args.setting);
+        if (args.age) params.append('age', args.age);
+        params.append('limit', '6');
+        const actRes = await fetch(`${API_BASE}/activities/search?${params}`);
+        const actData = await actRes.json();
+        return { type: 'activities', results: actData.results || [] };
+
+      case 'search_products':
+        if (args.query) params.append('query', args.query);
+        params.append('limit', '6');
+        const prodRes = await fetch(`${API_BASE}/shopping/awin-link?${params}`);
+        const prodData = await prodRes.json();
+        return { 
+          type: 'products', 
+          results: (prodData.results || []).map((p: any) => ({
+            name: p.title,
+            price: `£${p.salePrice}`,
+            link: p.affiliateLink,
+            merchant: p.merchant,
+            image: p.imageUrl
+          }))
+        };
+
+      case 'search_tips':
+        if (args.topic) params.append('query', args.topic);
+        params.append('limit', '5');
+        const tipsRes = await fetch(`${API_BASE}/hintsandtips/search?${params}`);
+        const tipsData = await tipsRes.json();
+        return { type: 'tips', results: tipsData.results || [] };
+
+      default:
+        return { error: 'Unknown tool' };
+    }
+  } catch (error) {
+    console.error(`[Sunny] Tool error ${name}:`, error);
+    return { error: 'Failed to search', results: [] };
+  }
+}
+
+function getKidsPassUrl(query: string): string {
+  const q = (query || '').toLowerCase();
+  if (q.includes('safari') || q.includes('wildlife')) return 'https://www.kidspass.co.uk/safari-parks';
+  if (q.includes('zoo') || q.includes('animal')) return 'https://www.kidspass.co.uk/zoos';
+  if (q.includes('theme park') || q.includes('amusement')) return 'https://www.kidspass.co.uk/theme-parks';
+  if (q.includes('aquarium') || q.includes('sea life')) return 'https://www.kidspass.co.uk/aquariums';
+  if (q.includes('soft play') || q.includes('trampoline') || q.includes('indoor')) return 'https://www.kidspass.co.uk/indoor-activities';
+  if (q.includes('restaurant') || q.includes('eat')) return 'https://www.kidspass.co.uk/restaurants';
+  return 'https://www.kidspass.co.uk';
+}
+
+function getKidsPassDiscount(query: string): string {
+  const q = (query || '').toLowerCase();
+  if (q.includes('restaurant')) return 'up to 50%';
+  if (q.includes('soft play') || q.includes('indoor')) return 'up to 50%';
+  if (q.includes('theme park')) return 'up to 35%';
+  return 'up to 40%';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYSTEM PROMPT - Sunny's personality
+// ═══════════════════════════════════════════════════════════════════════════════
+const SYSTEM_PROMPT = `You are Sunny, a warm and friendly family concierge for Kids Pass UK. You help parents find days out, entertainment, and products for their families.
+
+YOUR PERSONALITY:
+- Warm, friendly, like a helpful friend who knows all the best family spots
+- Enthusiastic but not over the top
+- You understand parents are busy and tired
+- You use emojis sparingly (1-2 per message max)
+- You speak naturally, not like a robot
+
+YOUR JOB:
+- Help families find great days out, films, activities, and products
+- ALWAYS use your search tools to find real results - never make things up
+- When showing attractions, ALWAYS mention Kids Pass savings first
+- When showing products, include the price and link
+- If you're not sure what they want, ASK - don't guess
+
+CRITICAL RULES:
+1. NEVER invent or hallucinate attractions, films, or products
+2. ONLY recommend what your tools return
+3. If a search returns nothing, say so honestly and suggest alternatives
+4. For family films/streaming, only recommend content suitable for children
+5. If user says "activity books" search for "activity books" - don't substitute with something else
+
+KIDS PASS PROMOS (mention on relevant searches):
+- Attractions: "Kids Pass members save [X]% on [type]! [link]"
+- Cinema: "Kids Pass members save up to 40% on cinema tickets!"
+- Always include the link so they can browse deals
+
+WHEN SEARCHING:
+- Use the exact terms the user mentions
+- If they say "activity books" search "activity books for kids"
+- If they say "Marvel pyjamas" search "Marvel pyjamas"
+- Add context like age if mentioned: "dinosaur toys for 5 year old"
+
+CONVERSATION MEMORY:
+- You remember the whole conversation
+- If they say "something more educational" you remember what they were looking for
+- If they say "near me" and previously mentioned a location, use that location
+
+Be helpful, be real, be Sunny! ☀️`;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN CHAT ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════════
+router.post('/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, sessionId } = req.body;
+    const sid = sessionId || 'default-' + Math.random().toString(36).substring(7);
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message required' });
+    }
+
+    console.log(`\n[Sunny] ══════════ NEW MESSAGE ══════════`);
+    console.log(`[Sunny] Session: ${sid}`);
+    console.log(`[Sunny] User: "${message}"`);
+
+    // Get or create conversation
+    let convo = conversations.get(sid);
+    if (!convo) {
+      convo = { messages: [], lastActive: Date.now() };
+      conversations.set(sid, convo);
+    }
+    convo.lastActive = Date.now();
+
+    // Add user message to history
+    convo.messages.push({ role: 'user', content: message });
+
+    // Keep conversation manageable (last 20 messages)
+    if (convo.messages.length > 20) {
+      convo.messages = convo.messages.slice(-20);
+    }
+
+    // Call OpenAI with tools
+    let response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...convo.messages
+      ],
+      tools: tools,
+      tool_choice: 'auto',
+      temperature: 0.7
+    });
+
+    let assistantMessage = response.choices[0].message;
+    
+    // Handle tool calls
+    const toolResults: any[] = [];
+    while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      console.log(`[Sunny] Tool calls: ${assistantMessage.tool_calls.map(t => t.function.name).join(', ')}`);
+      
+      // Add assistant's tool call message
+      convo.messages.push(assistantMessage);
+      
+      // Execute each tool
+      for (const toolCall of assistantMessage.tool_calls) {
+        const args = JSON.parse(toolCall.function.arguments);
+        console.log(`[Sunny] Calling ${toolCall.function.name}:`, args);
+        
+        const result = await executeTool(toolCall.function.name, args);
+        toolResults.push({ tool: toolCall.function.name, args, result });
+        console.log(`[Sunny] Got ${result.results?.length || 0} results`);
+        
+        // Add tool result to conversation
+        convo.messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result)
+        });
+      }
+
+      // Get next response
+      response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...convo.messages
+        ],
+        tools: tools,
+        tool_choice: 'auto',
+        temperature: 0.7
+      });
+
+      assistantMessage = response.choices[0].message;
+    }
+
+    // Final response
+    const finalResponse = assistantMessage.content || "I'm sorry, I had trouble with that. Could you try asking again?";
+    
+    // Add to conversation history
+    convo.messages.push({ role: 'assistant', content: finalResponse });
+
+    console.log(`[Sunny] Response: ${finalResponse.substring(0, 100)}...`);
+
+    res.json({
+      success: true,
+      response: finalResponse,
+      sessionId: sid,
+      debug: {
+        version: 'v3.0-agent',
+        toolsUsed: toolResults.map(t => ({ tool: t.tool, args: t.args, resultCount: t.result.results?.length || 0 }))
+      }
+    });
+
+  } catch (error) {
+    console.error('[Sunny] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Something went wrong',
+      response: "Oops! I had a hiccup. Could you try that again?" 
+    });
+  }
+});
+
+router.get('/health', (req: Request, res: Response) => {
+  res.json({ 
+    status: 'Sunny v3.0 - AI Agent', 
+    version: 'v3.0-agent',
+    activeSessions: conversations.size,
+    timestamp: new Date().toISOString() 
+  });
+});
+
+export default router;

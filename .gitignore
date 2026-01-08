@@ -1,0 +1,14 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Large data files - products are in PostgreSQL database, not git
+server/data/products.csv
+server/data/products.csv.gz
+attached_assets/*.csv
+attached_assets/*.csv.gz
+attached_assets/*.zip
+attached_assets/datafeed_*

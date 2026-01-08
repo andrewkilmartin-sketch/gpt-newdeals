@@ -1,0 +1,358 @@
+-- ============================================================
+-- SUNNY AI SEARCH - DATABASE SCHEMA
+-- Run these migrations on your PostgreSQL database
+-- ============================================================
+
+-- 1. TAXONOMY TABLE
+-- Maps keywords → categories (data-driven, not code-driven)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS taxonomy (
+    id SERIAL PRIMARY KEY,
+    keyword VARCHAR(100) NOT NULL UNIQUE,
+    category VARCHAR(50) NOT NULL,
+    subcategory VARCHAR(50),
+    weight FLOAT DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_taxonomy_keyword ON taxonomy(LOWER(keyword));
+CREATE INDEX IF NOT EXISTS idx_taxonomy_category ON taxonomy(category);
+
+
+-- 2. ADD SEARCH_TAGS COLUMN TO PRODUCTS
+-- AI-generated searchable tags from descriptions
+-- ============================================================
+
+ALTER TABLE products 
+ADD COLUMN IF NOT EXISTS search_tags TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_products_search_tags ON products USING GIN(to_tsvector('english', search_tags));
+
+
+-- 3. SEED TAXONOMY DATA
+-- Add your keywords here - each insert = new searchable term
+-- No code changes needed!
+-- ============================================================
+
+INSERT INTO taxonomy (keyword, category, subcategory, weight) VALUES
+
+-- FOOTWEAR
+('trainers', 'Footwear', 'Sports', 1.0),
+('sneakers', 'Footwear', 'Sports', 1.0),
+('running shoes', 'Footwear', 'Sports', 1.0),
+('wellies', 'Footwear', 'Outdoor', 1.0),
+('wellington boots', 'Footwear', 'Outdoor', 1.0),
+('rain boots', 'Footwear', 'Outdoor', 1.0),
+('boots', 'Footwear', 'General', 0.8),
+('shoes', 'Footwear', 'General', 0.7),
+('slippers', 'Footwear', 'Indoor', 1.0),
+('sandals', 'Footwear', 'Summer', 1.0),
+('flip flops', 'Footwear', 'Summer', 1.0),
+('crocs', 'Footwear', 'Casual', 1.0),
+
+-- TOYS - Building
+('lego', 'Toys', 'Building', 1.0),
+('duplo', 'Toys', 'Building', 1.0),
+('building blocks', 'Toys', 'Building', 1.0),
+('construction set', 'Toys', 'Building', 1.0),
+('magnetic tiles', 'Toys', 'Building', 1.0),
+
+-- TOYS - Figures & Dolls
+('action figure', 'Toys', 'Figures', 1.0),
+('action figures', 'Toys', 'Figures', 1.0),
+('figurine', 'Toys', 'Figures', 1.0),
+('doll', 'Toys', 'Dolls', 1.0),
+('dolls', 'Toys', 'Dolls', 1.0),
+('barbie', 'Toys', 'Dolls', 1.0),
+
+-- TOYS - Soft Toys
+('plush', 'Toys', 'Soft Toys', 1.0),
+('plushie', 'Toys', 'Soft Toys', 1.0),
+('teddy', 'Toys', 'Soft Toys', 1.0),
+('teddy bear', 'Toys', 'Soft Toys', 1.0),
+('soft toy', 'Toys', 'Soft Toys', 1.0),
+('cuddly toy', 'Toys', 'Soft Toys', 1.0),
+('stuffed animal', 'Toys', 'Soft Toys', 1.0),
+('squishmallow', 'Toys', 'Soft Toys', 1.0),
+
+-- TOYS - Games
+('board game', 'Toys', 'Games', 1.0),
+('board games', 'Toys', 'Games', 1.0),
+('card game', 'Toys', 'Games', 1.0),
+('puzzle', 'Toys', 'Games', 0.9),
+('jigsaw', 'Toys', 'Games', 0.9),
+
+-- TOYS - Outdoor
+('outdoor toys', 'Toys', 'Outdoor', 1.0),
+('garden toys', 'Toys', 'Outdoor', 1.0),
+('trampoline', 'Toys', 'Outdoor', 1.0),
+('swing', 'Toys', 'Outdoor', 1.0),
+('slide', 'Toys', 'Outdoor', 1.0),
+('paddling pool', 'Toys', 'Outdoor', 1.0),
+('water toys', 'Toys', 'Outdoor', 1.0),
+('scooter', 'Toys', 'Outdoor', 1.0),
+('bike', 'Toys', 'Outdoor', 0.9),
+('bicycle', 'Toys', 'Outdoor', 0.9),
+
+-- TOYS - Vehicles
+('toy car', 'Toys', 'Vehicles', 1.0),
+('toy cars', 'Toys', 'Vehicles', 1.0),
+('hot wheels', 'Toys', 'Vehicles', 1.0),
+('matchbox', 'Toys', 'Vehicles', 1.0),
+('train set', 'Toys', 'Vehicles', 1.0),
+('remote control', 'Toys', 'Vehicles', 1.0),
+('rc car', 'Toys', 'Vehicles', 1.0),
+
+-- TOYS - Creative
+('craft kit', 'Toys', 'Creative', 1.0),
+('arts and crafts', 'Toys', 'Creative', 1.0),
+('colouring', 'Toys', 'Creative', 1.0),
+('coloring', 'Toys', 'Creative', 1.0),
+('paint', 'Toys', 'Creative', 0.8),
+('drawing', 'Toys', 'Creative', 0.8),
+('play doh', 'Toys', 'Creative', 1.0),
+('playdoh', 'Toys', 'Creative', 1.0),
+('slime', 'Toys', 'Creative', 1.0),
+
+-- TOYS - Educational
+('educational toy', 'Toys', 'Educational', 1.0),
+('learning toy', 'Toys', 'Educational', 1.0),
+('stem toy', 'Toys', 'Educational', 1.0),
+('science kit', 'Toys', 'Educational', 1.0),
+('coding toy', 'Toys', 'Educational', 1.0),
+
+-- CLOTHING
+('t-shirt', 'Clothing', 'Tops', 1.0),
+('tshirt', 'Clothing', 'Tops', 1.0),
+('top', 'Clothing', 'Tops', 0.7),
+('shirt', 'Clothing', 'Tops', 0.8),
+('hoodie', 'Clothing', 'Tops', 1.0),
+('jumper', 'Clothing', 'Tops', 1.0),
+('sweater', 'Clothing', 'Tops', 1.0),
+('cardigan', 'Clothing', 'Tops', 1.0),
+('dress', 'Clothing', 'Dresses', 1.0),
+('skirt', 'Clothing', 'Bottoms', 1.0),
+('trousers', 'Clothing', 'Bottoms', 1.0),
+('pants', 'Clothing', 'Bottoms', 0.8),
+('jeans', 'Clothing', 'Bottoms', 1.0),
+('shorts', 'Clothing', 'Bottoms', 1.0),
+('leggings', 'Clothing', 'Bottoms', 1.0),
+('jacket', 'Clothing', 'Outerwear', 1.0),
+('coat', 'Clothing', 'Outerwear', 1.0),
+('raincoat', 'Clothing', 'Outerwear', 1.0),
+('pyjamas', 'Clothing', 'Sleepwear', 1.0),
+('pajamas', 'Clothing', 'Sleepwear', 1.0),
+('pjs', 'Clothing', 'Sleepwear', 1.0),
+('nightwear', 'Clothing', 'Sleepwear', 1.0),
+('onesie', 'Clothing', 'Sleepwear', 1.0),
+('costume', 'Clothing', 'Costumes', 1.0),
+('fancy dress', 'Clothing', 'Costumes', 1.0),
+('halloween costume', 'Clothing', 'Costumes', 1.0),
+('swimsuit', 'Clothing', 'Swimwear', 1.0),
+('swimming costume', 'Clothing', 'Swimwear', 1.0),
+('bikini', 'Clothing', 'Swimwear', 1.0),
+('swim shorts', 'Clothing', 'Swimwear', 1.0),
+
+-- ACCESSORIES
+('hat', 'Accessories', 'Headwear', 1.0),
+('cap', 'Accessories', 'Headwear', 1.0),
+('beanie', 'Accessories', 'Headwear', 1.0),
+('gloves', 'Accessories', 'Winter', 1.0),
+('mittens', 'Accessories', 'Winter', 1.0),
+('scarf', 'Accessories', 'Winter', 1.0),
+('bag', 'Accessories', 'Bags', 0.8),
+('backpack', 'Accessories', 'Bags', 1.0),
+('rucksack', 'Accessories', 'Bags', 1.0),
+('lunch bag', 'Accessories', 'Bags', 1.0),
+('school bag', 'Accessories', 'Bags', 1.0),
+('watch', 'Accessories', 'Watches', 1.0),
+('sunglasses', 'Accessories', 'Eyewear', 1.0),
+
+-- BOOKS
+('book', 'Books', 'General', 0.8),
+('books', 'Books', 'General', 0.8),
+('story book', 'Books', 'Fiction', 1.0),
+('picture book', 'Books', 'Picture Books', 1.0),
+('activity book', 'Books', 'Activity', 1.0),
+('colouring book', 'Books', 'Activity', 1.0),
+('sticker book', 'Books', 'Activity', 1.0),
+
+-- BABY
+('baby toy', 'Baby', 'Toys', 1.0),
+('teether', 'Baby', 'Teething', 1.0),
+('rattle', 'Baby', 'Toys', 1.0),
+('baby clothes', 'Baby', 'Clothing', 1.0),
+('babygrow', 'Baby', 'Clothing', 1.0),
+('romper', 'Baby', 'Clothing', 1.0),
+('bib', 'Baby', 'Feeding', 1.0),
+('bottle', 'Baby', 'Feeding', 0.7),
+('dummy', 'Baby', 'Soothing', 1.0),
+('pacifier', 'Baby', 'Soothing', 1.0),
+('pushchair', 'Baby', 'Travel', 1.0),
+('pram', 'Baby', 'Travel', 1.0),
+('stroller', 'Baby', 'Travel', 1.0),
+('car seat', 'Baby', 'Travel', 1.0),
+
+-- FRANCHISES (boost weight = 1.2)
+('disney', 'Franchise', 'Disney', 1.2),
+('mickey mouse', 'Franchise', 'Disney', 1.2),
+('minnie mouse', 'Franchise', 'Disney', 1.2),
+('frozen', 'Franchise', 'Disney', 1.2),
+('elsa', 'Franchise', 'Disney', 1.2),
+('anna', 'Franchise', 'Disney', 1.2),
+('moana', 'Franchise', 'Disney', 1.2),
+('encanto', 'Franchise', 'Disney', 1.2),
+('mirabel', 'Franchise', 'Disney', 1.2),
+('toy story', 'Franchise', 'Disney', 1.2),
+('woody', 'Franchise', 'Disney', 1.2),
+('buzz lightyear', 'Franchise', 'Disney', 1.2),
+('cars', 'Franchise', 'Disney', 1.0),
+('lightning mcqueen', 'Franchise', 'Disney', 1.2),
+('lion king', 'Franchise', 'Disney', 1.2),
+('little mermaid', 'Franchise', 'Disney', 1.2),
+('ariel', 'Franchise', 'Disney', 1.2),
+
+('marvel', 'Franchise', 'Marvel', 1.2),
+('avengers', 'Franchise', 'Marvel', 1.2),
+('spider-man', 'Franchise', 'Marvel', 1.2),
+('spiderman', 'Franchise', 'Marvel', 1.2),
+('iron man', 'Franchise', 'Marvel', 1.2),
+('hulk', 'Franchise', 'Marvel', 1.2),
+('captain america', 'Franchise', 'Marvel', 1.2),
+('thor', 'Franchise', 'Marvel', 1.2),
+('black panther', 'Franchise', 'Marvel', 1.2),
+
+('dc', 'Franchise', 'DC', 1.2),
+('batman', 'Franchise', 'DC', 1.2),
+('superman', 'Franchise', 'DC', 1.2),
+('wonder woman', 'Franchise', 'DC', 1.2),
+
+('star wars', 'Franchise', 'Star Wars', 1.2),
+('darth vader', 'Franchise', 'Star Wars', 1.2),
+('yoda', 'Franchise', 'Star Wars', 1.2),
+('baby yoda', 'Franchise', 'Star Wars', 1.2),
+('grogu', 'Franchise', 'Star Wars', 1.2),
+('mandalorian', 'Franchise', 'Star Wars', 1.2),
+
+('harry potter', 'Franchise', 'Harry Potter', 1.2),
+('hogwarts', 'Franchise', 'Harry Potter', 1.2),
+('hermione', 'Franchise', 'Harry Potter', 1.2),
+('gryffindor', 'Franchise', 'Harry Potter', 1.2),
+('slytherin', 'Franchise', 'Harry Potter', 1.2),
+
+('peppa pig', 'Franchise', 'Peppa Pig', 1.2),
+('peppa', 'Franchise', 'Peppa Pig', 1.2),
+('george pig', 'Franchise', 'Peppa Pig', 1.2),
+
+('paw patrol', 'Franchise', 'Paw Patrol', 1.2),
+('chase', 'Franchise', 'Paw Patrol', 1.0),
+('marshall', 'Franchise', 'Paw Patrol', 1.0),
+('skye', 'Franchise', 'Paw Patrol', 1.0),
+('rubble', 'Franchise', 'Paw Patrol', 1.0),
+
+('pokemon', 'Franchise', 'Pokemon', 1.2),
+('pikachu', 'Franchise', 'Pokemon', 1.2),
+('pokémon', 'Franchise', 'Pokemon', 1.2),
+
+('bluey', 'Franchise', 'Bluey', 1.2),
+('bingo', 'Franchise', 'Bluey', 1.0),
+
+('cocomelon', 'Franchise', 'CoComelon', 1.2),
+('hey duggee', 'Franchise', 'Hey Duggee', 1.2),
+('duggee', 'Franchise', 'Hey Duggee', 1.2),
+
+('thomas', 'Franchise', 'Thomas', 1.0),
+('thomas the tank', 'Franchise', 'Thomas', 1.2),
+('thomas and friends', 'Franchise', 'Thomas', 1.2),
+
+('minecraft', 'Franchise', 'Minecraft', 1.2),
+('fortnite', 'Franchise', 'Fortnite', 1.2),
+('roblox', 'Franchise', 'Roblox', 1.2),
+
+('sonic', 'Franchise', 'Sonic', 1.2),
+('sonic the hedgehog', 'Franchise', 'Sonic', 1.2),
+
+('super mario', 'Franchise', 'Nintendo', 1.2),
+('mario', 'Franchise', 'Nintendo', 1.0),
+('nintendo', 'Franchise', 'Nintendo', 1.0),
+('zelda', 'Franchise', 'Nintendo', 1.2),
+
+('transformers', 'Franchise', 'Transformers', 1.2),
+('optimus prime', 'Franchise', 'Transformers', 1.2),
+
+('my little pony', 'Franchise', 'My Little Pony', 1.2),
+('mlp', 'Franchise', 'My Little Pony', 1.2),
+
+('jurassic', 'Franchise', 'Jurassic', 1.0),
+('jurassic park', 'Franchise', 'Jurassic', 1.2),
+('jurassic world', 'Franchise', 'Jurassic', 1.2),
+('dinosaur', 'Franchise', 'Dinosaurs', 1.0),
+('dinosaurs', 'Franchise', 'Dinosaurs', 1.0),
+('t-rex', 'Franchise', 'Dinosaurs', 1.0),
+
+-- AGE GROUPS
+('baby', 'AgeGroup', '0-2', 1.0),
+('infant', 'AgeGroup', '0-1', 1.0),
+('newborn', 'AgeGroup', '0-1', 1.0),
+('toddler', 'AgeGroup', '2-4', 1.0),
+('preschool', 'AgeGroup', '3-5', 1.0),
+('kids', 'AgeGroup', '4-12', 0.8),
+('children', 'AgeGroup', '4-12', 0.8),
+('child', 'AgeGroup', '4-12', 0.8),
+('boys', 'AgeGroup', 'Boys', 0.9),
+('girls', 'AgeGroup', 'Girls', 0.9),
+('boy', 'AgeGroup', 'Boys', 0.8),
+('girl', 'AgeGroup', 'Girls', 0.8),
+('teen', 'AgeGroup', '12-18', 1.0),
+('teenager', 'AgeGroup', '12-18', 1.0),
+('tween', 'AgeGroup', '9-12', 1.0),
+
+-- INTENT MODIFIERS
+('gift', 'Intent', 'Gift', 1.1),
+('gifts', 'Intent', 'Gift', 1.1),
+('present', 'Intent', 'Gift', 1.1),
+('presents', 'Intent', 'Gift', 1.1),
+('birthday', 'Intent', 'Gift', 1.1),
+('christmas', 'Intent', 'Gift', 1.1),
+('xmas', 'Intent', 'Gift', 1.1),
+('easter', 'Intent', 'Gift', 1.0),
+('stocking filler', 'Intent', 'Gift', 1.1),
+('party bag', 'Intent', 'Gift', 1.0),
+('cheap', 'Intent', 'Budget', 1.0),
+('budget', 'Intent', 'Budget', 1.0),
+('affordable', 'Intent', 'Budget', 1.0),
+('bargain', 'Intent', 'Budget', 1.0),
+('deal', 'Intent', 'Budget', 1.0),
+('sale', 'Intent', 'Budget', 1.0),
+('premium', 'Intent', 'Premium', 1.0),
+('luxury', 'Intent', 'Premium', 1.0),
+('high quality', 'Intent', 'Premium', 1.0),
+('designer', 'Intent', 'Premium', 1.0),
+('best', 'Intent', 'Quality', 0.9),
+('top', 'Intent', 'Quality', 0.8),
+('popular', 'Intent', 'Trending', 1.0),
+('trending', 'Intent', 'Trending', 1.0),
+('new', 'Intent', 'New', 0.8)
+
+ON CONFLICT (keyword) DO UPDATE SET
+    category = EXCLUDED.category,
+    subcategory = EXCLUDED.subcategory,
+    weight = EXCLUDED.weight;
+
+
+-- 4. VIEW TO CHECK TAXONOMY
+-- ============================================================
+
+CREATE OR REPLACE VIEW taxonomy_summary AS
+SELECT 
+    category,
+    COUNT(*) as keyword_count,
+    ARRAY_AGG(keyword ORDER BY keyword) as keywords
+FROM taxonomy
+GROUP BY category
+ORDER BY category;
+
+
+-- Check your taxonomy:
+-- SELECT * FROM taxonomy_summary;

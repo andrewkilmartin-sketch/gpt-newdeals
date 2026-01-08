@@ -1,0 +1,272 @@
+import express, { Router, Request, Response } from 'express';
+import OpenAI from 'openai';
+
+const router: Router = express.Router();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+const API_BASE = 'https://endpoint-weaver--rcxpysgzgc.replit.app';
+
+const KIDS_PASS_LINKS: Record<string, { url: string; discount: string; description: string }> = {
+  'safari': { url: 'https://www.kidspass.co.uk/safari-parks', discount: 'up to 40%', description: 'safari parks, wildlife parks and zoos' },
+  'zoo': { url: 'https://www.kidspass.co.uk/zoos', discount: 'up to 40%', description: 'zoos and wildlife attractions' },
+  'theme-park': { url: 'https://www.kidspass.co.uk/theme-parks', discount: 'up to 35%', description: 'theme parks and adventure parks' },
+  'cinema': { url: 'https://www.kidspass.co.uk/cinema', discount: 'up to 40%', description: 'cinema tickets at Odeon, Vue, Cineworld and more' },
+  'indoor': { url: 'https://www.kidspass.co.uk/indoor-activities', discount: 'up to 50%', description: 'soft play, trampoline parks and indoor attractions' },
+  'outdoor': { url: 'https://www.kidspass.co.uk/outdoor-activities', discount: 'up to 40%', description: 'outdoor attractions and adventures' },
+  'aquarium': { url: 'https://www.kidspass.co.uk/aquariums', discount: 'up to 35%', description: 'SEA LIFE centres and aquariums' },
+  'restaurant': { url: 'https://www.kidspass.co.uk/restaurants', discount: 'up to 50%', description: 'family restaurants' },
+  'default': { url: 'https://www.kidspass.co.uk', discount: 'up to 50%', description: 'thousands of family attractions' }
+};
+
+interface Intent {
+  type: string;
+  confidence: number;
+  parameters: { query?: string; location?: string; category?: string; limit?: number; };
+}
+
+interface Classification {
+  intents: Intent[];
+}
+
+interface UpsellCategory {
+  keywords: string[];
+  searchTerms: string[];
+  pitch: string;
+}
+
+const UPSELL_CATEGORIES: Record<string, UpsellCategory> = {
+  'safari': { keywords: ['safari', 'zoo', 'wildlife', 'animal'], searchTerms: ['binoculars kids', 'safari toys', 'animal figures'], pitch: 'Road trip essentials' },
+  'theme-park': { keywords: ['theme park', 'roller coaster', 'alton towers', 'thorpe park'], searchTerms: ['sun hat kids', 'water bottle children'], pitch: 'Theme park must-haves' },
+  'cinema': { keywords: ['cinema', 'pictures', 'odeon', 'vue'], searchTerms: ['popcorn', 'cinema snacks'], pitch: 'Cinema treats' },
+  'movie-night': { keywords: ['netflix', 'disney+', 'film at home', 'night in'], searchTerms: ['popcorn maker', 'blanket kids', 'pyjamas'], pitch: 'Movie night essentials' },
+  'rainy-day': { keywords: ['bored', 'rainy', 'indoor'], searchTerms: ['craft kit kids', 'board game family', 'puzzle'], pitch: 'Keep them busy' }
+};
+
+const ENDPOINTS: Record<string, string> = {
+  ATTRACTION: '/attractions/search',
+  CINEMA: '/cinema/search',
+  HOME_MOVIE: '/nightin/search',
+  ACTIVITY: '/activities/search',
+  SHOPPING: '/shopping/awin-link',
+  TIPS: '/hintsandtips/search'
+};
+
+function getKidsPassPromo(intents: Intent[], query: string) {
+  const queryLower = query.toLowerCase();
+  const hasAttractionIntent = intents.some(i => i.type === 'ATTRACTION' || i.type === 'CINEMA');
+  if (!hasAttractionIntent) return null;
+  
+  if (queryLower.includes('safari') || queryLower.includes('wildlife')) return { promo: KIDS_PASS_LINKS['safari'], category: 'safari' };
+  if (queryLower.includes('zoo') || queryLower.includes('animal')) return { promo: KIDS_PASS_LINKS['zoo'], category: 'zoo' };
+  if (queryLower.includes('theme park') || queryLower.includes('alton') || queryLower.includes('thorpe')) return { promo: KIDS_PASS_LINKS['theme-park'], category: 'theme-park' };
+  if (queryLower.includes('cinema') || queryLower.includes('pictures')) return { promo: KIDS_PASS_LINKS['cinema'], category: 'cinema' };
+  if (queryLower.includes('soft play') || queryLower.includes('trampoline') || queryLower.includes('indoor play')) return { promo: KIDS_PASS_LINKS['indoor'], category: 'indoor' };
+  if (queryLower.includes('aquarium') || queryLower.includes('sea life')) return { promo: KIDS_PASS_LINKS['aquarium'], category: 'aquarium' };
+  if (queryLower.includes('restaurant')) return { promo: KIDS_PASS_LINKS['restaurant'], category: 'restaurant' };
+  return { promo: KIDS_PASS_LINKS['default'], category: 'default' };
+}
+
+function detectUpsellCategory(query: string, intents: Intent[]): UpsellCategory | null {
+  const queryLower = query.toLowerCase();
+  for (const [, config] of Object.entries(UPSELL_CATEGORIES)) {
+    if (config.keywords.some(kw => queryLower.includes(kw))) return config;
+  }
+  const intentTypes = intents.map(i => i.type);
+  if (intentTypes.includes('HOME_MOVIE')) return UPSELL_CATEGORIES['movie-night'];
+  if (intentTypes.includes('ACTIVITY')) return UPSELL_CATEGORIES['rainy-day'];
+  return null;
+}
+
+async function fetchSmartUpsells(category: UpsellCategory | null): Promise<any[]> {
+  if (!category) return [];
+  try {
+    const searchTerm = category.searchTerms[Math.floor(Math.random() * category.searchTerms.length)];
+    const response = await fetch(`${API_BASE}/shopping/awin-link?query=${encodeURIComponent(searchTerm)}&limit=2`);
+    const data = await response.json();
+    return data.results || [];
+  } catch { return []; }
+}
+
+async function classifyIntent(userMessage: string): Promise<Classification> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You classify user messages for a UK family concierge. Return JSON only.
+
+INTENTS (pick ALL that apply):
+- ATTRACTION: Days out, theme parks, zoos, safari parks, aquariums, museums
+- CINEMA: Films at cinemas
+- HOME_MOVIE: Streaming, Netflix, Disney+, film at home
+- ACTIVITY: Kids activities, bored, rainy day
+- SHOPPING: Products, toys
+- TIPS: Money saving advice
+- GREETING: Just hello (ONLY if no other request)
+
+Extract: query, location, category, limit (default 5)
+
+Return: {"intents":[{"type":"...","confidence":0.9,"parameters":{"query":"...","location":"..."}}]}`
+        },
+        { role: 'user', content: userMessage }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1
+    });
+    return JSON.parse(response.choices[0].message.content || '{"intents":[]}');
+  } catch (error) {
+    console.error('Classification error:', error);
+    return { intents: [{ type: 'GREETING', confidence: 1, parameters: {} }] };
+  }
+}
+
+async function fetchData(intent: Intent): Promise<any> {
+  const endpoint = ENDPOINTS[intent.type];
+  if (!endpoint) return null;
+
+  const params = new URLSearchParams();
+  const p = intent.parameters;
+  
+  if (intent.type === 'HOME_MOVIE') {
+    const serviceMap: Record<string, string> = { 'netflix': 'Netflix', 'disney+': 'Disney+', 'disney plus': 'Disney+', 'prime': 'Prime Video', 'amazon prime': 'Prime Video' };
+    const moodMap: Record<string, string> = { 'scary': 'Scary', 'funny': 'Fun', 'family': 'Heartwarming', 'kids': 'Fun' };
+    if (p.query) {
+      const qLower = p.query.toLowerCase();
+      for (const [key, value] of Object.entries(serviceMap)) { if (qLower.includes(key)) { params.append('service', value); break; } }
+      for (const [key, value] of Object.entries(moodMap)) { if (qLower.includes(key)) { params.append('mood', value); break; } }
+    }
+  } else if (intent.type === 'ACTIVITY') {
+    if (p.query) {
+      const qLower = p.query.toLowerCase();
+      if (qLower.includes('indoor')) params.append('setting', 'INDOOR');
+      if (qLower.includes('outdoor')) params.append('setting', 'OUTDOOR');
+      const ageMatch = qLower.match(/(\d+)\s*(year|yr)/);
+      if (ageMatch) params.append('age', ageMatch[1]);
+    }
+  } else {
+    if (p.query) params.append('query', p.query);
+    if (p.category) params.append('category', p.category);
+  }
+  
+  params.append('limit', String(p.limit || 5));
+
+  try {
+    const url = `${API_BASE}${endpoint}?${params.toString()}`;
+    console.log(`[Sunny] FETCHING FROM API: ${url}`);
+    const response = await fetch(url);
+    const data = await response.json();
+    console.log(`[Sunny] API RETURNED ${data.results?.length || 0} results`);
+    console.log(`[Sunny] API DATA:`, JSON.stringify(data.results?.slice(0, 2), null, 2));
+    return { type: intent.type, results: data.results || [], count: data.count || 0 };
+  } catch (error) {
+    console.error(`[Sunny] API FETCH ERROR for ${intent.type}:`, error);
+    return { type: intent.type, results: [], count: 0 };
+  }
+}
+
+async function generateResponse(userMessage: string, results: any[], kidsPassPromo: any, upsells: any[], showFoodDeals: boolean): Promise<string> {
+  const hasResults = results.some(r => r.results && r.results.length > 0);
+  
+  if (!hasResults) {
+    return "I couldn't find anything matching that in our database. Could you try being more specific? I can help with days out, cinema, films at home, activities, and shopping deals!";
+  }
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are Sunny, a family concierge for Kids Pass UK.
+
+CRITICAL RULES - YOU MUST FOLLOW THESE:
+1. You can ONLY mention attractions/films/activities that appear in <api_data> below
+2. If an attraction is NOT in <api_data>, you CANNOT mention it
+3. Use EXACT names, prices, and details from <api_data>
+4. NEVER invent or hallucinate attractions - if you're unsure, don't include it
+5. If <api_data> is empty for a category, say "I couldn't find any matching [category]"
+
+RESPONSE FORMAT:
+${kidsPassPromo ? `FIRST: "💎 **Kids Pass members save ${kidsPassPromo.promo.discount}** on ${kidsPassPromo.promo.description}! [Join here](${kidsPassPromo.promo.url})"` : ''}
+
+THEN: List items from <api_data> with their real details
+${upsells.length > 0 ? `THEN: Mention 1 product from <upsells>` : ''}
+${showFoodDeals ? `THEN: "🍕 Make it a movie night - Uber Eats has £10 off!"` : ''}
+
+END: Ask a follow-up question
+
+<api_data>
+${JSON.stringify(results, null, 2)}
+</api_data>
+
+<upsells>
+${JSON.stringify(upsells, null, 2)}
+</upsells>
+
+REMEMBER: Only mention what's in <api_data>. Nothing else.`
+      },
+      { role: 'user', content: userMessage }
+    ],
+    temperature: 0.3
+  });
+
+  return response.choices[0].message.content || "Sorry, I had trouble generating a response. Please try again.";
+}
+
+router.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'Sunny v2.1 - Anti-Hallucination Engine', timestamp: new Date().toISOString() });
+});
+
+router.post('/chat', async (req: Request, res: Response) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message required' });
+
+    console.log(`\n[Sunny] ========== NEW REQUEST ==========`);
+    console.log(`[Sunny] USER MESSAGE: "${message}"`);
+
+    const classification = await classifyIntent(message);
+    console.log(`[Sunny] INTENTS: ${classification.intents.map(i => i.type).join(', ')}`);
+
+    if (classification.intents.length === 1 && classification.intents[0].type === 'GREETING') {
+      return res.json({
+        success: true,
+        response: "Hey! 👋 I'm Sunny, your family concierge.\n\nI can help with:\n🎢 Days out (with Kids Pass savings!)\n🎬 Cinema\n🍿 Films at home\n🎨 Kids activities\n\nWhat are you looking for?",
+      });
+    }
+
+    const kidsPassPromo = getKidsPassPromo(classification.intents, message);
+    
+    const results = await Promise.all(
+      classification.intents.filter(i => ENDPOINTS[i.type]).map(intent => fetchData(intent))
+    );
+
+    const upsellCategory = detectUpsellCategory(message, classification.intents);
+    const upsells = await fetchSmartUpsells(upsellCategory);
+    const showFoodDeals = classification.intents.some(i => i.type === 'HOME_MOVIE');
+
+    const response = await generateResponse(message, results, kidsPassPromo, upsells, showFoodDeals);
+
+    console.log(`[Sunny] FINAL RESPONSE LENGTH: ${response.length} chars`);
+
+    res.json({
+      success: true,
+      response,
+      debug: {
+        intents: classification.intents,
+        apiResults: results.map(r => ({ type: r?.type, count: r?.count, firstResult: r?.results?.[0]?.name || r?.results?.[0]?.title })),
+        kidsPassPromo: kidsPassPromo?.category,
+        upsellCount: upsells.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[Sunny] ERROR:', error);
+    res.status(500).json({ success: false, response: "Sorry, something went wrong. Please try again." });
+  }
+});
+
+export default router;

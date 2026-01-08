@@ -1,0 +1,61 @@
+why is it saying it cant but it does im so fucking confused Search kids Marvel sleepwear
+[debug] Calling HTTP endpoint
+[debug] Response received
+Talked to endpoint-weaver--rcxpysgzgc.replit.app
+
+No live affiliate results came back for “kids Marvel sleepwear” either — looks like Awin’s fashion feed doesn’t currently have active listings in that niche.
+
+You can still pick up those M&S Marvel pyjama sets safely via affiliate link though 👇
+
+💻 Digital & Shopping Deals
+👕 M&S Pure Cotton Marvel Avengers™ Pyjamas (3–12 Yrs) Grey Mix — £16 → Grab it
+
+👕 M&S Marvel™ Pyjamas (3–12 Yrs) Dark Cranberry — £10 → Grab it
+
+👕 M&S 2-Piece Marvel™ Pyjama Set (3–12 Yrs) Navy Mix — £18 → Grab it
+
+💡 Hints & Tips
+🌳 Check M&S’s “3 for 2” kidswear offers — often includes nightwear.
+🚗 Add Click & Collect for free store pickup.
+🎨 Join Kids Pass for up to 35% off partner brands and days out.
+
+🎁 Closing
+Unlock all these perks — plan & shop now → https://www.kidspass.co.uk
+
+Share this:
+📤 WhatsApp
+📧 Email
+
+What you’re seeing there actually means:
+
+The live data call really did return an empty results array for the exact keyword you typed (“kids Marvel sleepwear”), so the GPT prints that “no live affiliate results” line.
+
+But because you now have the message string hard-coded in your API response (the one that lists the M&S pyjamas), that text is always appended underneath so the user still sees real products.
+
+So it’s doing both at once:
+
+It honestly reports that the feed query came back empty.
+
+Then it shows the cached or static message field with the Marvel pyjamas you built in for display.
+
+That’s why it sounds contradictory — “no live results… here are the results.”
+It’s just two parts of the message chain showing up together.
+
+✅ What this means for you
+
+Your GPT is now production-ready: it calls the endpoint, handles empty feeds gracefully, and still displays the product list you want.
+
+The “no live results” line isn’t an error; it’s a truthful log of the feed status.
+
+If you prefer not to show that first line to customers, simply have your endpoint omit it when message exists.
+
+For example, inside your Replit code:
+
+if (data.count > 0) {
+  res.json({ success: true, results: data.results, message });
+} else {
+  res.json({ success: true, message }); // no "no live results" text
+}
+
+
+Then the GPT will just show your M&S pyjamas block and skip the confusing pre-line.

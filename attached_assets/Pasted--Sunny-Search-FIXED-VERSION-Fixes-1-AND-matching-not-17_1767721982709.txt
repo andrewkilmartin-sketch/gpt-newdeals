@@ -1,0 +1,197 @@
+/**
+ * Sunny Search - FIXED VERSION
+ * ============================
+ * Fixes:
+ * 1. AND matching not OR (so "paw patrol" requires BOTH words)
+ * 2. RANDOM sampling from candidates (not first 50 by DB order)
+ * 3. Better GPT prompt that enforces intent
+ * 4. Proper ID parsing to fix empty results bug
+ */
+
+import express, { Request, Response } from 'express';
+import { Pool } from 'pg';
+import OpenAI from 'openai';
+
+const app = express();
+app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+interface Product {
+  aw_product_id: string;
+  product_name: string;
+  description: string;
+  search_price: number;
+  merchant_name: string;
+  aw_deep_link: string;
+  merchant_image_url: string;
+  aw_image_url: string;
+  category_name: string;
+}
+
+interface SearchResult {
+  id: string;
+  name: string;
+  price: number;
+  merchant: string;
+  category: string;
+  affiliateLink: string;
+  imageUrl: string;
+}
+
+async function search(query: string): Promise<{ products: SearchResult[], totalCount: number }> {
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  
+  if (words.length === 0) {
+    return { products: [], totalCount: 0 };
+  }
+
+  // FIX 1: Use AND matching - all words must appear (in name OR description)
+  const conditions = words.map((_, i) => 
+    `(LOWER(product_name) LIKE $${i + 1} OR LOWER(description) LIKE $${i + 1})`
+  ).join(' AND ');
+  
+  const params = words.map(w => `%${w}%`);
+
+  // Get total count
+  const countResult = await pool.query(
+    `SELECT COUNT(*) as total FROM products WHERE (${conditions}) AND aw_deep_link IS NOT NULL`,
+    params
+  );
+  const totalCount = parseInt(countResult.rows[0].total);
+
+  if (totalCount === 0) {
+    return { products: [], totalCount: 0 };
+  }
+
+  // FIX 2: Get RANDOM sample of 100 candidates
+  const sql = `
+    SELECT aw_product_id, product_name, description, search_price,
+           merchant_name, aw_deep_link, merchant_image_url, aw_image_url,
+           category_name
+    FROM products
+    WHERE (${conditions})
+      AND aw_deep_link IS NOT NULL
+    ORDER BY RANDOM()
+    LIMIT 100
+  `;
+  
+  const result = await pool.query(sql, params);
+  const candidates: Product[] = result.rows;
+
+  if (candidates.length === 0) {
+    return { products: [], totalCount };
+  }
+
+  // FIX 3: Better GPT prompt
+  const productsText = candidates.map(p => 
+    `ID:${p.aw_product_id} | ${p.product_name} | £${p.search_price || 0} | ${p.category_name || ''} | ${(p.description || '').substring(0, 100)}`
+  ).join('\n');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You help UK families find products. Pick the 8 BEST matches.
+
+RULES:
+1. Only pick products that ACTUALLY match the search intent
+2. "paw patrol" = the TV show, NOT "Pet Patrol" or random puppies
+3. "disney toys" = Disney-branded TOYS, not clothing
+4. "spider-man toys" = Spider-Man action figures/toys, not clothing
+5. Prioritise variety - different merchants, different types
+6. If a product doesn't match the intent, don't include it
+
+Return ONLY a JSON array: ["id1", "id2", ...]`
+      },
+      {
+        role: 'user',
+        content: `Search: "${query}"\n\nProducts:\n${productsText}`
+      }
+    ],
+    temperature: 0.1
+  });
+
+  // FIX 4: Robust ID parsing
+  let selectedIds: string[] = [];
+  try {
+    let content = response.choices[0].message.content?.trim() || '[]';
+    
+    if (content.includes('```')) {
+      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match) content = match[1].trim();
+    }
+    
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      selectedIds = parsed.map(id => String(id));
+    }
+  } catch (e) {
+    console.error('GPT parse failed:', response.choices[0].message.content);
+    selectedIds = candidates.slice(0, 8).map(p => String(p.aw_product_id));
+  }
+
+  // Build response
+  const idToProduct = new Map(candidates.map(p => [String(p.aw_product_id), p]));
+  const results: SearchResult[] = [];
+
+  for (const pid of selectedIds) {
+    const p = idToProduct.get(pid);
+    if (p) {
+      results.push({
+        id: String(p.aw_product_id),
+        name: p.product_name,
+        price: parseFloat(String(p.search_price)) || 0,
+        merchant: p.merchant_name || '',
+        category: p.category_name || '',
+        affiliateLink: p.aw_deep_link,
+        imageUrl: p.merchant_image_url || p.aw_image_url || ''
+      });
+    }
+  }
+
+  // Fallback if GPT returned bad IDs
+  if (results.length === 0 && candidates.length > 0) {
+    for (const p of candidates.slice(0, 8)) {
+      results.push({
+        id: String(p.aw_product_id),
+        name: p.product_name,
+        price: parseFloat(String(p.search_price)) || 0,
+        merchant: p.merchant_name || '',
+        category: p.category_name || '',
+        affiliateLink: p.aw_deep_link,
+        imageUrl: p.merchant_image_url || p.aw_image_url || ''
+      });
+    }
+  }
+
+  return { products: results, totalCount };
+}
+
+app.post('/api/search', async (req: Request, res: Response) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'Query required' });
+    
+    const { products, totalCount } = await search(query.trim());
+    res.json({ success: true, query: query.trim(), count: products.length, totalCount, products });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ success: false, error: 'Search failed' });
+  }
+});
+
+app.get('/', (req: Request, res: Response) => {
+  res.send(`<!DOCTYPE html><html><head><title>Sunny</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px}.container{max-width:1000px;margin:0 auto}h1{color:#fff;text-align:center;margin:40px 0;font-size:2.5em}h1 span{color:#ffd93d}.search{display:flex;max-width:500px;margin:0 auto 40px;background:#fff;border-radius:30px;overflow:hidden}input{flex:1;padding:15px 20px;font-size:16px;border:none;outline:none}button{padding:15px 30px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;cursor:pointer;font-weight:700}.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}.product{background:#fff;border-radius:12px;overflow:hidden;text-decoration:none;color:#000}.product img{width:100%;height:160px;object-fit:contain;background:#f8f8f8}.info{padding:15px}.merchant{color:#667eea;font-size:12px;font-weight:700}.name{font-size:14px;margin:8px 0;font-weight:600}.price{font-size:20px;font-weight:800}.loading{color:#fff;text-align:center;padding:40px}</style></head><body><div class="container"><h1>☀️ <span>Sunny</span></h1><div class="search"><input type="text" id="q" placeholder="What are you looking for?"><button onclick="doSearch()">Search</button></div><div id="results"></div></div><script>document.getElementById('q').addEventListener('keypress',e=>{if(e.key==='Enter')doSearch()});async function doSearch(){const q=document.getElementById('q').value.trim();if(!q)return;document.getElementById('results').innerHTML='<div class="loading">Finding products...</div>';const res=await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})});const data=await res.json();if(!data.products?.length){document.getElementById('results').innerHTML='<div class="loading">No products found.</div>';return}document.getElementById('results').innerHTML='<div class="results">'+data.products.map(p=>'<a href="'+p.affiliateLink+'" target="_blank" class="product"><img src="'+(p.imageUrl||'https://placehold.co/200x160')+'" onerror="this.src=\\'https://placehold.co/200x160\\'"><div class="info"><div class="merchant">'+p.merchant+'</div><div class="name">'+p.name+'</div><div class="price">£'+p.price.toFixed(2)+'</div></div></a>').join('')+'</div>'}</script></body></html>`);
+});
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Sunny running on port ${PORT}`));

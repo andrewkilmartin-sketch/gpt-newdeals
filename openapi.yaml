@@ -1,0 +1,466 @@
+openapi: 3.1.0
+info:
+  title: GPT Deals & Tips API
+  description: API for fetching UK shopping deals, cinema listings, attractions, family activities, movie recommendations for nights in, and money-saving tips
+  version: 1.1.0
+servers:
+  - url: https://endpoint-weaver--rcxpysgzgc.replit.app
+    description: Production server
+paths:
+  /shopping/awin-link:
+    get:
+      operationId: getShoppingDeals
+      summary: Get UK shopping deals and offers
+      description: Returns shopping deals, voucher codes, and affiliate links from UK retailers
+      parameters:
+        - name: query
+          in: query
+          description: Search term for products or retailers
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by category (e.g., Electronics, Fashion, Home, Beauty)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShoppingResponse'
+  /cinema/search:
+    get:
+      operationId: getCinemaListings
+      summary: Get UK cinema movies
+      description: Returns current and upcoming movies in UK cinemas with full details
+      parameters:
+        - name: query
+          in: query
+          description: Search by movie title, actor, or director
+          schema:
+            type: string
+        - name: genre
+          in: query
+          description: Filter by genre (Action, Comedy, Drama, Horror, Sci-Fi, Animation, etc.)
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by release status
+          schema:
+            type: string
+            enum: [now_playing, upcoming]
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CinemaResponse'
+  /attractions/search:
+    get:
+      operationId: getAttractions
+      summary: Get UK attractions and days out
+      description: Returns UK attractions including theme parks, zoos, museums, castles, and family days out
+      parameters:
+        - name: query
+          in: query
+          description: Search by attraction name or description
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by type (Theme Parks, Zoos, Museums, Castles, Nature, etc.)
+          schema:
+            type: string
+        - name: location
+          in: query
+          description: Filter by region or county
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttractionsResponse'
+  /activities/search:
+    get:
+      operationId: getFamilyActivities
+      summary: Get family activities and games
+      description: Returns family-friendly activities, games, and ideas for children of all ages
+      parameters:
+        - name: query
+          in: query
+          description: Search by activity name or description
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by category (Arts, Games, Learning, Outdoor, etc.)
+          schema:
+            type: string
+        - name: age
+          in: query
+          description: Child's age in years (filters activities appropriate for this age)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 18
+        - name: energy
+          in: query
+          description: Activity energy level
+          schema:
+            type: string
+            enum: [LOW, MED, HIGH]
+        - name: setting
+          in: query
+          description: Activity setting/location
+          schema:
+            type: string
+            enum: [INDOOR, OUTDOOR, CAR]
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitiesResponse'
+  /nightin/search:
+    get:
+      operationId: getNightInMovies
+      summary: Get movies to watch at home
+      description: Returns movie recommendations with UK streaming availability across Netflix, Prime Video, Disney+, Apple TV+, Sky/NOW, and MUBI
+      parameters:
+        - name: query
+          in: query
+          description: Search by movie title, actor, or director
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by genre (Action, Comedy, Drama, Horror, Sci-Fi, Animation, Romance, Thriller, etc.)
+          schema:
+            type: string
+        - name: service
+          in: query
+          description: Filter by streaming service
+          schema:
+            type: string
+            enum: [Netflix, Prime Video, Disney+, Apple TV+, Sky, NOW, MUBI]
+        - name: mood
+          in: query
+          description: Filter by mood/tone (Fun, Romantic, Intense, Scary, Heartwarming, Epic, Dark, Twisty, Inspiring, etc.)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NightInResponse'
+  /hintsandtips/search:
+    get:
+      operationId: getHintsAndTips
+      summary: Get money-saving hints and tips
+      description: Returns practical tips for saving money on shopping, utilities, travel, and family expenses
+      parameters:
+        - name: query
+          in: query
+          description: Search by topic or keyword
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by category (Shopping, Utilities, Travel, Food, Family, etc.)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results to return (1-50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TipsResponse'
+components:
+  schemas:
+    ShoppingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        dataSource:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              description:
+                type: string
+              retailer:
+                type: string
+              discount:
+                type: string
+              code:
+                type: string
+              link:
+                type: string
+              validUntil:
+                type: string
+    CinemaResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        dataSource:
+          type: string
+        lastUpdated:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              releaseDate:
+                type: string
+              synopsis:
+                type: string
+              genres:
+                type: array
+                items:
+                  type: string
+              rating:
+                type: string
+              runtime:
+                type: integer
+              director:
+                type: string
+              cast:
+                type: array
+                items:
+                  type: string
+              posterUrl:
+                type: string
+              trailerUrl:
+                type: string
+              status:
+                type: string
+    AttractionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              category:
+                type: string
+              location:
+                type: string
+              website:
+                type: string
+    ActivitiesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              category:
+                type: string
+              ageRange:
+                type: string
+              energy:
+                type: string
+              setting:
+                type: string
+              materials:
+                type: array
+                items:
+                  type: string
+    NightInResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        totalAvailable:
+          type: integer
+        dataSource:
+          type: string
+        lastUpdated:
+          type: string
+        availableServices:
+          type: array
+          items:
+            type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              year:
+                type: integer
+              synopsis:
+                type: string
+              genres:
+                type: array
+                items:
+                  type: string
+              rating:
+                type: string
+              imdbScore:
+                type: number
+              runtime:
+                type: integer
+              streamingServices:
+                type: array
+                items:
+                  type: string
+              director:
+                type: string
+              cast:
+                type: array
+                items:
+                  type: string
+              mood:
+                type: array
+                items:
+                  type: string
+    TipsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        endpoint:
+          type: string
+        description:
+          type: string
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              content:
+                type: string
+              category:
+                type: string
+              savings:
+                type: string

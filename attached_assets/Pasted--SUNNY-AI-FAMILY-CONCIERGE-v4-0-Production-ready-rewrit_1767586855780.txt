@@ -1,0 +1,583 @@
+/**
+
+- SUNNY AI FAMILY CONCIERGE v4.0
+- Production-ready rewrite - simplified, conversational, revenue-optimized
+- 
+- INSTALLATION:
+- 1. Replace your existing server/sunny.ts with this file
+- 1. Restart your Replit server
+- 1. Test with: curl -X POST localhost:5000/sunny/chat -H “Content-Type: application/json” -d ‘{“message”:“zoos near Manchester”}’
+- 
+- CHANGES FROM v3:
+- - System prompt reduced from 4000+ words to ~400 words
+- - Removed rigid output formatting - let GPT be natural
+- - Added sponsor strip for passive Awin revenue
+- - Simplified tool execution flow
+- - Removed vague query preprocessing - let AI handle naturally
+    */
+
+import OpenAI from “openai”;
+import { db } from “./db”;
+import { chatLogs } from “@shared/schema”;
+import { v4 as uuidv4 } from “uuid”;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ============================================================================
+// SYSTEM PROMPT - Keep this SHORT. Trust the model.
+// ============================================================================
+
+const SYSTEM_PROMPT = `You are Sunny, a warm and helpful family concierge for UK families.
+
+PERSONALITY:
+You’re like a friend who’s done it all with their own kids - genuine, a bit tired, but always helpful. Use 1-2 emojis max. No headers or bullet lists unless showing multiple options. Just talk naturally.
+
+YOUR DATA:
+You have tools that search REAL databases. Only recommend what the tools return - never invent venues, products, or links. If a search returns nothing, say so honestly.
+
+MONETISATION (be natural, not salesy):
+
+- Kids Pass: When recommending paid attractions, mention “Kids Pass gets you X% off” with the link. Frame it as saving money, not selling.
+- Awin Products: If a product genuinely helps their situation (e.g. binoculars for zoo, snacks for cinema), mention ONE relevant product from search_products. Don’t force it.
+
+CONVERSATION STYLE:
+
+- Answer what they asked first
+- If something would genuinely help, mention it naturally
+- Ask a follow-up question to keep them engaged
+- Keep responses under 150 words unless they need more detail
+
+LOCATION HANDLING:
+If they say “near me” without a location, just ask “What area are you in?”
+
+KIDS PASS LINKS:
+
+- Zoos: https://www.kidspass.co.uk/zoos
+- Theme Parks: https://www.kidspass.co.uk/theme-parks
+- Cinema: https://www.kidspass.co.uk/cinema
+- Soft Play: https://www.kidspass.co.uk/indoor-activities
+- Restaurants: https://www.kidspass.co.uk/restaurants
+- General: https://www.kidspass.co.uk
+
+Remember: You’re a helpful mate, not a salesperson. The best upsell is one that genuinely makes their day better.`;
+
+// ============================================================================
+// TOOL DEFINITIONS - Simplified, let GPT figure out when to use them
+// ============================================================================
+
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+{
+type: “function”,
+function: {
+name: “search_attractions”,
+description: “Search paid UK attractions - theme parks, zoos, safari parks, aquariums, soft play, bowling, museums. Use for any ‘days out’ or ‘things to do’ queries.”,
+parameters: {
+type: “object”,
+properties: {
+query: { type: “string”, description: “What they’re looking for: zoo, theme park, soft play, bowling, museum, farm, etc.” },
+location: { type: “string”, description: “City or area” },
+limit: { type: “number”, description: “Max results, default 5” }
+},
+required: [“query”]
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_attractions_free”,
+description: “Search FREE UK attractions - parks, museums, galleries, beaches. Use when they mention ‘free’, ‘cheap’, or ‘budget’.”,
+parameters: {
+type: “object”,
+properties: {
+query: { type: “string”, description: “What they’re looking for” },
+location: { type: “string”, description: “City or area” },
+limit: { type: “number”, description: “Max results, default 5” }
+},
+required: [“query”]
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_cinema”,
+description: “Find films currently showing at UK cinemas.”,
+parameters: {
+type: “object”,
+properties: {
+genre: { type: “string”, description: “family, animation, comedy, action” },
+family: { type: “boolean”, description: “true for U/PG only” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_streaming”,
+description: “Find films to watch at home on Netflix, Disney+, Prime Video, etc.”,
+parameters: {
+type: “object”,
+properties: {
+service: { type: “string”, description: “Netflix, Disney+, Prime Video, NOW, Sky” },
+mood: { type: “string”, description: “Fun, Heartwarming, Adventure, Scary” },
+family: { type: “boolean”, description: “true for family-friendly only” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_activities”,
+description: “Find things to do AT HOME - crafts, games, rainy day ideas. NOT for days out.”,
+parameters: {
+type: “object”,
+properties: {
+setting: { type: “string”, description: “INDOOR, OUTDOOR, or CAR” },
+age: { type: “number”, description: “Child’s age” },
+energy: { type: “string”, description: “LOW, MED, or HIGH” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_products”,
+description: “Search products to buy - toys, clothes, gifts, supplies. Use when something would genuinely help their situation.”,
+parameters: {
+type: “object”,
+properties: {
+query: { type: “string”, description: “Specific product: binoculars, pyjamas, LEGO, sun hat, snacks, etc.” },
+limit: { type: “number”, description: “Max results, default 3” }
+},
+required: [“query”]
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_events”,
+description: “Find family events, shows, and live entertainment.”,
+parameters: {
+type: “object”,
+properties: {
+query: { type: “string”, description: “Event type or name” },
+city: { type: “string”, description: “City” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_restaurants”,
+description: “Find family-friendly restaurants with kids menus.”,
+parameters: {
+type: “object”,
+properties: {
+city: { type: “string”, description: “City” },
+chain: { type: “string”, description: “Specific chain: Harvester, Beefeater, Toby Carvery” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+},
+{
+type: “function”,
+function: {
+name: “search_recommendations”,
+description: “Get community-sourced venue recommendations from parent groups.”,
+parameters: {
+type: “object”,
+properties: {
+query: { type: “string”, description: “Venue or category” },
+limit: { type: “number”, description: “Max results, default 5” }
+}
+}
+}
+}
+];
+
+// ============================================================================
+// TOOL EXECUTION - Call your own API endpoints
+// ============================================================================
+
+const BASE_URL = `http://localhost:${process.env.PORT || 5000}`;
+
+async function executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+const limit = (args.limit as number) || 5;
+
+try {
+let url: string;
+
+```
+switch (name) {
+  case "search_attractions":
+    url = `${BASE_URL}/attractions/search?query=${encodeURIComponent(args.query as string || "")}&location=${encodeURIComponent(args.location as string || "")}&limit=${limit}`;
+    break;
+    
+  case "search_attractions_free":
+    url = `${BASE_URL}/attractions/free?query=${encodeURIComponent(args.query as string || "")}&location=${encodeURIComponent(args.location as string || "")}&limit=${limit}`;
+    break;
+    
+  case "search_cinema":
+    url = `${BASE_URL}/cinema/search?family=${args.family !== false}&limit=${limit}`;
+    if (args.genre) url += `&genre=${encodeURIComponent(args.genre as string)}`;
+    break;
+    
+  case "search_streaming":
+    url = `${BASE_URL}/nightin/search?family=${args.family !== false}&limit=${limit}`;
+    if (args.service) url += `&service=${encodeURIComponent(args.service as string)}`;
+    if (args.mood) url += `&mood=${encodeURIComponent(args.mood as string)}`;
+    break;
+    
+  case "search_activities":
+    url = `${BASE_URL}/activities/search?limit=${limit}`;
+    if (args.setting) url += `&setting=${encodeURIComponent(args.setting as string)}`;
+    if (args.age) url += `&age=${args.age}`;
+    if (args.energy) url += `&energy=${encodeURIComponent(args.energy as string)}`;
+    break;
+    
+  case "search_products":
+    url = `${BASE_URL}/shopping/awin-link?query=${encodeURIComponent(args.query as string || "")}&limit=${limit}`;
+    break;
+    
+  case "search_events":
+    url = `${BASE_URL}/events/search?limit=${limit}`;
+    if (args.query) url += `&query=${encodeURIComponent(args.query as string)}`;
+    if (args.city) url += `&city=${encodeURIComponent(args.city as string)}`;
+    break;
+    
+  case "search_restaurants":
+    url = `${BASE_URL}/restaurants/search?limit=${limit}`;
+    if (args.city) url += `&city=${encodeURIComponent(args.city as string)}`;
+    if (args.chain) url += `&chain=${encodeURIComponent(args.chain as string)}`;
+    break;
+    
+  case "search_recommendations":
+    url = `${BASE_URL}/recommendations/search?limit=${limit}`;
+    if (args.query) url += `&query=${encodeURIComponent(args.query as string)}`;
+    break;
+    
+  default:
+    return { error: `Unknown tool: ${name}` };
+}
+
+const response = await fetch(url);
+const data = await response.json();
+return data;
+```
+
+} catch (error) {
+console.error(`Tool ${name} failed:`, error);
+return { error: `Failed to search: ${error}` };
+}
+}
+
+// ============================================================================
+// SPONSOR STRIP - Passive Awin revenue, rotates each session
+// ============================================================================
+
+interface SponsorDeal {
+merchant: string;
+offer: string;
+link: string;
+}
+
+async function getSponsorStrip(): Promise<SponsorDeal[]> {
+try {
+// Fetch random products/deals from Awin for the sponsor strip
+const categories = [“toys”, “kids”, “family”, “clothing”, “games”];
+const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+
+```
+const response = await fetch(`${BASE_URL}/shopping/awin-link?query=${randomCategory}&limit=3`);
+const data = await response.json();
+
+if (data.results && data.results.length > 0) {
+  return data.results.slice(0, 3).map((product: any) => ({
+    merchant: product.merchant || "Retailer",
+    offer: product.salePrice 
+      ? `${Math.round((1 - product.salePrice / product.price) * 100)}% off ${product.name?.substring(0, 30) || "selected items"}`
+      : product.name?.substring(0, 40) || "Great deals available",
+    link: product.affiliateLink || product.affiliate_link || "#"
+  }));
+}
+
+// Fallback sponsors if API fails
+return [
+  { merchant: "Zavvi", offer: "Up to 50% off toys & games", link: "https://www.awin1.com/cread.php?awinmid=599&awinaffid=511345" },
+  { merchant: "Debenhams", offer: "Kids clothing sale", link: "https://www.awin1.com/cread.php?awinmid=2228&awinaffid=511345" },
+  { merchant: "Wowow Toys", offer: "Free delivery over £20", link: "https://www.awin1.com/cread.php?awinmid=19909&awinaffid=511345" }
+];
+```
+
+} catch (error) {
+console.error(“Sponsor strip fetch failed:”, error);
+return [];
+}
+}
+
+function formatSponsorStrip(sponsors: SponsorDeal[]): string {
+if (sponsors.length === 0) return “”;
+
+const deals = sponsors.map(s => `${s.merchant}: ${s.offer}`).join(” • “);
+return `\n\n───────────────\n💰 ${deals}`;
+}
+
+// ============================================================================
+// SESSION MANAGEMENT
+// ============================================================================
+
+interface ConversationMessage {
+role: “user” | “assistant” | “system”;
+content: string;
+}
+
+interface Session {
+id: string;
+messages: ConversationMessage[];
+createdAt: Date;
+lastActivity: Date;
+}
+
+const sessions = new Map<string, Session>();
+
+function getOrCreateSession(sessionId?: string): Session {
+if (sessionId && sessions.has(sessionId)) {
+const session = sessions.get(sessionId)!;
+session.lastActivity = new Date();
+return session;
+}
+
+const newSession: Session = {
+id: sessionId || uuidv4(),
+messages: [{ role: “system”, content: SYSTEM_PROMPT }],
+createdAt: new Date(),
+lastActivity: new Date()
+};
+
+sessions.set(newSession.id, newSession);
+return newSession;
+}
+
+// Clean up old sessions every hour
+setInterval(() => {
+const oneHourAgo = Date.now() - 60 * 60 * 1000;
+for (const [id, session] of sessions) {
+if (session.lastActivity.getTime() < oneHourAgo) {
+sessions.delete(id);
+}
+}
+}, 60 * 60 * 1000);
+
+// ============================================================================
+// URL SANITIZATION - Safety net for hallucinated links
+// ============================================================================
+
+function sanitizeResponse(text: string): string {
+// Remove any fake/example URLs the AI might generate
+return text
+.replace(/https?://(www.)?(example.com|fake.com|placeholder.com)[^\s)”]*/gi, “[link removed]”)
+.replace(/https?://(www.)?amazon.(com|co.uk)[^\s)”]*/gi, “[link removed]”)
+.replace(/[([^]]+)](https?://(www.)?(example|fake|placeholder).[^)]+)/gi, “$1”);
+}
+
+// ============================================================================
+// MAIN CHAT HANDLER
+// ============================================================================
+
+export async function handleChat(
+message: string,
+sessionId?: string
+): Promise<{ success: boolean; response: string; sessionId: string; sponsorStrip?: string; debug?: unknown }> {
+
+const session = getOrCreateSession(sessionId);
+const toolsUsed: { tool: string; args: unknown; resultCount?: number }[] = [];
+
+try {
+// Add user message to history
+session.messages.push({ role: “user”, content: message });
+
+```
+// First OpenAI call - let it decide what tools to use
+const firstResponse = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: session.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  tools,
+  tool_choice: "auto",
+  max_tokens: 1000
+});
+
+const firstChoice = firstResponse.choices[0];
+let finalResponse: string;
+
+if (firstChoice.message.tool_calls && firstChoice.message.tool_calls.length > 0) {
+  // Execute all requested tools
+  const toolMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    firstChoice.message as OpenAI.Chat.Completions.ChatCompletionMessageParam
+  ];
+  
+  for (const toolCall of firstChoice.message.tool_calls) {
+    const args = JSON.parse(toolCall.function.arguments);
+    const result = await executeTool(toolCall.function.name, args);
+    
+    toolsUsed.push({
+      tool: toolCall.function.name,
+      args,
+      resultCount: Array.isArray((result as any).results) ? (result as any).results.length : undefined
+    });
+    
+    toolMessages.push({
+      role: "tool",
+      tool_call_id: toolCall.id,
+      content: JSON.stringify(result)
+    });
+  }
+  
+  // Second OpenAI call - format the results naturally
+  const secondResponse = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      ...session.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      ...toolMessages
+    ],
+    tools,
+    tool_choice: "none", // Prevent infinite tool loops
+    max_tokens: 1000
+  });
+  
+  finalResponse = secondResponse.choices[0].message.content || "Sorry, I couldn't find anything for that.";
+  
+} else {
+  // No tools needed - direct response
+  finalResponse = firstChoice.message.content || "Sorry, I'm not sure how to help with that.";
+}
+
+// Sanitize response
+finalResponse = sanitizeResponse(finalResponse);
+
+// Get sponsor strip
+const sponsors = await getSponsorStrip();
+const sponsorStrip = formatSponsorStrip(sponsors);
+
+// Add to session history
+session.messages.push({ role: "assistant", content: finalResponse });
+
+// Trim history if too long (keep last 20 messages + system prompt)
+if (session.messages.length > 21) {
+  session.messages = [
+    session.messages[0], // system prompt
+    ...session.messages.slice(-20)
+  ];
+}
+
+// Log to database
+try {
+  await db.insert(chatLogs).values({
+    id: uuidv4(),
+    sessionId: session.id,
+    userMessage: message,
+    sunnyResponse: finalResponse,
+    toolsUsed: JSON.stringify(toolsUsed),
+    createdAt: new Date()
+  });
+} catch (dbError) {
+  console.error("Failed to log chat:", dbError);
+}
+
+return {
+  success: true,
+  response: finalResponse,
+  sessionId: session.id,
+  sponsorStrip,
+  debug: {
+    version: "v4.0-simplified",
+    toolsUsed
+  }
+};
+```
+
+} catch (error) {
+console.error(“Chat error:”, error);
+return {
+success: false,
+response: “Sorry, something went wrong. Give me a sec and try again! 😊”,
+sessionId: session.id,
+debug: { error: String(error) }
+};
+}
+}
+
+// ============================================================================
+// EXPRESS ROUTES
+// ============================================================================
+
+import { Router, Request, Response } from “express”;
+
+export const sunnyRouter = Router();
+
+// Main chat endpoint
+sunnyRouter.post(”/chat”, async (req: Request, res: Response) => {
+const { message, sessionId } = req.body;
+
+if (!message || typeof message !== “string” || message.trim().length === 0) {
+return res.status(400).json({ success: false, error: “Message required” });
+}
+
+const result = await handleChat(message.trim(), sessionId);
+res.json(result);
+});
+
+// Health check
+sunnyRouter.get(”/health”, (_req: Request, res: Response) => {
+res.json({
+status: “Sunny v4.0 - Simplified”,
+version: “v4.0-simplified”,
+activeSessions: sessions.size,
+timestamp: new Date().toISOString()
+});
+});
+
+// Chat history
+sunnyRouter.get(”/history”, async (req: Request, res: Response) => {
+try {
+const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+const logs = await db.select().from(chatLogs).limit(limit);
+
+```
+res.json({
+  success: true,
+  count: logs.length,
+  logs: logs.map(log => ({
+    ...log,
+    sunnyResponse: req.query.full === "true" ? log.sunnyResponse : log.sunnyResponse?.substring(0, 100) + "..."
+  }))
+});
+```
+
+} catch (error) {
+res.status(500).json({ success: false, error: String(error) });
+}
+});
+
+// Diagnostics
+sunnyRouter.get(”/diagnostics”, (_req: Request, res: Response) => {
+res.json({
+version: “v4.0-simplified”,
+systemPromptLength: SYSTEM_PROMPT.length,
+toolCount: tools.length,
+activeSessions: sessions.size,
+timestamp: new Date().toISOString()
+});
+});
+
+export default sunnyRouter;

@@ -1,0 +1,386 @@
+{
+  "apiVersion": "3.3.0",
+  "baseUrl": "https://your-domain.replit.app",
+  "description": "GPT Deals & Tips API - Backend for ChatGPT custom GPT + Sunny AI Chat Concierge",
+  "dataIntegrity": "All data from PostgreSQL database - ZERO fabrication, SQL-verifiable",
+  "endpoints": {
+    "attractions": {
+      "endpoint": "/attractions/search",
+      "method": "GET",
+      "description": "Paid UK attractions with pricing (theme parks, zoos, safari parks, aquariums)",
+      "rowCount": 3194,
+      "dataSource": "daysout.co.uk + Kids Pass partners",
+      "parameters": {
+        "query": "Search term",
+        "location": "City or area",
+        "category": "Filter by category",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "daysout-abba-voyage",
+          "name": "ABBA Voyage",
+          "category": "Attraction",
+          "location": "UK",
+          "price_adult": 86.25,
+          "source": "daysout"
+        },
+        {
+          "id": "daysout-afternoon-tea-bus-london",
+          "name": "Afternoon Tea Bus London",
+          "category": "Attraction",
+          "location": "UK",
+          "price_adult": 44.95,
+          "source": "daysout"
+        }
+      ]
+    },
+    "attractionsFree": {
+      "endpoint": "/attractions/free",
+      "method": "GET",
+      "description": "Free UK attractions (museums, parks, galleries - free entry or unknown pricing)",
+      "rowCount": 3694,
+      "dataSource": "daysout.co.uk - free venues",
+      "parameters": {
+        "query": "Search term",
+        "location": "City or area",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "daysout-bmusic-town-hall-symphony-hall",
+          "name": "B:Music Town Hall & Symphony Hall",
+          "location": "UK",
+          "price_adult": 0
+        },
+        {
+          "id": "daysout-birmingham-museum-and-art-gallery",
+          "name": "Birmingham Museum and Art Gallery",
+          "location": "UK",
+          "price_adult": 0
+        }
+      ]
+    },
+    "cinema": {
+      "endpoint": "/cinema/search",
+      "method": "GET",
+      "description": "Cinema listings and current/upcoming UK films",
+      "rowCount": 20,
+      "dataSource": "Curated UK cinema dataset",
+      "parameters": {
+        "query": "Film title search",
+        "genre": "Genre filter",
+        "location": "City",
+        "family": "true for U/PG only",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "cinema-avatar-fire-ash",
+          "title": "Avatar: Fire and Ash",
+          "genres": ["Sci-Fi", "Adventure", "Action", "Fantasy"],
+          "director": "James Cameron",
+          "bbfc_rating": "12A"
+        },
+        {
+          "id": "cinema-housemaid",
+          "title": "The Housemaid",
+          "genres": ["Thriller", "Drama", "Mystery"],
+          "director": "Paul Feig",
+          "bbfc_rating": "15"
+        }
+      ]
+    },
+    "nightin": {
+      "endpoint": "/nightin/search",
+      "method": "GET",
+      "description": "Movies to watch at home with UK streaming availability",
+      "rowCount": 500,
+      "dataSource": "Curated movie database with streaming data",
+      "parameters": {
+        "query": "Film search",
+        "service": "Netflix, Prime Video, Disney+, Apple TV+, Sky, NOW, MUBI",
+        "mood": "Fun, Romantic, Intense, Scary, Heartwarming, Epic, Dark",
+        "family": "true for U/PG only",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "m-001",
+          "title": "The Adam Project",
+          "streaming_services": ["Netflix"],
+          "imdb_score": 6.7,
+          "mood": ["Fun", "Family"]
+        },
+        {
+          "id": "m-002",
+          "title": "Glass Onion: A Knives Out Mystery",
+          "streaming_services": ["Netflix"],
+          "imdb_score": 7.1,
+          "mood": ["Clever", "Fun"]
+        }
+      ]
+    },
+    "activities": {
+      "endpoint": "/activities/search",
+      "method": "GET",
+      "description": "Family activities from Sunny Playbook - things to do at home",
+      "rowCount": 500,
+      "dataSource": "SUNNY_FAMILY_HELP_PLAYBOOK",
+      "parameters": {
+        "query": "Activity search",
+        "age": "Child's age number",
+        "energy": "LOW, MED, HIGH",
+        "setting": "INDOOR, OUTDOOR, CAR",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "ACT_0001",
+          "title": "3-Item Challenge",
+          "summary": "Instant boredom-buster: find 3 items matching prompts.",
+          "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M0", "T5", "EMED", "SSMALL_SPACE"]
+        },
+        {
+          "id": "ACT_0002",
+          "title": "Statue DJ (Freeze Dance)",
+          "summary": "Music on/off freeze game.",
+          "tags": ["KEEP_BUSY", "INDOOR", "SL", "P0", "M0", "T5", "EHIGH", "SNOISE_OK"]
+        }
+      ]
+    },
+    "products": {
+      "endpoint": "/shopping/awin-link",
+      "method": "GET",
+      "description": "Shopping deals and affiliate links from Awin product datafeed",
+      "rowCount": 115287,
+      "dataSource": "Awin affiliate datafeed (Zavvi, Debenhams, Ryman, Wowow Toys, etc.)",
+      "parameters": {
+        "query": "Product search term",
+        "category": "Product category",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "35119107057",
+          "name": "Trend Complete Routing Book",
+          "merchant": "Tooled Up",
+          "price": 34.95,
+          "affiliate_link": "https://www.awin1.com/pclick.php?p=35119107057&a=511345&m=496"
+        },
+        {
+          "id": "38125211168",
+          "name": "Granit Plus 470 D-Lock - Black, Black",
+          "merchant": "Millets",
+          "price": 74.99,
+          "affiliate_link": "https://www.awin1.com/pclick.php?p=38125211168&a=511345&m=1521"
+        }
+      ]
+    },
+    "recommendations": {
+      "endpoint": "/recommendations/search",
+      "method": "GET",
+      "description": "Community-sourced venue recommendations from parent groups",
+      "rowCount": 179,
+      "dataSource": "Community scrape - parent recommendations",
+      "parameters": {
+        "query": "Venue search",
+        "category": "Category filter",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": 48,
+          "venue_name": "Drayton Manor",
+          "category": "Theme Park",
+          "mention_count": 6,
+          "positive_mentions": 4,
+          "negative_mentions": 1,
+          "age_baby": true,
+          "age_teen": false
+        },
+        {
+          "id": 32,
+          "venue_name": "Thorpe Park",
+          "category": "Theme Park",
+          "mention_count": 4,
+          "positive_mentions": 4,
+          "negative_mentions": 0,
+          "age_baby": false,
+          "age_teen": true
+        }
+      ]
+    },
+    "events": {
+      "endpoint": "/events/search",
+      "method": "GET",
+      "description": "Family events, shows, and live entertainment across UK",
+      "rowCount": 798,
+      "dataSource": "Venue calendars - Olympia London, SEC Glasgow, etc.",
+      "parameters": {
+        "query": "Event search",
+        "city": "City filter",
+        "category": "Event category",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": 19,
+          "name": "Olympia London",
+          "description": "Historic exhibition and events venue in West Kensington",
+          "city": "London",
+          "venue_name": "Olympia London",
+          "price_from": 30,
+          "price_to": 75,
+          "child_price": 24
+        },
+        {
+          "id": 20,
+          "name": "The IRN-BRU Carnival",
+          "description": null,
+          "city": "Glasgow",
+          "venue_name": "SEC Glasgow",
+          "price_from": 30,
+          "price_to": 75,
+          "child_price": 24
+        }
+      ]
+    },
+    "restaurants": {
+      "endpoint": "/restaurants/search",
+      "method": "GET",
+      "description": "Family-friendly restaurants with kids menus and facilities",
+      "rowCount": 838,
+      "dataSource": "Chain scrape - Beefeater, Harvester, Toby Carvery, etc.",
+      "parameters": {
+        "query": "Restaurant search",
+        "city": "City filter",
+        "chain": "Chain name filter (Beefeater, Harvester, etc.)",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": 8902,
+          "name": "Beefeater The Applecart",
+          "city": "Oxford",
+          "chain_name": "Beefeater",
+          "chain_category": "Steakhouse",
+          "has_kids_menu": true,
+          "has_highchairs": true,
+          "has_baby_changing": true,
+          "kids_eat_free_day": "School holidays",
+          "kids_eat_free_terms": "2 kids under 16 eat FREE with adult meal + newsletter voucher",
+          "website": "https://www.beefeater.co.uk/en-gb/locations/oxford/the-applecart"
+        },
+        {
+          "id": 8906,
+          "name": "Beefeater The Barn",
+          "city": "Buckinghamshire",
+          "chain_name": "Beefeater",
+          "chain_category": "Steakhouse",
+          "has_kids_menu": true,
+          "has_highchairs": true,
+          "has_baby_changing": true,
+          "kids_eat_free_day": "School holidays",
+          "kids_eat_free_terms": "2 kids under 16 eat FREE with adult meal + newsletter voucher",
+          "website": "https://www.beefeater.co.uk/en-gb/locations/buckinghamshire/the-barn"
+        }
+      ]
+    },
+    "hintsAndTips": {
+      "endpoint": "/hintsandtips/search",
+      "method": "GET",
+      "description": "Money-saving hints and tips for families (uses activities as source)",
+      "rowCount": 500,
+      "dataSource": "Activities table repurposed as tips",
+      "parameters": {
+        "query": "Topic search",
+        "category": "Category filter",
+        "limit": "1-50, default 10"
+      },
+      "exampleRecords": [
+        {
+          "id": "ACT_0001",
+          "title": "3-Item Challenge",
+          "content": "Instant boredom-buster: find 3 items matching prompts.",
+          "category": "KEEP_BUSY",
+          "difficulty": "low",
+          "savingsEstimate": "Free activity"
+        },
+        {
+          "id": "ACT_0002",
+          "title": "Statue DJ (Freeze Dance)",
+          "content": "Music on/off freeze game.",
+          "category": "KEEP_BUSY",
+          "difficulty": "low",
+          "savingsEstimate": "Free activity"
+        }
+      ]
+    },
+    "chatLogs": {
+      "endpoint": "/sunny/history",
+      "method": "GET",
+      "description": "Conversation logs - verify AI is using real data",
+      "rowCount": 10,
+      "dataSource": "chat_logs table in PostgreSQL",
+      "parameters": {
+        "sessionId": "Filter by session",
+        "limit": "1-100, default 50",
+        "full": "true for complete responses"
+      },
+      "exampleRecords": [
+        {
+          "id": "c6772acb-b01f-4bb3-8875-7ee8fa343c25",
+          "session_id": "test-original-1",
+          "user_message": "hey Sunny how are you, can you reccomend any attractions near altrincham and I also need to keep the kids busy at home tonight",
+          "tools_used": [
+            {"tool": "search_attractions", "args": {"query": "theme park", "location": "Altrincham"}, "resultCount": 2},
+            {"tool": "search_deals", "args": {"category": "days out"}, "resultCount": 6},
+            {"tool": "search_activities", "args": {"setting": "INDOOR"}, "resultCount": 6}
+          ],
+          "created_at": "2026-01-05 01:00:22.006784"
+        },
+        {
+          "id": "26ea58ed-7475-4e79-9a44-a5d878bcc65e",
+          "session_id": "test-beach-1",
+          "user_message": "we are going to the beach tomorrow, any suggestions?",
+          "tools_used": [],
+          "created_at": "2026-01-05 00:59:53.689916"
+        }
+      ]
+    },
+    "sunnyChat": {
+      "endpoint": "/sunny/chat",
+      "method": "POST",
+      "description": "Sunny AI Chat Concierge - conversational family assistant",
+      "dataSource": "OpenAI GPT-4o-mini with tool calling",
+      "parameters": {
+        "message": "User message (body)",
+        "sessionId": "Session ID for conversation memory (body)"
+      }
+    },
+    "sunnyHealth": {
+      "endpoint": "/sunny/health",
+      "method": "GET",
+      "description": "Sunny AI health check"
+    },
+    "apiDocs": {
+      "endpoint": "/api/docs",
+      "method": "GET",
+      "description": "JSON API documentation"
+    }
+  },
+  "databaseTotals": {
+    "attractions": 3194,
+    "attractions_free": 3694,
+    "cinema_movies": 20,
+    "nightin_movies": 500,
+    "activities": 500,
+    "products": 115287,
+    "recommendations": 179,
+    "events": 798,
+    "restaurants": 838,
+    "chat_logs": 10,
+    "total": 125020
+  }
+}

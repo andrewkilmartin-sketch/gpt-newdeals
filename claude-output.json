@@ -1,0 +1,10 @@
+{
+  "action": "health",
+  "time": "2025-12-29T00:44:52.076Z",
+  "ok": true,
+  "data": {
+    "status": "Sunny v2.2 - Enhanced Anti-Hallucination",
+    "version": "v2.2",
+    "timestamp": "2025-12-29T00:44:52.146Z"
+  }
+}

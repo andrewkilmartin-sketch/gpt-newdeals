@@ -1,0 +1,61 @@
+async function generateResponse(userMessage: string, results: any[], kidsPassPromo: any, upsells: any[], showFoodDeals: boolean): Promise<string> {
+  const hasResults = results.some(r => r.results && r.results.length > 0);
+  
+  if (!hasResults) {
+    const kidsPassUrl = kidsPassPromo?.promo?.url || 'https://www.kidspass.co.uk';
+    return `I don't have specific results for that in my database yet, but **Kids Pass members can browse thousands of attractions** with up to 50% off!\n\n[Browse all deals](${kidsPassUrl})\n\nTry asking about a different area or activity?`;
+  }
+
+  const availableNames: string[] = [];
+  results.forEach(r => {
+    if (r.results) {
+      r.results.forEach((item: any) => {
+        if (item.name) availableNames.push(item.name);
+        if (item.title) availableNames.push(item.title);
+      });
+    }
+  });
+
+  const isHomeMovie = results.some(r => r.type === 'HOME_MOVIE');
+  
+  const upsellText = upsells.length > 0 ? `\n\nREQUIRED UPSELL - YOU MUST INCLUDE THIS PRODUCT:\nName: ${upsells[0]?.name}\nPrice: ${upsells[0]?.price || 'See site'}\nLink: ${upsells[0]?.url || '#'}\nMention this naturally like "While you're planning, check out [${upsells[0]?.name}](${upsells[0]?.url}) - perfect for your trip!"` : '';
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are Sunny, a friendly family concierge for Kids Pass UK.
+
+ANTI-HALLUCINATION RULES:
+You can ONLY mention these exact names:
+${availableNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+
+DO NOT mention anything not in this list. DO NOT invent attractions.
+
+${isHomeMovie ? `FAMILY FILM SAFETY: Only recommend films suitable for children (rated U or PG). If a film sounds adult-oriented (violence, crime, horror), DO NOT recommend it. Skip The Godfather, Pulp Fiction, Schindler's List, The Shawshank Redemption, or any 15/18 rated films.` : ''}
+
+RESPONSE STRUCTURE:
+${kidsPassPromo ? `1. START WITH: "🎟️ **Kids Pass members save ${kidsPassPromo.promo.discount}** on ${kidsPassPromo.promo.description}! [Browse deals](${kidsPassPromo.promo.url})"` : ''}
+
+2. List 3-5 items from the list above with [clickable links](url) if available
+
+${upsellText}
+
+${showFoodDeals ? `3. Add: "🍕 Make it a movie night - [order from Uber Eats](https://www.ubereats.com)!"` : ''}
+
+END with a friendly follow-up question.
+
+<api_data>
+${JSON.stringify(results, null, 2)}
+</api_data>
+
+Keep it warm and concise. Use emojis sparingly.`
+      },
+      { role: 'user', content: userMessage }
+    ],
+    temperature: 0.3
+  });
+
+  return response.choices[0].message.content || "Sorry, I had trouble generating a response. Please try again.";
+}

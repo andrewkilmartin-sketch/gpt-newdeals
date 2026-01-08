@@ -1,0 +1,539 @@
+/**
+ * Sunny Search - With Dynamic Filters
+ * ====================================
+ * 1. User searches "disney toys"
+ * 2. Results load with filter boxes above
+ * 3. Filters are generated from actual results (not hardcoded)
+ * 4. Click filter → refine results
+ */
+
+import express, { Request, Response } from 'express';
+import { Pool } from 'pg';
+import OpenAI from 'openai';
+
+const app = express();
+app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+interface Product {
+  aw_product_id: string;
+  product_name: string;
+  description: string;
+  search_price: number;
+  merchant_name: string;
+  aw_deep_link: string;
+  merchant_image_url: string;
+  aw_image_url: string;
+  category_name: string;
+  brand_name: string;
+}
+
+interface SearchResult {
+  id: string;
+  name: string;
+  price: number;
+  merchant: string;
+  category: string;
+  brand: string;
+  affiliateLink: string;
+  imageUrl: string;
+}
+
+interface Filters {
+  prices: { label: string; min: number; max: number; count: number }[];
+  merchants: { name: string; count: number }[];
+  categories: { name: string; count: number }[];
+  brands: { name: string; count: number }[];
+}
+
+interface SearchResponse {
+  success: boolean;
+  query: string;
+  count: number;
+  totalCount: number;
+  filters: Filters;
+  products: SearchResult[];
+}
+
+async function search(
+  query: string,
+  filterMerchant?: string,
+  filterCategory?: string,
+  filterBrand?: string,
+  filterMinPrice?: number,
+  filterMaxPrice?: number
+): Promise<SearchResponse> {
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+  if (words.length === 0) {
+    return { success: true, query, count: 0, totalCount: 0, filters: { prices: [], merchants: [], categories: [], brands: [] }, products: [] };
+  }
+
+  // Build base condition (AND matching)
+  const baseConditions = words.map((_, i) =>
+    `(LOWER(product_name) LIKE $${i + 1} OR LOWER(description) LIKE $${i + 1})`
+  ).join(' AND ');
+  const baseParams = words.map(w => `%${w}%`);
+
+  // Get ALL matching products for filter counts (limit 500 for performance)
+  const allMatchesSql = `
+    SELECT aw_product_id, product_name, description, search_price,
+           merchant_name, aw_deep_link, merchant_image_url, aw_image_url,
+           category_name, brand_name
+    FROM products
+    WHERE (${baseConditions})
+      AND aw_deep_link IS NOT NULL
+    LIMIT 500
+  `;
+  const allMatchesResult = await pool.query(allMatchesSql, baseParams);
+  const allMatches: Product[] = allMatchesResult.rows;
+
+  if (allMatches.length === 0) {
+    return { success: true, query, count: 0, totalCount: 0, filters: { prices: [], merchants: [], categories: [], brands: [] }, products: [] };
+  }
+
+  // Build dynamic filters from results
+  const filters = buildFilters(allMatches);
+
+  // Now apply user's filter selections
+  let filtered = allMatches;
+
+  if (filterMerchant) {
+    filtered = filtered.filter(p => p.merchant_name?.toLowerCase() === filterMerchant.toLowerCase());
+  }
+  if (filterCategory) {
+    filtered = filtered.filter(p => p.category_name?.toLowerCase().includes(filterCategory.toLowerCase()));
+  }
+  if (filterBrand) {
+    filtered = filtered.filter(p => p.brand_name?.toLowerCase() === filterBrand.toLowerCase() ||
+      p.product_name?.toLowerCase().includes(filterBrand.toLowerCase()));
+  }
+  if (filterMinPrice !== undefined) {
+    filtered = filtered.filter(p => (p.search_price || 0) >= filterMinPrice);
+  }
+  if (filterMaxPrice !== undefined) {
+    filtered = filtered.filter(p => (p.search_price || 0) <= filterMaxPrice);
+  }
+
+  const totalCount = filtered.length;
+
+  if (filtered.length === 0) {
+    return { success: true, query, count: 0, totalCount: 0, filters, products: [] };
+  }
+
+  // Get random sample of 100 for GPT ranking
+  const shuffled = filtered.sort(() => Math.random() - 0.5);
+  const candidates = shuffled.slice(0, 100);
+
+  // Ask GPT to pick best 8
+  const productsText = candidates.map(p =>
+    `ID:${p.aw_product_id} | ${p.product_name} | £${p.search_price || 0} | ${p.category_name || ''} | ${(p.description || '').substring(0, 100)}`
+  ).join('\n');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You help UK families find products. Pick the 8 BEST matches.
+
+RULES:
+1. Only pick products that match the search intent
+2. Prioritise variety - different merchants, different product types
+3. "toys" means actual toys, not clothing
+4. Return ONLY a JSON array of IDs: ["id1", "id2", ...]`
+      },
+      {
+        role: 'user',
+        content: `Search: "${query}"\n\nProducts:\n${productsText}`
+      }
+    ],
+    temperature: 0.1
+  });
+
+  // Parse IDs
+  let selectedIds: string[] = [];
+  try {
+    let content = response.choices[0].message.content?.trim() || '[]';
+    if (content.includes('```')) {
+      const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match) content = match[1].trim();
+    }
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      selectedIds = parsed.map(id => String(id));
+    }
+  } catch {
+    selectedIds = candidates.slice(0, 8).map(p => String(p.aw_product_id));
+  }
+
+  // Build response
+  const idToProduct = new Map(candidates.map(p => [String(p.aw_product_id), p]));
+  const results: SearchResult[] = [];
+
+  for (const pid of selectedIds) {
+    const p = idToProduct.get(pid);
+    if (p) {
+      results.push({
+        id: String(p.aw_product_id),
+        name: p.product_name,
+        price: parseFloat(String(p.search_price)) || 0,
+        merchant: p.merchant_name || '',
+        category: p.category_name || '',
+        brand: p.brand_name || '',
+        affiliateLink: p.aw_deep_link,
+        imageUrl: p.merchant_image_url || p.aw_image_url || ''
+      });
+    }
+  }
+
+  // Fallback
+  if (results.length === 0 && candidates.length > 0) {
+    for (const p of candidates.slice(0, 8)) {
+      results.push({
+        id: String(p.aw_product_id),
+        name: p.product_name,
+        price: parseFloat(String(p.search_price)) || 0,
+        merchant: p.merchant_name || '',
+        category: p.category_name || '',
+        brand: p.brand_name || '',
+        affiliateLink: p.aw_deep_link,
+        imageUrl: p.merchant_image_url || p.aw_image_url || ''
+      });
+    }
+  }
+
+  return { success: true, query, count: results.length, totalCount, filters, products: results };
+}
+
+function buildFilters(products: Product[]): Filters {
+  // Price buckets
+  const priceBuckets = [
+    { label: 'Under £10', min: 0, max: 10, count: 0 },
+    { label: '£10 - £25', min: 10, max: 25, count: 0 },
+    { label: '£25 - £50', min: 25, max: 50, count: 0 },
+    { label: '£50+', min: 50, max: 99999, count: 0 }
+  ];
+
+  for (const p of products) {
+    const price = p.search_price || 0;
+    for (const bucket of priceBuckets) {
+      if (price >= bucket.min && price < bucket.max) {
+        bucket.count++;
+        break;
+      }
+    }
+  }
+
+  // Merchants
+  const merchantCounts = new Map<string, number>();
+  for (const p of products) {
+    if (p.merchant_name) {
+      merchantCounts.set(p.merchant_name, (merchantCounts.get(p.merchant_name) || 0) + 1);
+    }
+  }
+  const merchants = Array.from(merchantCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  // Categories
+  const categoryCounts = new Map<string, number>();
+  for (const p of products) {
+    if (p.category_name) {
+      categoryCounts.set(p.category_name, (categoryCounts.get(p.category_name) || 0) + 1);
+    }
+  }
+  const categories = Array.from(categoryCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  // Brands
+  const brandCounts = new Map<string, number>();
+  const knownBrands = ['LEGO', 'Disney', 'Marvel', 'Hasbro', 'Mattel', 'Fisher-Price', 'Peppa Pig', 'Paw Patrol', 'Barbie', 'Hot Wheels', 'Nintendo', 'Funko'];
+  
+  for (const p of products) {
+    if (p.brand_name) {
+      brandCounts.set(p.brand_name, (brandCounts.get(p.brand_name) || 0) + 1);
+    } else {
+      for (const brand of knownBrands) {
+        if (p.product_name?.toLowerCase().includes(brand.toLowerCase())) {
+          brandCounts.set(brand, (brandCounts.get(brand) || 0) + 1);
+          break;
+        }
+      }
+    }
+  }
+  const brands = Array.from(brandCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  return {
+    prices: priceBuckets.filter(b => b.count > 0),
+    merchants,
+    categories,
+    brands
+  };
+}
+
+// API endpoint
+app.post('/api/search', async (req: Request, res: Response) => {
+  try {
+    const { query, merchant, category, brand, minPrice, maxPrice } = req.body;
+    if (!query) return res.status(400).json({ error: 'Query required' });
+
+    const result = await search(
+      query.trim(),
+      merchant,
+      category,
+      brand,
+      minPrice !== undefined ? parseFloat(minPrice) : undefined,
+      maxPrice !== undefined ? parseFloat(maxPrice) : undefined
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ success: false, error: 'Search failed' });
+  }
+});
+
+// Frontend
+app.get('/', (req: Request, res: Response) => {
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sunny</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { color: #fff; text-align: center; margin: 30px 0; font-size: 2.5em; }
+        h1 span { color: #ffd93d; }
+        
+        .search-box { display: flex; max-width: 550px; margin: 0 auto 30px; background: #fff; border-radius: 30px; overflow: hidden; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
+        .search-box input { flex: 1; padding: 16px 22px; font-size: 16px; border: none; outline: none; }
+        .search-box button { padding: 16px 32px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border: none; cursor: pointer; font-weight: 700; font-size: 15px; }
+        
+        .filters { background: rgba(255,255,255,0.95); border-radius: 16px; padding: 20px; margin-bottom: 25px; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .filters.active { display: block; }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; align-items: center; }
+        .filter-row:last-child { margin-bottom: 0; }
+        .filter-label { font-weight: 700; color: #444; min-width: 80px; font-size: 13px; text-transform: uppercase; }
+        .filter-btn { padding: 8px 14px; background: #f0f0f0; border: 2px solid transparent; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .filter-btn:hover { background: #e0e0e0; }
+        .filter-btn.active { background: #667eea; color: #fff; border-color: #667eea; }
+        .filter-btn .count { opacity: 0.7; font-size: 11px; margin-left: 4px; }
+        .clear-filters { padding: 8px 16px; background: none; border: 2px solid #e74c3c; color: #e74c3c; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600; margin-left: auto; }
+        .clear-filters:hover { background: #e74c3c; color: #fff; }
+        
+        .stats { color: rgba(255,255,255,0.9); text-align: center; margin-bottom: 20px; font-size: 14px; }
+        
+        .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .product { background: #fff; border-radius: 14px; overflow: hidden; text-decoration: none; color: #000; transition: transform 0.2s, box-shadow 0.2s; }
+        .product:hover { transform: translateY(-5px); box-shadow: 0 12px 35px rgba(0,0,0,0.2); }
+        .product img { width: 100%; height: 170px; object-fit: contain; background: #f8f8f8; padding: 12px; }
+        .info { padding: 16px; }
+        .merchant { color: #667eea; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .name { font-size: 14px; margin: 8px 0; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
+        .price { font-size: 22px; font-weight: 800; color: #2d3748; }
+        .category { color: #888; font-size: 11px; margin-top: 6px; }
+        
+        .loading, .empty { color: #fff; text-align: center; padding: 50px; font-size: 18px; }
+        
+        @media (max-width: 600px) {
+            .search-box { flex-direction: column; border-radius: 16px; }
+            .search-box button { border-radius: 0; }
+            .filter-row { flex-direction: column; align-items: flex-start; }
+            .filter-label { margin-bottom: 8px; }
+            .clear-filters { margin-left: 0; margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>☀️ <span>Sunny</span></h1>
+        
+        <div class="search-box">
+            <input type="text" id="q" placeholder="What are you looking for?">
+            <button onclick="doSearch()">Search</button>
+        </div>
+        
+        <div id="filters" class="filters"></div>
+        <div id="stats" class="stats"></div>
+        <div id="results"></div>
+    </div>
+    
+    <script>
+        let currentQuery = '';
+        let currentFilters = { merchant: null, category: null, brand: null, minPrice: null, maxPrice: null };
+        
+        document.getElementById('q').addEventListener('keypress', e => {
+            if (e.key === 'Enter') doSearch();
+        });
+        
+        function doSearch(keepFilters = false) {
+            const q = document.getElementById('q').value.trim();
+            if (!q) return;
+            
+            if (q !== currentQuery || !keepFilters) {
+                currentQuery = q;
+                if (!keepFilters) {
+                    currentFilters = { merchant: null, category: null, brand: null, minPrice: null, maxPrice: null };
+                }
+            }
+            
+            fetchResults();
+        }
+        
+        async function fetchResults() {
+            document.getElementById('stats').innerHTML = '';
+            document.getElementById('results').innerHTML = '<div class="loading">Finding products...</div>';
+            
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: currentQuery,
+                        ...currentFilters
+                    })
+                });
+                const data = await res.json();
+                
+                renderFilters(data.filters);
+                
+                if (!data.products || data.products.length === 0) {
+                    document.getElementById('stats').innerHTML = '';
+                    document.getElementById('results').innerHTML = '<div class="empty">No products found. Try different keywords or clear filters.</div>';
+                    return;
+                }
+                
+                document.getElementById('stats').innerHTML = 'Showing ' + data.count + ' of ' + data.totalCount + ' products';
+                
+                document.getElementById('results').innerHTML = '<div class="results">' + data.products.map(p => `
+                    <a href="${p.affiliateLink}" target="_blank" class="product">
+                        <img src="${p.imageUrl || 'https://placehold.co/200x170?text=No+Image'}" onerror="this.src='https://placehold.co/200x170?text=No+Image'">
+                        <div class="info">
+                            <div class="merchant">${p.merchant || ''}</div>
+                            <div class="name">${p.name}</div>
+                            <div class="price">£${p.price.toFixed(2)}</div>
+                            <div class="category">${p.category || ''}</div>
+                        </div>
+                    </a>
+                `).join('') + '</div>';
+            } catch (err) {
+                document.getElementById('results').innerHTML = '<div class="empty">Something went wrong. Please try again.</div>';
+            }
+        }
+        
+        function renderFilters(filters) {
+            const container = document.getElementById('filters');
+            
+            if (!filters || (filters.prices.length === 0 && filters.merchants.length === 0 && filters.categories.length === 0 && filters.brands.length === 0)) {
+                container.classList.remove('active');
+                return;
+            }
+            
+            let html = '';
+            
+            // Price filters
+            if (filters.prices.length > 0) {
+                html += '<div class="filter-row"><span class="filter-label">Price</span>';
+                for (const p of filters.prices) {
+                    const isActive = currentFilters.minPrice === p.min && currentFilters.maxPrice === p.max;
+                    html += `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="togglePrice(${p.min}, ${p.max})">${p.label}<span class="count">(${p.count})</span></button>`;
+                }
+                html += '</div>';
+            }
+            
+            // Merchant filters
+            if (filters.merchants.length > 0) {
+                html += '<div class="filter-row"><span class="filter-label">Shop</span>';
+                for (const m of filters.merchants) {
+                    const isActive = currentFilters.merchant === m.name;
+                    html += `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="toggleMerchant('${m.name.replace(/'/g, "\\'")}')">${m.name}<span class="count">(${m.count})</span></button>`;
+                }
+                html += '</div>';
+            }
+            
+            // Category filters
+            if (filters.categories.length > 0) {
+                html += '<div class="filter-row"><span class="filter-label">Type</span>';
+                for (const c of filters.categories) {
+                    const isActive = currentFilters.category === c.name;
+                    html += `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="toggleCategory('${c.name.replace(/'/g, "\\'")}')">${c.name}<span class="count">(${c.count})</span></button>`;
+                }
+                html += '</div>';
+            }
+            
+            // Brand filters
+            if (filters.brands.length > 0) {
+                html += '<div class="filter-row"><span class="filter-label">Brand</span>';
+                for (const b of filters.brands) {
+                    const isActive = currentFilters.brand === b.name;
+                    html += `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="toggleBrand('${b.name.replace(/'/g, "\\'")}')">${b.name}<span class="count">(${b.count})</span></button>`;
+                }
+                html += '</div>';
+            }
+            
+            // Clear button
+            const hasActiveFilter = currentFilters.merchant || currentFilters.category || currentFilters.brand || currentFilters.minPrice !== null;
+            if (hasActiveFilter) {
+                html += '<div class="filter-row"><button class="clear-filters" onclick="clearFilters()">Clear All Filters</button></div>';
+            }
+            
+            container.innerHTML = html;
+            container.classList.add('active');
+        }
+        
+        function togglePrice(min, max) {
+            if (currentFilters.minPrice === min && currentFilters.maxPrice === max) {
+                currentFilters.minPrice = null;
+                currentFilters.maxPrice = null;
+            } else {
+                currentFilters.minPrice = min;
+                currentFilters.maxPrice = max;
+            }
+            doSearch(true);
+        }
+        
+        function toggleMerchant(name) {
+            currentFilters.merchant = currentFilters.merchant === name ? null : name;
+            doSearch(true);
+        }
+        
+        function toggleCategory(name) {
+            currentFilters.category = currentFilters.category === name ? null : name;
+            doSearch(true);
+        }
+        
+        function toggleBrand(name) {
+            currentFilters.brand = currentFilters.brand === name ? null : name;
+            doSearch(true);
+        }
+        
+        function clearFilters() {
+            currentFilters = { merchant: null, category: null, brand: null, minPrice: null, maxPrice: null };
+            doSearch(true);
+        }
+    </script>
+</body>
+</html>
+  `);
+});
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Sunny running on port ${PORT}`));

@@ -1,0 +1,32 @@
+# Exclude large files from deployment to prevent timeout
+# These files are only needed for data import, not runtime
+
+# Large data files (450MB+)
+attached_assets/*.gz
+attached_assets/*.zip
+attached_assets/*.csv
+attached_assets/*.xlsx
+
+# Old paste files and scripts not needed at runtime
+attached_assets/Pasted-*
+attached_assets/*.py
+attached_assets/*.ts
+attached_assets/*.json
+attached_assets/*.txt
+
+# Search results cache
+search_results/
+
+# Test files
+tests/
+*.test.ts
+*.test.js
+test-*.json
+test-*.txt
+run-tests.sh
+
+# Development files
+*.md
+claude-*.json
+claude-*.cjs
+batch-scores.txt

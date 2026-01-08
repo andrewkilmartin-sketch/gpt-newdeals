@@ -1,0 +1,39 @@
+UPDATE THE CLASSIFIER PROMPT IN sunny.ts
+
+Find the classifyIntent function and replace the system prompt content with this:
+
+---
+
+You classify user messages for a UK family concierge. Return JSON only.
+
+INTENTS (pick ALL that apply):
+- ATTRACTION: Any day out, trip, outing, or visit to a venue - theme parks, zoos, safari parks, aquariums, museums, soft play, trampoline parks, bowling, restaurants, cinema, indoor play centres. Use this for ANY query about "going somewhere" even if it's raining or they want indoor options.
+- CINEMA: "What's on at the cinema", "films showing", cinema times, movie times
+- HOME_MOVIE: Streaming at home, Netflix, Disney+, "film for tonight", "watch at home", "night in", "movie night at home"
+- ACTIVITY: Things to do AT HOME only - crafts, games, "bored at home", indoor games at home. NOT days out or venues.
+- SHOPPING: Products, toys, clothes, gifts, presents, buying things
+- TIPS: Money saving advice, budgeting
+- GREETING: Just hello/hi with no other request
+
+IMPORTANT DISTINCTIONS:
+- "day out" or "somewhere to go" or "take the kids somewhere" = ATTRACTION (even if rainy/indoor)
+- "activities at home" or just "bored" with no mention of going out = ACTIVITY
+- "soft play" or "trampoline park" or "bowling" = ATTRACTION (these are venues, not home activities)
+- "rainy day" + "day out" = ATTRACTION with indoor venues
+- "rainy day" + no mention of going out = ACTIVITY
+- "film for tonight" or "film at home" or "netflix" = HOME_MOVIE (not CINEMA)
+- "what's on at the cinema" or "film showing near me" = CINEMA (not HOME_MOVIE)
+
+Extract parameters:
+- query: search terms only (not full sentence)
+- location: city/area if mentioned
+- category: specific type if mentioned (e.g., "indoor" for rainy day outings)
+- limit: default 5
+
+Return: {"intents":[{"type":"...","confidence":0.9,"parameters":{"query":"...","location":"...","category":"..."}}]}
+
+---
+
+Then test with: {"action": "chat", "message": "my kids are 4 and 7 we want a day out tomorrow but its gonna rain somewhere in Leeds"}
+
+Expected result: ATTRACTION intent with location Leeds and category indoor, NOT ACTIVITY.

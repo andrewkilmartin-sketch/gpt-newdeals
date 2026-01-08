@@ -1,0 +1,133 @@
+# Sunny AI Search v2 - Global Intent Architecture
+
+## What’s Different
+
+**Before (broken):**
+
+- 15+ hardcoded keyword lists
+- 10+ if-else penalty branches
+- Each bug fix = new condition
+- Inconsistent scoring
+
+**After (this version):**
+
+- ONE intent extraction function
+- ONE scoring algorithm
+- Taxonomy lives in database (add keywords via SQL, not code)
+- Consistent weights via matrix
+
+## Files
+
+|File                     |Purpose                                                         |
+|-------------------------|----------------------------------------------------------------|
+|`search_engine.py`       |Core search logic - intent extraction, scoring, database queries|
+|`main.py`                |FastAPI app with frontend                                       |
+|`schema.sql`             |Database schema + taxonomy seed data (200+ keywords)            |
+|`generate_search_tags.py`|One-time job to enrich product descriptions                     |
+|`requirements.txt`       |Python dependencies                                             |
+
+## Setup
+
+### 1. Run the schema
+
+```sql
+-- In your PostgreSQL database
+\i schema.sql
+```
+
+This creates:
+
+- `taxonomy` table with 200+ keywords mapped to categories
+- `search_tags` column on products table
+- Proper indexes
+
+### 2. Generate search tags (optional but recommended)
+
+```bash
+# Process 1000 products at a time
+python generate_search_tags.py --batch-size 100 --batches 10
+
+# Check progress
+python generate_search_tags.py --stats
+```
+
+Cost: ~$5-10 for all 115k products
+
+### 3. Run the app
+
+```bash
+python main.py
+```
+
+## How It Works
+
+### Query: “Disney trainers for toddler under £20”
+
+**Step 1: Intent Extraction**
+Consults taxonomy table, returns:
+
+```python
+{
+    "keywords": ["disney", "trainers"],
+    "categories": ["Footwear"],
+    "franchises": ["Disney"],
+    "age_group": "2-4",
+    "max_price": 20,
+    "weights": {"disney": 1.2, "trainers": 1.0}
+}
+```
+
+**Step 2: Database Query**
+
+```sql
+WHERE in_stock = true
+  AND price <= 20
+  AND (LOWER(name) LIKE '%disney%' OR LOWER(description) LIKE '%disney%')
+  AND (LOWER(name) LIKE '%trainers%' OR LOWER(description) LIKE '%trainers%')
+  AND LOWER(category) LIKE '%footwear%'
+```
+
+**Step 3: Relevance Scoring**
+Each product scored by:
+
+- Keyword matches in name (10pts) vs description (5pts)
+- Category match (+15pts)
+- Franchise match (+20pts)
+- Intent × Category weight matrix
+- Price utilisation (products using more budget score higher)
+- Image availability (+3pts)
+- In-stock (+5pts)
+
+**Step 4: Return top 10**
+
+## Adding New Keywords
+
+No code changes needed! Just insert into taxonomy:
+
+```sql
+INSERT INTO taxonomy (keyword, category, subcategory, weight) VALUES
+('gabby dollhouse', 'Franchise', 'Gabby', 1.2),
+('bluey', 'Franchise', 'Bluey', 1.2),
+('crocs', 'Footwear', 'Casual', 1.0);
+```
+
+Done. Search immediately recognises these.
+
+## Debugging
+
+Check what the system understands:
+
+```bash
+curl -X POST http://localhost:8080/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "disney trainers under £20"}'
+```
+
+Response includes `intent` object showing how query was parsed.
+
+## Zero Hallucination Guarantee
+
+- All products come from PostgreSQL
+- Taxonomy is database table, not AI generation
+- AI only used for search_tags generation (one-time, human-reviewable)
+- No synthetic content injected at query time

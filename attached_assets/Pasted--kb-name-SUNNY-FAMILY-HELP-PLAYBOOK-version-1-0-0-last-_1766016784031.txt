@@ -1,0 +1,529 @@
+{
+  "kb_name": "SUNNY_FAMILY_HELP_PLAYBOOK",
+  "version": "1.0.0",
+  "last_updated": "2025-12-17",
+  "language": "en-GB",
+  "purpose": "Offline knowledge base for Sunny: activities, routines, chores, calm-down tools, travel/car boredom busters, rainy-day plans, crafts, games, homework support, bedtime/morning systems. Designed for API retrieval (RAG).",
+  "safety": {
+    "constraints": [
+      "No medical diagnosis or treatment instructions beyond general comfort and encouragement to seek professional help.",
+      "No legal advice.",
+      "No dangerous stunts, weapons, or illegal activity guidance.",
+      "Age-appropriate safety: supervision for scissors/heat/sharp items; choking hazards for under-3; water/roads supervision outdoors."
+    ],
+    "escalation_triggers": [
+      "self-harm",
+      "abuse",
+      "violence threats",
+      "severe mental health crisis",
+      "serious medical symptoms"
+    ],
+    "escalation_response": "If there is immediate danger, contact local emergency services. If you’re worried about health or safety, contact a qualified professional. I can offer general calming routines and low-risk activity ideas."
+  },
+  "tag_legend": {
+    "time": ["T5", "T10", "T20", "T45", "T90"],
+    "energy": ["ELOW", "EMED", "EHIGH"],
+    "setting": ["SINDOOR", "SOUTDOOR", "SCAR", "STRAVEL", "SSMALL_SPACE", "SRAINY", "SQUIET_ONLY", "SNOISE_OK"],
+    "screen": ["NS", "SL", "SY"],
+    "mess": ["M0", "M1", "M2"],
+    "prep": ["P0", "P1", "P2"],
+    "age_bands": ["A0_2", "A3_5", "A6_8", "A9_12", "A13_16"],
+    "topics": [
+      "KEEP_BUSY",
+      "RAINY_DAY",
+      "OUTDOOR",
+      "INDOOR",
+      "CAR",
+      "QUIET_TIME",
+      "SIBLINGS",
+      "CHORES",
+      "ROUTINES",
+      "BEDTIME",
+      "MORNING",
+      "HOMEWORK",
+      "BIG_FEELINGS",
+      "CRAFT",
+      "SCIENCE",
+      "BUILDING",
+      "LEGO",
+      "MEALS_SIMPLE",
+      "PLAYDATE",
+      "SLEEP_OVER",
+      "BIRTHDAY",
+      "SICK_DAY_LIGHT"
+    ]
+  },
+  "retrieval_hints": {
+    "suggested_filters": ["age_bands", "time", "energy", "setting", "screen", "mess", "prep"],
+    "default_return_count": 10,
+    "always_include_if_possible": [
+      "one_no_prep_option",
+      "one_parent_rest_option",
+      "one_siblings_together_option",
+      "one_quiet_reset_option"
+    ],
+    "clarifying_questions_if_needed": [
+      "What ages are the kids?",
+      "How long do you need to fill?",
+      "Indoor/outdoor (or car)?",
+      "Energy level: calm or burn energy?",
+      "Screens okay?",
+      "Any limits: noise, mess, money, space?"
+    ]
+  },
+  "chunks": [
+    {
+      "id": "ACT_0001",
+      "title": "3-Item Challenge",
+      "summary": "Instant boredom-buster: find 3 items matching prompts.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M0", "T5", "EMED", "SSMALL_SPACE"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Say: 'Find 3 things that are soft / blue / make noise.'", "Time it (60–120 seconds).", "Swap roles: kid chooses prompts."],
+      "variations": ["Texture hunt (rough/smooth)", "Shape hunt (circle/triangle)", "Emotion hunt (something that makes you happy)"]
+    },
+    {
+      "id": "ACT_0002",
+      "title": "Statue DJ (Freeze Dance)",
+      "summary": "Music on/off freeze game.",
+      "tags": ["KEEP_BUSY", "INDOOR", "SL", "P0", "M0", "T5", "EHIGH", "SNOISE_OK"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "medium" },
+      "steps": ["Play music for 20–40 seconds.", "Pause: everyone freezes.", "Add silly rules (one foot, superhero pose)."],
+      "variations": ["Quiet version: slow-motion only", "Balance challenge: freeze on one leg (older kids)"]
+    },
+    {
+      "id": "ACT_0003",
+      "title": "One-Minute Draw",
+      "summary": "Draw fast with a constraint (only circles, only triangles, etc.).",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P1", "M0", "T5", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Pick a theme (animal/robot/house).", "Set 60 seconds timer.", "Add a rule (only shapes / non-dominant hand)."],
+      "variations": ["Comic strip 4 panels (T20)", "Guess-the-drawing round"]
+    },
+    {
+      "id": "ACT_0004",
+      "title": "Sock Basketball",
+      "summary": "Rolled socks into a laundry basket target.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M0", "T10", "EHIGH", "SSMALL_SPACE"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Roll 6–12 socks into balls.", "Place basket as hoop; mark a throwing line.", "Take turns; keep score."],
+      "variations": ["Different point zones", "Trick shots (older kids)"]
+    },
+    {
+      "id": "ACT_0005",
+      "title": "Animal Walk Relay",
+      "summary": "Burn energy with bear crawl, crab walk, frog jumps.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M0", "T10", "EHIGH", "SNOISE_OK"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["Set a safe route (hall/room).", "Call an animal movement.", "Race the timer, not each other."],
+      "variations": ["Obstacle add-ons (pillows)", "Quiet version: slow animal walks"]
+    },
+    {
+      "id": "ACT_0006",
+      "title": "Mystery Bag (Touch Guess)",
+      "summary": "Guess items by touch only.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P1", "M0", "T10", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Put 5–10 safe items in a bag.", "Kid feels one item without peeking.", "They guess; score 1 point per correct guess."],
+      "variations": ["Theme bag (kitchen items)", "Timed round"]
+    },
+    {
+      "id": "ACT_0007",
+      "title": "Treasure Hunt (5 Clues)",
+      "summary": "Hide 5 items, solve clues to find a prize.",
+      "tags": ["KEEP_BUSY", "INDOOR", "OUTDOOR", "NS", "P0", "M0", "T20", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["Hide a final prize (snack/sticker).", "Write or say 5 clues.", "Let kids solve each clue to find the next."],
+      "variations": ["Hot/cold for younger kids", "Rhyming clues for older kids"]
+    },
+    {
+      "id": "ACT_0008",
+      "title": "Build a Den (Fort)",
+      "summary": "Chairs + blanket + pillows = cosy play/reading den.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M1", "T20", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": ["Choose 2 chairs/sofa edge.", "Drape blanket; add pillows.", "Add torch + 2 books or quiet toys."],
+      "variations": ["Den rules sign", "Snack picnic inside"]
+    },
+    {
+      "id": "ACT_0009",
+      "title": "Paper Plane Olympics",
+      "summary": "Distance + accuracy + trick flight scoring.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P1", "M0", "T20", "EMED", "SNOISE_OK"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Fold 2–3 planes.", "Run 3 events: distance, accuracy, trick.", "Record scores; crown a champion."],
+      "variations": ["Make a 'wind tunnel' with a fan (adult controls)", "Design challenge: must carry a paperclip (older)"]
+    },
+    {
+      "id": "ACT_0010",
+      "title": "Mini Home Olympics (5 Stations)",
+      "summary": "Structured energy burn with safe stations.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M1", "T45", "EHIGH", "SNOISE_OK", "SIBLINGS"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "high", "noise": "high" },
+      "steps": ["Set 5 stations: hops, toss, balance, crawl, target.", "30–60 seconds per station.", "Give paper medals; end with water break."],
+      "variations": ["Team mode (siblings vs timer)", "Quiet mode: balance + yoga stations"]
+    },
+    {
+      "id": "ACT_0011",
+      "title": "Shadow Puppets",
+      "summary": "Torch + hands = animals and stories.",
+      "tags": ["RAINY_DAY", "INDOOR", "SL", "P0", "M0", "T10", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Dim lights; aim torch at wall.", "Make simple shapes (bird, dog).", "Create a 2-minute puppet story."],
+      "variations": ["Cut-out paper puppets (adult cuts)", "Let kid narrate while parent puppets"]
+    },
+    {
+      "id": "ACT_0012",
+      "title": "Indoor Scavenger Hunt (10 items)",
+      "summary": "Find items by colour/shape/use.",
+      "tags": ["RAINY_DAY", "INDOOR", "NS", "P0", "M0", "T20", "EMED", "SSMALL_SPACE"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "medium" },
+      "steps": ["Call 10 things to find (soft, shiny, something you wear).", "Set a 5-minute timer.", "Review items; ask why they picked each."],
+      "variations": ["Photo hunt (SL)", "Riddle hunt (older kids)"]
+    },
+    {
+      "id": "ACT_0013",
+      "title": "Tape Roads for Toy Cars",
+      "summary": "Masking tape roads + parking = long play.",
+      "tags": ["RAINY_DAY", "INDOOR", "NS", "P1", "M1", "T45", "EMED", "A3_5", "A6_8"],
+      "age_bands": ["A3_5", "A6_8"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Use tape to make roads on floor/table.", "Add car park, petrol station, car wash.", "Create 'delivery missions' (drop toy at X)."],
+      "variations": ["Add paper buildings", "Traffic rules game (stop/go)"]
+    },
+    {
+      "id": "ACT_0014",
+      "title": "Escape Room Lite (6 Clues)",
+      "summary": "Simple puzzle chain leads to a small prize.",
+      "tags": ["RAINY_DAY", "INDOOR", "NS", "P1", "M0", "T45", "EMED", "A6_8", "A9_12", "SIBLINGS"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["Make 6 clues (math, riddle, letter swap).", "Hide each clue leading to the next.", "Final prize: snack, sticker, or 'coupon'."],
+      "variations": ["Theme (pirate/space)", "Team vs timer"]
+    },
+    {
+      "id": "ACT_0015",
+      "title": "Balloon Volleyball",
+      "summary": "Keep balloon off the floor; great for siblings.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P1", "M0", "T20", "EHIGH", "SIBLINGS"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["Blow up a balloon.", "Mark a 'net' line (string/tape).", "Rules: 3 hits max per side; no catching."],
+      "variations": ["Must clap before hit", "Quiet mode: slow hits only"]
+    },
+
+    {
+      "id": "CAR_0001",
+      "title": "I Spy (Colours/Shapes)",
+      "summary": "Classic car game for younger kids.",
+      "tags": ["CAR", "SCAR", "NS", "P0", "M0", "T10", "ELOW", "A3_5"],
+      "age_bands": ["A3_5", "A6_8"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Say: 'I spy with my little eye something (colour/shape)...'", "Let kids take turns picking.", "Switch to 'I spy something you use for…' (older)."],
+      "variations": ["Alphabet I Spy", "Texture I Spy (imagined)"]
+    },
+    {
+      "id": "CAR_0002",
+      "title": "20 Questions",
+      "summary": "Yes/no guessing game, great for all ages.",
+      "tags": ["CAR", "SCAR", "NS", "P0", "M0", "T20", "ELOW"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["One person thinks of a person/place/thing.", "Others ask yes/no questions (max 20).", "Rotate roles."],
+      "variations": ["Theme: animals only", "Hard mode: no 'is it a…?' questions"]
+    },
+    {
+      "id": "CAR_0003",
+      "title": "Story Ping-Pong (One Sentence Each)",
+      "summary": "Collaborative story-building, no screens.",
+      "tags": ["CAR", "SCAR", "NS", "P0", "M0", "T20", "ELOW", "SIBLINGS"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Adult starts with 1 sentence.", "Each person adds 1 sentence.", "End after 10–20 sentences; give it a title."],
+      "variations": ["Genre mode: mystery/sci-fi", "Add a word constraint: must include 'banana'"]
+    },
+    {
+      "id": "CAR_0004",
+      "title": "Alphabet Hunt (Signs/Plates)",
+      "summary": "Find A–Z in the environment.",
+      "tags": ["CAR", "SCAR", "NS", "P0", "M0", "T45", "EMED", "A6_8", "A9_12"],
+      "age_bands": ["A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Start at A, work toward Z.", "Letters can come from signs, shops, plates.", "Celebrate milestones (A–F, etc.)."],
+      "variations": ["Team mode", "Only use one source type (signs only)"]
+    },
+    {
+      "id": "CAR_0005",
+      "title": "Category Sprint (60 seconds)",
+      "summary": "Name 10 things in a category before time runs out.",
+      "tags": ["CAR", "SCAR", "NS", "P0", "M0", "T10", "EMED", "A9_12", "A13_16"],
+      "age_bands": ["A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Pick category (foods, movies, animals).", "Set 60 seconds.", "Count items; rotate categories."],
+      "variations": ["Hard mode: no repeats", "Theme: things you’d pack for…"]
+    },
+
+    {
+      "id": "CALM_0001",
+      "title": "5-4-3-2-1 Grounding",
+      "summary": "Simple senses-based calming exercise.",
+      "tags": ["BIG_FEELINGS", "QUIET_TIME", "SQUIET_ONLY", "NS", "P0", "M0", "T5", "ELOW"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": [
+        "Name 5 things you can see.",
+        "4 things you can feel.",
+        "3 things you can hear.",
+        "2 things you can smell.",
+        "1 thing you can taste (or one slow breath)."
+      ],
+      "variations": ["Do it as a whisper game", "Do it with a favourite object in hand"]
+    },
+    {
+      "id": "CALM_0002",
+      "title": "Balloon Breathing (4-2-6)",
+      "summary": "Breath pattern to reduce overwhelm.",
+      "tags": ["BIG_FEELINGS", "QUIET_TIME", "NS", "P0", "M0", "T5", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Inhale 4 seconds (fill balloon).", "Hold 2 seconds.", "Exhale 6 seconds (slow release).", "Repeat 5 times."],
+      "variations": ["Blow up a real balloon after 3 rounds (optional)", "Use bubbles instead (adult supervises)"]
+    },
+    {
+      "id": "CALM_0003",
+      "title": "Parent Script: Big Feelings",
+      "summary": "Short, repeatable lines for tantrums/anxiety.",
+      "tags": ["BIG_FEELINGS", "ROUTINES", "NS", "P0", "M0", "T5", "ELOW"],
+      "age_bands": ["A0_2", "A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "n/a", "noise": "n/a" },
+      "steps": [
+        "Say: 'You’re having a big feeling. I’m here. We can be upset and still be safe.'",
+        "Then: 'First we calm our body, then we solve the problem.'",
+        "Offer: 'Hug, space, or help?'"
+      ],
+      "variations": ["For older kids: 'Do you want advice or just listening?'", "For toddlers: fewer words + calm presence"]
+    },
+
+    {
+      "id": "SIB_0001",
+      "title": "Sibling Conflict Reset (3 Steps)",
+      "summary": "Pause → Name → Solve, with quick repair script.",
+      "tags": ["SIBLINGS", "ROUTINES", "NS", "P0", "M0", "T10", "ELOW"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": [
+        "Pause: 'Stop. Bodies calm. Voices low.'",
+        "Name: each person says what happened in one sentence.",
+        "Solve: choose one—turn timer, trade/compromise, separate zones for 10 mins."
+      ],
+      "variations": ["Rule: 'two yeses' for shared games", "Peace corner 5 mins then restart"]
+    },
+
+    {
+      "id": "CHORE_0001",
+      "title": "Chore Sprint (8 minutes)",
+      "summary": "Time-boxed micro-clean that actually happens.",
+      "tags": ["CHORES", "ROUTINES", "NS", "P0", "M0", "T10", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Pick ONE micro-task (floor clear, dishes, laundry).", "Set 8-minute timer + music.", "Stop when timer ends; praise completion."],
+      "variations": ["Two-choice: dishes or laundry", "Beat-the-clock chart (5 checkmarks reward)"]
+    },
+    {
+      "id": "CHORE_0002",
+      "title": "Mission: Floor Clear (20 items)",
+      "summary": "Gamified tidy: count items put away.",
+      "tags": ["CHORES", "KEEP_BUSY", "INDOOR", "NS", "P0", "M0", "T10", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Say: 'Put away 20 items—count out loud.'", "Set a 5–10 min timer.", "Finish line: high-five + choose next mini-activity."],
+      "variations": ["Colour mission: only red items first", "Speed run: can you do 20 in 3 minutes?"]
+    },
+    {
+      "id": "CHORE_0003",
+      "title": "Laundry Ninja (Match 10 pairs)",
+      "summary": "Sock matching as a quick win chore.",
+      "tags": ["CHORES", "INDOOR", "NS", "P0", "M0", "T10", "ELOW"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Dump a small pile of clean socks.", "Challenge: match 10 pairs.", "Bonus: roll pairs into 'sock burritos'."],
+      "variations": ["Race parent vs kid", "Sort by family member"]
+    },
+
+    {
+      "id": "BUILD_0001",
+      "title": "Tallest Tower Challenge",
+      "summary": "Build tallest freestanding tower from cups/books/blocks.",
+      "tags": ["BUILDING", "INDOOR", "NS", "P0", "M0", "T20", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Choose materials (cups/books/blocks).", "Set 10–15 min build time.", "Test stability: gentle table tap."],
+      "variations": ["Only 10 pieces allowed", "Must survive a 'wind test' (gentle fan)"]
+    },
+    {
+      "id": "BUILD_0002",
+      "title": "Bridge Test (Holds a Toy Car)",
+      "summary": "Engineering mini-challenge with paper/tape.",
+      "tags": ["BUILDING", "SCIENCE", "INDOOR", "NS", "P1", "M0", "T45", "EMED"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": ["Create a gap (two books).", "Build a bridge using paper/card + tape.", "Test with toy car; reinforce and retest."],
+      "variations": ["Limit tape to 30cm", "Add 'load' (coins) for older kids"]
+    },
+    {
+      "id": "LEGO_0001",
+      "title": "LEGO Planet Vehicle",
+      "summary": "Build a vehicle for a weird planet with constraints.",
+      "tags": ["LEGO", "BUILDING", "INDOOR", "NS", "P0", "M0", "T45", "EMED"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Choose a planet condition (ice, lava, jungle).", "Rule: must carry 3 items.", "Present and explain features."],
+      "variations": ["Only 2 wheels allowed", "Must include a rescue tool"]
+    },
+
+    {
+      "id": "CRAFT_0001",
+      "title": "Collage from Junk Mail",
+      "summary": "Cut/tear pictures; glue into a themed scene.",
+      "tags": ["CRAFT", "RAINY_DAY", "INDOOR", "NS", "P1", "M1", "T45", "ELOW"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": ["Pick a theme (underwater, space, animals).", "Cut/tear images; glue onto paper.", "Add labels and a title."],
+      "variations": ["Make a 'dream holiday' poster", "Add a story paragraph (older kids)"]
+    },
+    {
+      "id": "CRAFT_0002",
+      "title": "Sticker Story Scene",
+      "summary": "Use 10 stickers to build a story setting.",
+      "tags": ["CRAFT", "INDOOR", "NS", "P1", "M0", "T20", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Choose 10 stickers.", "Place them to make a scene.", "Tell (or write) a 3-sentence story."],
+      "variations": ["Comic strip with 4 panels", "Mystery story: include a clue sticker"]
+    },
+
+    {
+      "id": "KITCH_0001",
+      "title": "Rainbow Snack Plate",
+      "summary": "Make a snack plate with 5 colours.",
+      "tags": ["MEALS_SIMPLE", "KEEP_BUSY", "INDOOR", "NS", "P1", "M1", "T20", "ELOW"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": ["Pick 5 colours.", "Find one food per colour (fruit/veg/crackers).", "Arrange on plate; name it like a café special."],
+      "variations": ["Add a score for crunch/sweet/salty", "Teen version: plan a £/€/$ budget snack"]
+    },
+    {
+      "id": "KITCH_0002",
+      "title": "Wrap Assembly Line",
+      "summary": "Kids build wraps with safe fillings and roles.",
+      "tags": ["MEALS_SIMPLE", "ROUTINES", "INDOOR", "NS", "P1", "M1", "T45", "EMED", "SIBLINGS"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "high", "noise": "low" },
+      "steps": ["Set fillings in bowls (adult prep).", "Assign roles: washer, arranger, wrapper, taste tester.", "Everyone builds a wrap; tidy together."],
+      "variations": ["Pizza wraps", "Make a 'menu' and take orders"]
+    },
+
+    {
+      "id": "HOMEWORK_0001",
+      "title": "10/2 Focus Blocks",
+      "summary": "Work 10 minutes, break 2 minutes; repeat.",
+      "tags": ["HOMEWORK", "ROUTINES", "INDOOR", "NS", "P0", "M0", "T45", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": ["Set one task only on desk.", "Timer 10 mins work.", "2 mins break (stretch/water).", "Repeat 3–4 cycles."],
+      "variations": ["First/Then: 'First 10 mins, then 10 mins fun'", "Body-double: parent sits nearby doing their own task"]
+    },
+
+    {
+      "id": "BED_0001",
+      "title": "30-Min Bedtime Routine Template",
+      "summary": "Predictable bedtime order to reduce negotiation.",
+      "tags": ["BEDTIME", "ROUTINES", "INDOOR", "NS", "P0", "M0", "T45", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": [
+        "5 mins tidy + clothes ready",
+        "5 mins wash/teeth",
+        "10 mins story/reading",
+        "5 mins calm chat (best/worst/funny)",
+        "Lights out + quiet rest"
+      ],
+      "variations": ["Two-book choice", "Audiobook instead of reading (SL)"]
+    },
+    {
+      "id": "MORN_0001",
+      "title": "Morning Launch Pad Checklist",
+      "summary": "Get out the door with visual list + launch pad.",
+      "tags": ["MORNING", "ROUTINES", "INDOOR", "NS", "P0", "M0", "T20", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["Create a 'launch pad' by the door (bags/shoes).", "Use a simple visual checklist.", "Race the clock, not each other."],
+      "variations": ["2-choice autonomy: top A or B", "Timer song: when it ends, shoes on"]
+    },
+
+    {
+      "id": "PLAY_0001",
+      "title": "2-Hour Playdate Template",
+      "summary": "Structure that prevents chaos and fighting.",
+      "tags": ["PLAYDATE", "ROUTINES", "INDOOR", "OUTDOOR", "NS", "P1", "M1", "T90", "EMED"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "high", "noise": "high" },
+      "steps": [
+        "10 mins arrival snack + gentle rules",
+        "40 mins structured activity (craft/game)",
+        "30 mins free play",
+        "20 mins outdoor/active",
+        "10 mins tidy + pickup"
+      ],
+      "variations": ["Swap outdoor and structured if weather bad", "Co-op game to reduce conflict"]
+    },
+
+    {
+      "id": "SICK_0001",
+      "title": "Sick Day Light (Low Energy)",
+      "summary": "Gentle, quiet ideas—non-medical.",
+      "tags": ["SICK_DAY_LIGHT", "QUIET_TIME", "INDOOR", "SL", "P0", "M0", "T90", "ELOW", "SQUIET_ONLY"],
+      "age_bands": ["A0_2", "A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "low" },
+      "steps": ["Pick 2: audiobook + colouring / sticker book / jigsaw / 'nest' + film (if allowed).", "Keep fluids nearby.", "Short calm check-ins."],
+      "variations": ["Write/draw a 'get well' card", "LEGO sort (quiet)"]
+    },
+
+    {
+      "id": "SCREEN_0001",
+      "title": "Screen-Light Transition Plan",
+      "summary": "Use screens briefly, then pivot smoothly to offline.",
+      "tags": ["KEEP_BUSY", "SCREEN_LIGHT", "ROUTINES", "INDOOR", "SL", "P0", "M0", "T20", "ELOW"],
+      "age_bands": ["A3_5", "A6_8", "A9_12", "A13_16"],
+      "constraints": { "supervision": "low", "noise": "low" },
+      "steps": [
+        "Set a time cap up front (10–20 mins).",
+        "Give a 'next activity' choice before starting screen time.",
+        "Last 2 mins: countdown + pack away + start offline activity immediately."
+      ],
+      "variations": ["Watch 5 mins then build/draw what you saw", "Photo scavenger hunt then offline story"]
+    },
+
+    {
+      "id": "PLAN_0001",
+      "title": "60-Min Indoor Mixed-Age Plan",
+      "summary": "A ready-made hour that balances energy and calm.",
+      "tags": ["KEEP_BUSY", "INDOOR", "NS", "P0", "M1", "T90", "EMED", "SIBLINGS"],
+      "age_bands": ["A3_5", "A6_8", "A9_12"],
+      "constraints": { "supervision": "medium", "noise": "medium" },
+      "steps": ["10: Fast win game", "15: Build challenge", "10: Snack + chat", "20: Craft or board game", "5: Tidy sprint"],
+      "variations": ["Swap craft for quiet reading den", "Swap build for scavenger hunt"]
+    }
+  ]
+}

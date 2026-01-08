@@ -1,0 +1,103 @@
+🧠 THE CORE PROBLEM
+
+Right now, your Replit API is doing manual token matching like:
+
+if (title.includes("kids") || categories.includes("children")) ...
+
+
+That’s brittle — you have to manually add every variation (kids, children, toddlers, junior, etc.).
+
+We need to replace that logic with semantic search, so one query automatically finds related terms using a prebuilt synonym list or fuzzy match.
+
+⚙️ 3 OPTIONS TO “KILL IT IN ONE GO”
+🩵 Option 1 — Global Synonym Map (recommended)
+
+Load a single master dictionary once at startup and expand every query dynamically.
+
+// synonyms.js
+export const globalSynonyms = {
+  kids: ["child", "children", "toddler", "baby", "junior", "youth", "infant", "family"],
+  clothes: ["clothing", "wear", "fashion", "apparel", "outfit"],
+  toys: ["games", "lego", "playset", "puzzles", "plush", "stuffed animals"],
+  shoes: ["trainers", "footwear", "sneakers", "boots", "sandals"],
+  lunch: ["lunchbox", "food container", "snack box", "flask"],
+  travel: ["holiday", "trip", "days out", "getaway", "theme park"],
+  // etc.
+};
+
+
+Then in your query handler:
+
+import { globalSynonyms } from "./synonyms.js";
+
+function expandQuery(userQuery) {
+  const words = userQuery.toLowerCase().split(/\s+/);
+  const expanded = new Set(words);
+  words.forEach(word => {
+    if (globalSynonyms[word]) {
+      globalSynonyms[word].forEach(s => expanded.add(s));
+    }
+  });
+  return [...expanded];
+}
+
+
+Then your filtering logic just loops over all expanded terms instead of direct includes.
+
+✅ Pros:
+
+One central file covers every term.
+
+Add new synonyms anytime, instantly global.
+
+Doesn’t change your API shape — GPT calls still look the same.
+
+💚 Option 2 — Fuzzy / Full-Text Search
+
+If you want zero manual synonym upkeep at all, use a fuzzy match library:
+
+npm install fuse.js
+
+
+Then:
+
+import Fuse from "fuse.js";
+
+const fuse = new Fuse(offers, {
+  keys: ["title", "description", "categories", "merchant"],
+  threshold: 0.35, // 0 = exact, 1 = very loose
+});
+
+app.get("/shopping/awin-link", (req, res) => {
+  const { query } = req.query;
+  const results = fuse.search(query);
+  res.json(results.slice(0, 50));
+});
+
+
+✅ Pros:
+
+No synonym table needed.
+
+Automatically matches related words like “trainer” for “shoe”, “school” for “education”.
+🚫 Con: Slightly heavier on CPU (fine for <2k offers).
+
+🩷 Option 3 — Hybrid (best of both worlds)
+
+Combine the synonym expander (Option 1) and Fuse.js fuzzy matching for maximum recall:
+
+const expanded = expandQuery(userQuery);
+const searchString = expanded.join(" ");
+const results = fuse.search(searchString);
+
+
+That gives you perfect balance — broad but still relevant.
+
+🔧 QUICK IMPLEMENTATION PLAN
+
+1️⃣ Drop a synonyms.js file into your Replit project.
+2️⃣ Add fuse.js or your chosen lightweight fuzzy search.
+3️⃣ Replace the manual if (includes) logic with the hybrid method above.
+4️⃣ Re-publish.
+
+Now Sunny’s getShoppingDeals calls will automatically find every related offer — no more one-by-one synonym work.

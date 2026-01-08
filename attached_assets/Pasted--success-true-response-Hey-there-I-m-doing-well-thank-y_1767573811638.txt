@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "response": "Hey there! I'm doing well, thank you! 😊 Let's find some fun for you and the kids!\n\n### Attractions Near Altrincham 🎢\nHere are some exciting spots to check out:\n\n1. **The Runway Visitor Park**  \n   - **Description:** Watch planes take off and visit the iconic Concorde!  \n   - **Location:** The Runway Visitor Park, Altrincham, WA15 8XQ  \n   - **Price:** Free entry  \n   - **Website:** [Runway Visitor Park](https://www.runwayvisitorpark.co.uk/)  \n   - **Opening Hours:** 8am - 4pm  \n\n2. **Altrincham Garden Centre Soft Play**  \n   - **Description:** A great soft play area for the little ones!  \n   - **Location:** Green Lane, Timperley, Altrincham, WA15 8QP  \n   - **Price:** £10 per child  \n   - **Website:** [Dobbies Garden Centre](https://www.dobbies.com/altrincham)  \n\n3. **Dunham Massey Hall**  \n   - **Description:** Explore a beautiful Georgian house and lovely gardens!  \n   - **Location:** Woodhouse Lane, Altrincham, WA14 4SJ  \n   - **Price:** Free entry for Kids Pass members! 🎟️  \n   - **Website:** [Dunham Massey](https://www.nationaltrust.org.uk/dunham-massey)  \n\n**Plus, with Kids Pass, you can save up to 35% on other theme parks!** [Explore theme park deals here!](https://www.kidspass.co.uk/theme-parks)\n\n### Indoor Activities to Keep Them Busy Tonight 🎨\nHere are some fun activities to do at home:\n\n1. **3-Item Challenge**: Find 3 items that match fun prompts like \"soft\" or \"blue\"! \n2. **Statue DJ (Freeze Dance)**: Play music and freeze when it stops! \n3. **One-Minute Draw**: Set a timer and draw quickly with specific shapes!\n4. **Sock Basketball**: Rolled socks into a laundry basket target for some competitive fun! 🏀\n5. **Animal Walk Relay**: Act like different animals and race against the timer!\n6. **Mystery Bag (Touch Guess)**: Guess items by touch from a bag - a great guessing game!\n\nThese activities are perfect for keeping the kids entertained! 🎉\n\nWhich attraction or activity are you most excited about? Let me know how I can help you further! 😊",
+  "sessionId": "test-session-1",
+  "debug": {
+    "version": "v3.0-agent",
+    "toolsUsed": [
+      {
+        "tool": "search_attractions",
+        "args": {"query": "theme park", "location": "Altrincham"},
+        "resultCount": 3
+      },
+      {
+        "tool": "search_deals",
+        "args": {"category": "days out"},
+        "resultCount": 6
+      },
+      {
+        "tool": "search_activities",
+        "args": {"setting": "INDOOR"},
+        "resultCount": 6
+      }
+    ]
+  }
+}
