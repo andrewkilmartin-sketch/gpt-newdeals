@@ -1,0 +1,56 @@
+1. Search Quality Issue - Zero Results When Data Exists
+This is the core bug we need to fix. If "paw patrol toys", "karaoke machine", and "unicorn costume" exist in your 115k Awin products but aren't being found, it's likely:
+
+Keyword matching too literal (searching "paw patrol" but data has "Paw Patrol" or "PawPatrol")
+Missing synonym expansion
+Brand name handling issues
+
+Can you share the current search logic? I need to see how it's querying the database.
+
+2. Test Queries Too "Filtery" - Need Conversational Ones
+You're absolutely right. Real users say things like:
+
+"nike air force ones in white size 10"
+"something for my 6 year old who loves dinosaurs under £20"
+"my daughter's into crafts, what's good?"
+"birthday present for twins turning 4"
+
+I can build you a better stress test with 50+ conversational queries that reflect real intent.
+
+3. Automated Learning Loop - This is the Big One
+Here's how I'd structure it:
+┌─────────────────────────────────────────────────────────┐
+│              SUNNY CONTINUOUS LEARNING SYSTEM           │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  HOURLY PIPELINE:                                       │
+│                                                         │
+│  1. COLLECT (every hour)                                │
+│     - Pull all conversations from last hour             │
+│     - Extract: query → results shown → user reaction    │
+│     - Flag: zero results, slow responses, rephrases     │
+│                                                         │
+│  2. ANALYSE                                             │
+│     - Failed searches (what terms got 0 results?)       │
+│     - Abandoned flows (user gave up)                    │
+│     - Successful patterns (what worked well?)           │
+│     - Missing synonyms/brands detected                  │
+│                                                         │
+│  3. OUTPUT (JSON file Replit can read)                  │
+│     {                                                   │
+│       "synonym_additions": [...],                       │
+│       "brand_mappings": [...],                          │
+│       "query_rewrites": [...],                          │
+│       "flagged_for_review": [...]                       │
+│     }                                                   │
+│                                                         │
+│  4. AUTO-APPLY (safe changes)                           │
+│     - Add synonyms automatically                        │
+│     - Queue risky changes for human review              │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+To build this, I need:
+
+Where are conversations being logged? (Database? Logs?)
+What format are they in?
+Your current search/matching code
