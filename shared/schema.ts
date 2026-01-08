@@ -362,6 +362,7 @@ export const chatLogs = pgTable("chat_logs", {
   userMessage: text("user_message").notNull(),
   sunnyResponse: text("sunny_response").notNull(),
   toolsUsed: jsonb("tools_used").notNull(),
+  rawResults: jsonb("raw_results"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
