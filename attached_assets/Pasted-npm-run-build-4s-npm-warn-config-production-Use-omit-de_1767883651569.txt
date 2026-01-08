@@ -1,0 +1,53 @@
+npm run build
+4s
+npm warn config production Use `--omit=dev` instead.
+> rest-express@1.0.0 build
+> tsx script/build.ts
+building client...
+vite v5.4.20 building for production...
+transforming...
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1667 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                   2.01 kB │ gzip:  0.76 kB
+../dist/public/assets/index-B6YsPcoR.css   72.98 kB │ gzip: 11.87 kB
+../dist/public/assets/index-wf3eoW4C.js   298.74 kB │ gzip: 94.07 kB
+✓ built in 2.38s
+building server...
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+    server/static.ts:2:45:
+      2 │ const __dirname = fileURLToPath(new URL('.', import.meta.url));
+        ╵                                              ~~~~~~~~~~~
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+    server/static.ts:8:33:
+      8 │ const __filename = fileURLToPath(import.meta.url);
+        ╵                                  ~~~~~~~~~~~
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+✘ [ERROR] The symbol "__dirname" has already been declared
+    server/static.ts:9:6:
+      9 │ const __dirname = path.dirname(__filename);
+        ╵       ~~~~~~~~~
+  The symbol "__dirname" was originally declared here:
+    server/static.ts:2:6:
+      2 │ const __dirname = fileURLToPath(new URL('.', import.meta.url));
+        ╵       ~~~~~~~~~
+2 warnings and 1 error
+Error: Build failed with 1 error:
+
+server/static.ts:9:6: ERROR: The symbol "__dirname" has already been declared
+    at failureErrorWithLog (/app/node_modules/esbuild/lib/main.js:1467:15)
+    at /app/node_modules/esbuild/lib/main.js:926:25
+    at /app/node_modules/esbuild/lib/main.js:878:52
+    at buildResponseToResult (/app/node_modules/esbuild/lib/main.js:924:7)
+    at /app/node_modules/esbuild/lib/main.js:951:16
+    at responseCallbacks.<computed> (/app/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/app/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/app/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+ERROR: failed to build: failed to solve: process "npm run build" did not complete successfully: exit code: 1
