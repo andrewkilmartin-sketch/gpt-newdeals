@@ -936,6 +936,110 @@ export async function registerRoutes(
     }
   });
 
+  // Migrate V2 products to V1 products table (adds fashion products to existing catalog)
+  // Progress tracking variable
+  let migrationStatus = { running: false, processed: 0, total: 0, message: '', lastId: '' };
+  
+  app.get("/api/admin/migrate-v2-status", async (req, res) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const [v1Count] = await db.execute(sql`SELECT COUNT(*) as count FROM products`) as any;
+    const [v2Migrated] = await db.execute(sql`SELECT COUNT(*) as count FROM products WHERE id LIKE 'v2_%'`) as any;
+    
+    res.json({
+      migrationRunning: migrationStatus.running,
+      processed: migrationStatus.processed,
+      totalToMigrate: migrationStatus.total,
+      lastId: migrationStatus.lastId,
+      message: migrationStatus.message,
+      v1TotalProducts: v1Count?.count || v1Count?.rows?.[0]?.count,
+      v2ProductsMigrated: v2Migrated?.count || v2Migrated?.rows?.[0]?.count
+    });
+  });
+  
+  app.post("/api/admin/migrate-v2-to-v1", async (req, res) => {
+    if (migrationStatus.running) {
+      return res.json({ success: false, error: 'Migration already running', status: migrationStatus });
+    }
+    
+    migrationStatus.running = true;
+    migrationStatus.message = 'Starting...';
+    
+    // Run migration in background using cursor-based pagination (fast)
+    (async () => {
+      try {
+        const { db } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        
+        // Get last migrated ID to continue from
+        const lastMigrated = await db.execute(sql`
+          SELECT REPLACE(id, 'v2_', '') as last_id FROM products 
+          WHERE id LIKE 'v2_%' ORDER BY id DESC LIMIT 1
+        `) as any;
+        let lastId = lastMigrated?.[0]?.last_id || lastMigrated?.rows?.[0]?.last_id || '';
+        
+        const [v2Total] = await db.execute(sql`SELECT COUNT(*) as count FROM products_v2`) as any;
+        migrationStatus.total = parseInt(v2Total?.count || v2Total?.rows?.[0]?.count || '0');
+        
+        const BATCH_SIZE = 100;
+        let processed = 0;
+        let batchNum = 0;
+        
+        console.log(`[Migration] Starting from ID '${lastId}', total ${migrationStatus.total}`);
+        
+        while (true) {
+          batchNum++;
+          migrationStatus.processed = processed;
+          migrationStatus.lastId = lastId;
+          migrationStatus.message = `Batch ${batchNum}: processing from ID '${lastId}'`;
+          
+          // Get next batch of IDs first (fast query)
+          const nextBatch = await db.execute(sql`
+            SELECT id FROM products_v2 WHERE id > ${lastId} ORDER BY id LIMIT ${BATCH_SIZE}
+          `) as any;
+          
+          const batchRows = nextBatch?.rows || nextBatch || [];
+          if (batchRows.length === 0) {
+            console.log(`[Migration] No more products to insert`);
+            break;
+          }
+          
+          // Get the last ID from this batch for next iteration
+          const newLastId = batchRows[batchRows.length - 1]?.id;
+          
+          // Insert this batch (simple INSERT without CTE overhead)
+          await db.execute(sql`
+            INSERT INTO products (id, name, description, merchant, merchant_id, category, brand, price, affiliate_link, image_url, in_stock)
+            SELECT 'v2_' || id, name, description, merchant, merchant_id, category, brand, price, affiliate_link, image_url, COALESCE(in_stock, true)
+            FROM products_v2 
+            WHERE id > ${lastId} AND id <= ${newLastId}
+            ON CONFLICT (id) DO NOTHING
+          `);
+          
+          const insertedCount = batchRows.length;
+          lastId = newLastId;
+          processed += insertedCount;
+          
+          if (batchNum % 50 === 0) {
+            console.log(`[Migration] Batch ${batchNum}: inserted ${insertedCount}, total ${processed}`);
+          }
+        }
+        
+        migrationStatus.message = `Complete! Processed ${processed} products`;
+        migrationStatus.processed = processed;
+        console.log(`[Migration] Completed successfully: ${processed} products`);
+      } catch (err) {
+        console.error('[Migration] Error:', err);
+        migrationStatus.message = `Error: ${(err as Error).message}`;
+      } finally {
+        migrationStatus.running = false;
+      }
+    })();
+    
+    res.json({ success: true, message: 'Migration started in background', status: migrationStatus });
+  });
+
   // ============================================================
   // SIMPLE SEARCH - CTO's approach: keyword SQL + GPT reranker
   // One simple endpoint. 115k products. OpenAI picks the best.

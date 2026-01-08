@@ -69,17 +69,18 @@ After deployment:
 3. **Fast-path optimization**: Simple queries like "trainers", "shoes", "headphones" skip GPT entirely (~1s vs ~10s)
 4. **skipReranker flag**: Set `skipReranker: true` in QueryInterpretation to bypass GPT reranking
 5. **Fallback behavior**: If OpenAI fails, falls back to keyword search (logs warning)
-6. **Products tables**: `products` (115k) and `products_v2` (997k) - both must have search_vector column
+6. **Products tables**: `products` (1.1M merged) and `products_v2` (997k original) - V2 was merged into V1 on Jan 2026
+7. **V2 to V1 Migration**: Admin endpoints `/api/admin/migrate-v2-to-v1` (POST) and `/api/admin/migrate-v2-status` (GET) handle data migration
 
 ### Performance Targets (Verified January 2026)
 
-**V1 /api/shop/search (115k products)**
+**V1 /api/shop/search (1.1M products - merged)**
 | Query Type | Example | Target | Actual |
 |------------|---------|--------|--------|
 | Simple (fast path) | "trainers" | <2s | ~2s |
 | Semantic | "school shoes" | <7s | ~6s |
 
-**V2 /api/shopv2/search (997k products)**
+**V2 /api/shopv2/search (997k products - legacy)**
 | Query Type | Example | Target | Actual |
 |------------|---------|--------|--------|
 | Simple (fast path) | "trainers" | <2s | ~1s |
