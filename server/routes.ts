@@ -427,10 +427,12 @@ function buildMerchantComparison(products: any[]): { product: string; options: {
 // Structured product attributes for precise filtering
 interface ProductAttributes {
   brand?: string;           // e.g., "Nike", "Apple", "Lego"
+  character?: string;       // e.g., "Paw Patrol", "Peppa Pig", "Frozen"
   model?: string;           // e.g., "Air Force 1", "iPhone 15"
   size?: string;            // e.g., "10", "XL", "32GB"
   color?: string;           // e.g., "red", "black", "white"
   gender?: string;          // e.g., "mens", "womens", "unisex"
+  ageRange?: string;        // e.g., "toddler", "3-5", "5-7", "8-10", "teen"
   material?: string;        // e.g., "leather", "cotton"
   style?: string;           // e.g., "casual", "formal", "sporty"
 }
@@ -547,46 +549,71 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
 
 CRITICAL RULES:
 1. PRESERVE QUALIFIERS: If query has a specific qualifier (school, running, wedding, party, outdoor), it MUST go in mustMatch.
-   - "school shoes" → mustMatch: ["school"] because user wants SCHOOL shoes, not any shoes
+   - "school shoes" → mustMatch: ["school"] because user wants SCHOOL shoes
    - "running shoes" → mustMatch: ["running"] because user wants RUNNING shoes
-   - "wedding dress" → mustMatch: ["wedding"] because user wants WEDDING dress
-2. mustMatch = qualifiers + brand names that MUST appear in results
-3. searchKeywords = product type synonyms (shoes, trainers, footwear)
+
+2. BRANDS MUST GO IN mustMatch: If user mentions a brand, it MUST appear in results.
+   - "clarks school shoes" → mustMatch: ["clarks", "school"]
+   - "nike air force" → mustMatch: ["nike", "air force"]
+   
+3. CHARACTER/LICENSE NAMES = BRANDS: Treat characters the same as brands - they MUST appear in results.
+   - "paw patrol backpack" → mustMatch: ["paw patrol"]
+   - "peppa pig toys" → mustMatch: ["peppa pig"]
+   - "minecraft duvet" → mustMatch: ["minecraft"]
+   - "frozen costume" → mustMatch: ["frozen"]
+
 4. maxPrice = from "under £50", "cheap" (£50), "budget" (£40)
+
 5. NEVER put in mustMatch/searchKeywords: best, cheap, budget, good, quality, top, affordable
 
+BRAND RECOGNITION - These are all brands that MUST go in mustMatch:
+- Sportswear: nike, adidas, puma, reebok, new balance, vans, converse, skechers
+- Kids shoes: clarks, start rite, geox, lelli kelly, kickers
+- Boots: dr martens, timberland, ugg, hunter
+- Outdoor: joules, north face, columbia, crocs, birkenstock, havaianas
+- Toys: lego, playmobil, barbie, hot wheels, sylvanian families, fisher price, vtech
+- Baby: tommee tippee, mam, chicco, baby bjorn, silver cross, bugaboo
+
+CHARACTER RECOGNITION - These are licenses that MUST go in mustMatch:
+- paw patrol, peppa pig, bluey, hey duggee, cocomelon, baby shark
+- frozen, disney princess, spiderman, batman, marvel, avengers
+- pokemon, minecraft, fortnite, roblox, mario, sonic
+- harry potter, star wars, thomas, paddington, gruffalo
+- pj masks, ben and holly, numberblocks, octonauts, gabby, encanto
+
 Extract:
-- productType: What product? (shoes, trainers, laptop, etc.)
+- productType: What product? (shoes, trainers, backpack, costume, etc.)
 - categoryFilter: Shoes/Clothing/Electronics/Toys/Headphones or null
-- brand: Nike, Apple, Sony, Lego, Hasbro, Mattel, Samsung, etc. or null (IMPORTANT: Lego is a BRAND)
+- brand: Brand name or null
+- character: Character/license name or null (paw patrol, frozen, etc.)
 - size: M, L, XL, 6, 10 or null
-- color: grey, black, red or null  
-- gender: mens, womens, kids, unisex or null
+- color: grey, black, red, pink or null  
+- gender: mens, womens, kids, boys, girls, unisex or null
+- ageRange: toddler, 3-5, 5-7, 8-10, teen or null
 - maxPrice: number or null
 - searchKeywords: product synonyms to broaden search
-- mustMatch: QUALIFIERS + BRANDS that must appear (e.g. "school", "Nike", "outdoor")
+- mustMatch: ALL brands + characters + qualifiers that MUST appear in results
 
 Examples:
-- "school shoes" → {productType: "shoes", categoryFilter: "Shoes", searchKeywords: ["school shoes", "shoes"], mustMatch: ["school"]}
-- "running shoes under 50" → {productType: "shoes", categoryFilter: "Shoes", maxPrice: 50, searchKeywords: ["running shoes", "trainers"], mustMatch: ["running"]}
-- "Nike trainers size 6" → {productType: "trainers", categoryFilter: "Shoes", brand: "Nike", size: "6", searchKeywords: ["trainers", "sneakers"], mustMatch: ["Nike"]}
-- "star wars lego under 20" → {productType: "lego", categoryFilter: "Toys", brand: "Lego", maxPrice: 20, searchKeywords: ["star wars lego", "lego"], mustMatch: ["lego", "star wars"]}
-- "outdoor toys" → {productType: "toys", categoryFilter: "Toys", searchKeywords: ["outdoor toys", "garden toys"], mustMatch: ["outdoor"]}
-- "gift ideas for dad" → {productType: "gift", categoryFilter: null, gender: "mens", searchKeywords: ["gift", "gadget", "wallet"], mustMatch: []}
+- "clarks school shoes size 13" → {productType: "shoes", categoryFilter: "Shoes", brand: "clarks", size: "13", searchKeywords: ["shoes", "school shoes"], mustMatch: ["clarks", "school"]}
+- "paw patrol backpack" → {productType: "backpack", categoryFilter: "Toys", character: "paw patrol", searchKeywords: ["backpack", "bag"], mustMatch: ["paw patrol"]}
+- "nike air force 1 white size 10" → {productType: "trainers", categoryFilter: "Shoes", brand: "nike", color: "white", size: "10", searchKeywords: ["trainers", "sneakers", "air force"], mustMatch: ["nike", "air force"]}
+- "frozen elsa costume age 5" → {productType: "costume", categoryFilter: "Clothing", character: "frozen", ageRange: "5", searchKeywords: ["costume", "dress", "outfit"], mustMatch: ["frozen", "elsa"]}
+- "something for 3 year old who loves dinosaurs under £15" → {productType: "toy", categoryFilter: "Toys", ageRange: "3", maxPrice: 15, searchKeywords: ["dinosaur", "toy", "figure"], mustMatch: ["dinosaur"]}
 
 Output JSON only:
 {
   "productType": "string",
   "categoryFilter": "Shoes|Clothing|Electronics|Toys|Headphones or null",
   "brand": "string or null",
+  "character": "string or null",
   "size": "string or null",
   "color": "string or null",
-  "gender": "mens|womens|kids|unisex or null",
+  "gender": "mens|womens|kids|boys|girls|unisex or null",
+  "ageRange": "toddler|3-5|5-7|8-10|teen or null",
   "maxPrice": "number or null",
-  "ageRange": "string or null",
-  "occasion": "gift|birthday|christmas or null",
   "searchKeywords": ["array of product synonyms"],
-  "mustMatch": ["qualifiers and brands that MUST appear"],
+  "mustMatch": ["ALL brands + characters + qualifiers that MUST appear"],
   "rerankerHint": "Brief context for selecting best products"
 }`
         },
@@ -612,10 +639,12 @@ Output JSON only:
     // Defensive: ensure string fields are strings, not arrays/objects
     const attrs: ProductAttributes = {
       brand: typeof parsed.brand === 'string' ? parsed.brand : undefined,
+      character: typeof parsed.character === 'string' ? parsed.character : undefined,
       model: typeof parsed.model === 'string' ? parsed.model : undefined,
       size: typeof parsed.size === 'string' ? parsed.size : undefined,
       color: typeof parsed.color === 'string' ? parsed.color : undefined,
       gender: typeof parsed.gender === 'string' ? parsed.gender : undefined,
+      ageRange: typeof parsed.ageRange === 'string' ? parsed.ageRange : undefined,
       material: typeof parsed.material === 'string' ? parsed.material : undefined,
       style: typeof parsed.style === 'string' ? parsed.style : undefined
     };
