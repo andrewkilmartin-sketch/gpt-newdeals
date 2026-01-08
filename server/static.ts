@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "../public");
+  const distPath = path.resolve(__dirname, "../dist/public");
   if (!fs.existsSync(distPath)) {
     console.log(`Warning: Public directory not found at ${distPath}, skipping static file serving`);
     return;
