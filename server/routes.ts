@@ -613,15 +613,32 @@ CRITICAL RULES:
    - "paw patrol backpack" → mustMatch: ["paw patrol"]
    - "peppa pig toys" → mustMatch: ["peppa pig"]
    - "minecraft duvet" → mustMatch: ["minecraft"]
-   - "frozen costume" → mustMatch: ["frozen"]
+   - "frozen costume" → mustMatch: ["frozen", "costume"]
 
-4. PRICE EXTRACTION:
+4. PRODUCT TYPE WORDS MUST ALWAYS GO IN mustMatch: The main product word MUST be in mustMatch to filter results.
+   ALWAYS include the product noun in mustMatch:
+   - "baby monitor video" → mustMatch: ["baby", "monitor"] - user wants BABY MONITORS specifically
+   - "plate suction baby" → mustMatch: ["suction", "plate", "baby"] - user wants BABY SUCTION PLATES
+   - "door bouncer baby" → mustMatch: ["bouncer", "baby"] - user wants BABY BOUNCERS
+   - "posting box" → mustMatch: ["posting", "box"] - user wants POSTING BOXES
+   - "tunnel play" → mustMatch: ["tunnel"] - user wants play TUNNELS
+   - "teepee kids" → mustMatch: ["teepee", "kids"] - user wants KIDS TEEPEES (MUST have teepee!)
+   - "climbing frame garden" → mustMatch: ["climbing", "frame"] - user wants CLIMBING FRAMES
+   - "trampoline 8ft" → mustMatch: ["trampoline", "8ft"] - user wants 8FT trampolines specifically
+   - "white noise machine" → mustMatch: ["white noise"] OR mustMatch: ["sound machine"] - specific product
+   
+   EVENT + PRODUCT TYPE QUERIES: For events/occasions, require the product type:
+   - "world book day costume" → mustMatch: ["costume"] + searchKeywords: ["costume", "dress up", "book character"]
+   - "halloween costume" → mustMatch: ["costume"] + searchKeywords: ["costume", "scary", "witch", "zombie"]
+   - "christmas jumper" → mustMatch: ["jumper"] + searchKeywords: ["jumper", "sweater", "festive"]
+
+5. PRICE EXTRACTION:
    - minPrice = from "over £20", "at least £30", "from £25", "more than £15"
    - maxPrice = from "under £50", "up to £40", "max £30", "cheap" (£50), "budget" (£40)
    - "between £25 and £50" → {minPrice: 25, maxPrice: 50}
    - "toys £15 to £30" → {minPrice: 15, maxPrice: 30}
 
-5. NEVER put in mustMatch/searchKeywords: best, cheap, budget, good, quality, top, affordable
+6. NEVER put in mustMatch/searchKeywords: best, cheap, budget, good, quality, top, affordable
 
 BRAND RECOGNITION - These are all brands that MUST go in mustMatch:
 - Sportswear: nike, adidas, puma, reebok, new balance, vans, converse, skechers
@@ -650,7 +667,7 @@ Extract:
 - minPrice: number or null (from "over", "at least", "from", "more than")
 - maxPrice: number or null (from "under", "up to", "max", "cheap", "budget")
 - searchKeywords: product synonyms to broaden search
-- mustMatch: ALL brands + characters + qualifiers that MUST appear in results
+- mustMatch: ALL brands + characters + qualifiers + product types that MUST appear in results
 
 Examples:
 - "clarks school shoes size 13" → {productType: "shoes", categoryFilter: "Shoes", brand: "clarks", size: "13", searchKeywords: ["shoes", "school shoes"], mustMatch: ["clarks", "school"]}
