@@ -482,18 +482,57 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
   // Pattern: just a product type or brand+product (e.g., "shoes", "nike trainers")
   const lower = query.toLowerCase().trim();
   const simplePatterns: Record<string, { category: string; keywords: string[] }> = {
+    // Footwear
     'shoes': { category: 'Shoes', keywords: ['shoes', 'footwear'] },
     'trainers': { category: 'Shoes', keywords: ['trainers', 'sneakers', 'shoes'] },
     'sneakers': { category: 'Shoes', keywords: ['sneakers', 'trainers', 'shoes'] },
     'boots': { category: 'Shoes', keywords: ['boots', 'footwear'] },
+    'wellies': { category: 'Shoes', keywords: ['wellies', 'wellington boots', 'rain boots'] },
+    'sandals': { category: 'Shoes', keywords: ['sandals', 'flip flops', 'footwear'] },
+    'slippers': { category: 'Shoes', keywords: ['slippers', 'indoor shoes'] },
+    // Electronics
     'headphones': { category: 'Headphones', keywords: ['headphones', 'earphones', 'audio'] },
     'earbuds': { category: 'Headphones', keywords: ['earbuds', 'wireless earphones', 'headphones'] },
+    // Toys
     'toys': { category: 'Toys', keywords: ['toys', 'games', 'playset'] },
+    'toy': { category: 'Toys', keywords: ['toy', 'toys', 'playset'] },
     'lego': { category: 'Toys', keywords: ['lego', 'building blocks'] },
+    'figure': { category: 'Toys', keywords: ['figure', 'action figure', 'toy'] },
+    'figures': { category: 'Toys', keywords: ['figures', 'action figures', 'toys'] },
+    'playset': { category: 'Toys', keywords: ['playset', 'play set', 'toys'] },
+    'plush': { category: 'Toys', keywords: ['plush', 'soft toy', 'stuffed animal'] },
+    // Accessories/Clothing
+    'backpack': { category: 'Toys', keywords: ['backpack', 'bag', 'rucksack'] },
+    'bag': { category: 'Toys', keywords: ['bag', 'backpack', 'rucksack'] },
+    'pyjamas': { category: 'Clothing', keywords: ['pyjamas', 'pajamas', 'pjs', 'nightwear'] },
+    'costume': { category: 'Clothing', keywords: ['costume', 'dress up', 'outfit'] },
+    'dress': { category: 'Clothing', keywords: ['dress', 'outfit', 'clothing'] },
   };
   
   // Check for exact matches or brand + simple pattern
-  const knownBrands = ['nike', 'adidas', 'puma', 'reebok', 'vans', 'converse', 'hush puppies', 'kickers', 'clarks', 'sony', 'bose', 'apple', 'samsung', 'lego', 'hasbro'];
+  // EXPANDED: Include ALL shoe brands, toy brands, and character/license names
+  const knownBrands = [
+    // Sportswear
+    'nike', 'adidas', 'puma', 'reebok', 'new balance', 'vans', 'converse', 'skechers',
+    // Kids shoes
+    'clarks', 'start rite', 'geox', 'lelli kelly', 'kickers',
+    // Boots
+    'dr martens', 'timberland', 'ugg', 'hunter',
+    // Outdoor
+    'joules', 'north face', 'columbia', 'crocs', 'birkenstock', 'havaianas',
+    // Electronics
+    'sony', 'bose', 'apple', 'samsung', 'jbl',
+    // Toys
+    'lego', 'playmobil', 'barbie', 'hot wheels', 'sylvanian families', 'fisher price', 'vtech', 'hasbro', 'mattel',
+    // Baby
+    'tommee tippee', 'mam', 'chicco', 'baby bjorn', 'silver cross', 'bugaboo',
+    // Characters/Licenses (treat same as brands)
+    'paw patrol', 'peppa pig', 'bluey', 'hey duggee', 'cocomelon', 'baby shark',
+    'frozen', 'disney princess', 'spiderman', 'batman', 'marvel', 'avengers',
+    'pokemon', 'minecraft', 'fortnite', 'roblox', 'mario', 'sonic',
+    'harry potter', 'star wars', 'thomas', 'paddington', 'gruffalo',
+    'pj masks', 'ben and holly', 'numberblocks', 'octonauts', 'gabby', 'encanto'
+  ];
   let detectedBrand: string | undefined;
   let cleanedQuery = lower;
   
