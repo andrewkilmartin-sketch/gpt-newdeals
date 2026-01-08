@@ -615,7 +615,11 @@ CRITICAL RULES:
    - "minecraft duvet" → mustMatch: ["minecraft"]
    - "frozen costume" → mustMatch: ["frozen"]
 
-4. maxPrice = from "under £50", "cheap" (£50), "budget" (£40)
+4. PRICE EXTRACTION:
+   - minPrice = from "over £20", "at least £30", "from £25", "more than £15"
+   - maxPrice = from "under £50", "up to £40", "max £30", "cheap" (£50), "budget" (£40)
+   - "between £25 and £50" → {minPrice: 25, maxPrice: 50}
+   - "toys £15 to £30" → {minPrice: 15, maxPrice: 30}
 
 5. NEVER put in mustMatch/searchKeywords: best, cheap, budget, good, quality, top, affordable
 
@@ -643,7 +647,8 @@ Extract:
 - color: grey, black, red, pink or null  
 - gender: mens, womens, kids, boys, girls, unisex or null
 - ageRange: toddler, 3-5, 5-7, 8-10, teen or null
-- maxPrice: number or null
+- minPrice: number or null (from "over", "at least", "from", "more than")
+- maxPrice: number or null (from "under", "up to", "max", "cheap", "budget")
 - searchKeywords: product synonyms to broaden search
 - mustMatch: ALL brands + characters + qualifiers that MUST appear in results
 
@@ -653,6 +658,9 @@ Examples:
 - "nike air force 1 white size 10" → {productType: "trainers", categoryFilter: "Shoes", brand: "nike", color: "white", size: "10", searchKeywords: ["trainers", "sneakers", "air force"], mustMatch: ["nike", "air force"]}
 - "frozen elsa costume age 5" → {productType: "costume", categoryFilter: "Clothing", character: "frozen", ageRange: "5", searchKeywords: ["costume", "dress", "outfit"], mustMatch: ["frozen", "elsa"]}
 - "something for 3 year old who loves dinosaurs under £15" → {productType: "toy", categoryFilter: "Toys", ageRange: "3", maxPrice: 15, searchKeywords: ["dinosaur", "toy", "figure"], mustMatch: ["dinosaur"]}
+- "lego star wars between £25 and £50" → {productType: "toy", categoryFilter: "Toys", brand: "lego", minPrice: 25, maxPrice: 50, searchKeywords: ["lego", "star wars"], mustMatch: ["lego", "star wars"]}
+- "trainers over £30" → {productType: "trainers", categoryFilter: "Shoes", minPrice: 30, searchKeywords: ["trainers", "sneakers"], mustMatch: []}
+- "gifts £20 to £40" → {productType: "gift", categoryFilter: null, minPrice: 20, maxPrice: 40, searchKeywords: ["gift", "present"], mustMatch: []}
 
 Output JSON only:
 {
@@ -664,6 +672,7 @@ Output JSON only:
   "color": "string or null",
   "gender": "mens|womens|kids|boys|girls|unisex or null",
   "ageRange": "toddler|3-5|5-7|8-10|teen or null",
+  "minPrice": "number or null",
   "maxPrice": "number or null",
   "searchKeywords": ["array of product synonyms"],
   "mustMatch": ["ALL brands + characters + qualifiers that MUST appear"],
@@ -734,10 +743,21 @@ Output JSON only:
       }
     }
     
+    // Extract minPrice - can be a number or string (for "over £20", "at least £30")
+    let minPrice: number | undefined;
+    if (typeof parsed.minPrice === 'number' && parsed.minPrice > 0) {
+      minPrice = parsed.minPrice;
+    } else if (typeof parsed.minPrice === 'string') {
+      const priceNum = parseFloat(parsed.minPrice.replace(/[£$,]/g, ''));
+      if (!isNaN(priceNum) && priceNum > 0) {
+        minPrice = priceNum;
+      }
+    }
+    
     // Extract categoryFilter for filtering by product category
     const categoryFilter = typeof parsed.categoryFilter === 'string' ? parsed.categoryFilter : undefined;
     
-    console.log(`[Query Interpreter] GPT understood "${query}" → type: ${parsed.productType}, category: ${categoryFilter || 'any'}, brand: ${attrs.brand}, size: ${attrs.size}, color: ${attrs.color}, gender: ${attrs.gender}, maxPrice: ${maxPrice || 'none'}, keywords: ${JSON.stringify(searchKeywords)}`);
+    console.log(`[Query Interpreter] GPT understood "${query}" → type: ${parsed.productType}, category: ${categoryFilter || 'any'}, brand: ${attrs.brand}, size: ${attrs.size}, color: ${attrs.color}, gender: ${attrs.gender}, priceRange: ${minPrice ? '£' + minPrice : ''}-${maxPrice ? '£' + maxPrice : ''}, keywords: ${JSON.stringify(searchKeywords)}`);
 
     const interpretation: QueryInterpretation = {
       isSemanticQuery: true,
@@ -751,7 +771,8 @@ Output JSON only:
         recipient: parsed.gender === 'mens' ? 'adult male' : parsed.gender === 'womens' ? 'adult female' : undefined,
         occasion: parsed.occasion,
         ageRange: parsed.ageRange,
-        priceHint: maxPrice ? `under £${maxPrice}` : parsed.priceRange,
+        priceHint: minPrice && maxPrice ? `£${minPrice}-£${maxPrice}` : minPrice ? `over £${minPrice}` : maxPrice ? `under £${maxPrice}` : parsed.priceRange,
+        minPrice: minPrice,
         maxPrice: maxPrice,
         categoryFilter: categoryFilter,
         excludeCategories: undefined
@@ -1376,11 +1397,17 @@ Format: ["id1", "id2", ...]`
       // STEP 1: Interpret the query using GPT (for semantic queries)
       const interpretation = await interpretQuery(query, openaiKey);
       
-      // Apply GPT-extracted max price if user didn't specify one
+      // Apply GPT-extracted price filters if user didn't specify them
       let effectiveMaxPrice = filterMaxPrice;
       if (effectiveMaxPrice === undefined && interpretation.context.maxPrice) {
         effectiveMaxPrice = interpretation.context.maxPrice;
         console.log(`[Shop Search] Applying GPT-extracted maxPrice: £${effectiveMaxPrice}`);
+      }
+      
+      let effectiveMinPrice = filterMinPrice;
+      if (effectiveMinPrice === undefined && interpretation.context.minPrice) {
+        effectiveMinPrice = interpretation.context.minPrice;
+        console.log(`[Shop Search] Applying GPT-extracted minPrice: £${effectiveMinPrice}`);
       }
       
       if (interpretation.isSemanticQuery) {
@@ -1488,8 +1515,8 @@ Format: ["id1", "id2", ...]`
           ];
           
           // Add price filters
-          if (filterMinPrice !== undefined) {
-            whereConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filterMinPrice}`);
+          if (effectiveMinPrice !== undefined) {
+            whereConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${effectiveMinPrice}`);
           }
           if (effectiveMaxPrice !== undefined) {
             whereConditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${effectiveMaxPrice}`);
@@ -1602,8 +1629,8 @@ Format: ["id1", "id2", ...]`
             }
           }
           
-          if (filterMinPrice !== undefined) {
-            baseConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filterMinPrice}`);
+          if (effectiveMinPrice !== undefined) {
+            baseConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${effectiveMinPrice}`);
           }
           if (effectiveMaxPrice !== undefined) {
             baseConditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${effectiveMaxPrice}`);
