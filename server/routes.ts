@@ -44,6 +44,13 @@ function setCachedInterpretation(query: string, interpretation: QueryInterpretat
   }
 }
 
+function clearQueryCache(): number {
+  const size = queryCache.size;
+  queryCache.clear();
+  console.log(`[Query Cache] Cleared ${size} cached interpretations`);
+  return size;
+}
+
 // ============================================================
 // BESPOKE REACTIVE FILTERS - Category-specific filter schemas
 // ============================================================
@@ -1165,6 +1172,23 @@ export async function registerRoutes(
         message: "Index creation completed",
         results: results,
         currentIndexes: indexList
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Clear query interpretation cache (for testing after code changes)
+  app.post("/api/admin/clear-cache", async (req, res) => {
+    try {
+      const cleared = clearQueryCache();
+      res.json({
+        success: true,
+        message: `Cleared ${cleared} cached query interpretations`,
+        cleared: cleared
       });
     } catch (error) {
       res.status(500).json({
