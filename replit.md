@@ -8,6 +8,32 @@ I prefer simple language. I want iterative development. Ask before making major 
 
 ---
 
+## MAJOR MILESTONES
+
+### January 8, 2026 - Railway Deployment + V2 Migration Success
+**This is a stable, working checkpoint. Return here if things break.**
+
+Key achievements:
+- Successfully deployed to Railway with all endpoints working
+- Merged V2 fashion products into V1 database (997k products)
+- Total product catalog: 1,112,643 products (up from 115k)
+- Search API working with expanded catalog
+- GitHub repo synced: `andrewkilmartin-sketch/gpt-newdeals`
+
+Working endpoints verified:
+- `POST /api/shop/search` - Main product search (1.1M products)
+- `GET /shopping/awin-link` - Sunny chat product search
+- `POST /sunny/chat` - AI chat concierge
+- `POST /api/admin/migrate-v2-to-v1` - V2 migration tool
+
+Database state:
+- products: 1,112,643 rows (115k original + 997k from V2)
+- products_v2: 997,356 rows (source data preserved)
+
+**If rolling back needed**: This commit represents the stable state.
+
+---
+
 ## CRITICAL: Read Before Making Any Changes
 
 ### Known Issues & Fixes (DO NOT REPEAT THESE MISTAKES)
