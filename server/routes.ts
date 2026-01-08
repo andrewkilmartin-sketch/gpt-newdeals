@@ -597,9 +597,13 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
           content: `You are a UK shopping search assistant. Extract structured info from queries.
 
 CRITICAL RULES:
-1. PRESERVE QUALIFIERS: If query has a specific qualifier (school, running, wedding, party, outdoor), it MUST go in mustMatch.
+1. PRESERVE QUALIFIERS: If query has a specific qualifier, it MUST go in mustMatch.
+   Qualifiers include: school, running, wedding, party, outdoor, baby, kids, children, toddler, infant, newborn, boys, girls, mens, womens
    - "school shoes" → mustMatch: ["school"] because user wants SCHOOL shoes
-   - "running shoes" → mustMatch: ["running"] because user wants RUNNING shoes
+   - "running shoes" → mustMatch: ["running"] because user wants RUNNING shoes  
+   - "sleeping bag baby" → mustMatch: ["baby"] because user wants BABY sleeping bags
+   - "headphones kids" → mustMatch: ["kids"] because user wants KIDS headphones
+   - "pyjamas toddler" → mustMatch: ["toddler"] because user wants TODDLER pyjamas
 
 2. BRANDS MUST GO IN mustMatch: If user mentions a brand, it MUST appear in results.
    - "clarks school shoes" → mustMatch: ["clarks", "school"]
@@ -1427,6 +1431,8 @@ Format: ["id1", "id2", ...]`
         }
         
         // CRITICAL: Apply mustHaveAll as hard SQL filters (e.g., "star wars" must appear in results)
+        // FIX: Split multi-word terms and require EACH word separately
+        // "sophie giraffe" → requires "sophie" AND "giraffe" (not exact phrase)
         if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
           for (const term of interpretation.mustHaveAll) {
             // Skip brand terms already handled by brand filter
@@ -1434,16 +1440,21 @@ Format: ["id1", "id2", ...]`
                 term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
               continue;
             }
-            // Add as hard filter: term must appear in name, description, or category
-            const mustHaveCondition = or(
-              ilike(products.name, `%${term}%`),
-              ilike(products.description, `%${term}%`),
-              ilike(products.category, `%${term}%`)
-            );
-            if (mustHaveCondition) {
-              filterConditions.push(mustHaveCondition as any);
-              console.log(`[Shop Search] Requiring "${term}" in results (mustHaveAll)`);
+            // Split term into individual words and require each one
+            const words = term.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+            for (const word of words) {
+              // Add as hard filter: each word must appear in name, description, category, or brand
+              const mustHaveCondition = or(
+                ilike(products.name, `%${word}%`),
+                ilike(products.description, `%${word}%`),
+                ilike(products.category, `%${word}%`),
+                ilike(products.brand, `%${word}%`)
+              );
+              if (mustHaveCondition) {
+                filterConditions.push(mustHaveCondition as any);
+              }
             }
+            console.log(`[Shop Search] Requiring each word of "${term}" in results: ${words.join(' AND ')}`);
           }
         }
         
@@ -1564,7 +1575,8 @@ Format: ["id1", "id2", ...]`
           }
           
           // CRITICAL FIX: Apply mustHaveAll as hard SQL filters in keyword search path
-          // This was missing! mustHaveAll terms must appear in results
+          // FIX: Split multi-word terms and require EACH word separately
+          // "sophie giraffe" → requires "sophie" AND "giraffe" (not exact phrase)
           if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
             for (const term of interpretation.mustHaveAll) {
               // Skip brand terms already handled by brand filter above
@@ -1572,17 +1584,21 @@ Format: ["id1", "id2", ...]`
                   term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
                 continue;
               }
-              // Add as hard filter: term must appear in name, description, or category
-              const mustHaveCondition = or(
-                ilike(products.name, `%${term}%`),
-                ilike(products.description, `%${term}%`),
-                ilike(products.category, `%${term}%`),
-                ilike(products.brand, `%${term}%`)
-              );
-              if (mustHaveCondition) {
-                baseConditions.push(mustHaveCondition as any);
-                console.log(`[Shop Search] Keyword path: Requiring "${term}" in results (mustHaveAll)`);
+              // Split term into individual words and require each one
+              const words = term.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+              for (const word of words) {
+                // Add as hard filter: each word must appear in name, description, category, or brand
+                const mustHaveCondition = or(
+                  ilike(products.name, `%${word}%`),
+                  ilike(products.description, `%${word}%`),
+                  ilike(products.category, `%${word}%`),
+                  ilike(products.brand, `%${word}%`)
+                );
+                if (mustHaveCondition) {
+                  baseConditions.push(mustHaveCondition as any);
+                }
               }
+              console.log(`[Shop Search] Keyword path: Requiring each word of "${term}": ${words.join(' AND ')}`);
             }
           }
           
