@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunny API Stress Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #f9a825; text-align: center; }
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #startBtn { background: #4CAF50; color: white; }
+        #stopBtn { background: #f44336; color: white; }
+        #downloadBtn { background: #2196F3; color: white; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-box h3 { margin: 0; color: #888; font-size: 14px; }
+        .stat-box .value { font-size: 32px; color: #f9a825; margin-top: 10px; }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #16213e;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f9a825, #ff6b6b);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+        }
+        #results {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .result-row {
+            display: grid;
+            grid-template-columns: 50px 1fr 100px 80px 80px;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            font-size: 14px;
+        }
+        .result-row.header {
+            font-weight: bold;
+            color: #f9a825;
+            position: sticky;
+            top: 0;
+            background: #16213e;
+        }
+        .result-row.success { color: #4CAF50; }
+        .result-row.error { color: #f44336; }
+        .result-row.slow { color: #ff9800; }
+        input[type="number"] {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            width: 100px;
+            text-align: center;
+        }
+        label { display: flex; align-items: center; gap: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Sunny API Stress Test</h1>
+    
+    <div class="controls">
+        <label>
+            Queries to run:
+            <input type="number" id="queryCount" value="500" min="1" max="1000">
+        </label>
+        <label>
+            Delay (ms):
+            <input type="number" id="delayMs" value="200" min="50" max="2000">
+        </label>
+        <button id="startBtn" onclick="startTest()">Start Test</button>
+        <button id="stopBtn" onclick="stopTest()" disabled>Stop</button>
+        <button id="downloadBtn" onclick="downloadCSV()" disabled>Download CSV</button>
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress" style="width: 0%">0%</div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-box">
+            <h3>Completed</h3>
+            <div class="value" id="completed">0</div>
+        </div>
+        <div class="stat-box">
+            <h3>Success</h3>
+            <div class="value" id="success">0</div>
+        </div>
+        <div class="stat-box">
+            <h3>Errors</h3>
+            <div class="value" id="errors">0</div>
+        </div>
+        <div class="stat-box">
+            <h3>Avg Time</h3>
+            <div class="value" id="avgTime">0ms</div>
+        </div>
+        <div class="stat-box">
+            <h3>Avg Products</h3>
+            <div class="value" id="avgProducts">0</div>
+        </div>
+    </div>
+
+    <div id="results">
+        <div class="result-row header">
+            <span>#</span>
+            <span>Query</span>
+            <span>Products</span>
+            <span>Time</span>
+            <span>Status</span>
+        </div>
+    </div>
+
+    <script>
+        // Use relative path - works on any domain (Replit or Railway)
+        const API_BASE = '';
+        
+        const queries = [
+            "toys for 1 year old", "toys for 2 year old", "toys for 3 year old", "toys for 4 year old",
+            "toys for 5 year old", "toys for 6 year old", "toys for 7 year old", "toys for 8 year old",
+            "toys for 9 year old", "toys for 10 year old", "toys for 11 year old", "toys for 12 year old",
+            "gifts for toddler", "gifts for baby", "gifts for teenager", "gifts for teen boy",
+            "gifts for teen girl", "presents for 5 year old boy", "presents for 5 year old girl",
+            "birthday gift 3 year old", "birthday gift 7 year old", "birthday gift 10 year old",
+            "christmas present toddler", "christmas present 6 year old", "toys for newborn",
+            "toys for boys", "toys for girls", "gifts for boys", "gifts for girls",
+            "boy toys age 4", "girl toys age 4", "boy toys age 8", "girl toys age 8",
+            "paw patrol toys", "peppa pig toys", "frozen toys", "spiderman toys", "batman toys",
+            "barbie dolls", "lego sets", "playmobil", "hot wheels", "nerf guns",
+            "pokemon toys", "mario toys", "sonic toys", "minecraft toys", "roblox toys",
+            "disney princess", "marvel toys", "star wars toys", "harry potter toys",
+            "bluey toys", "cocomelon toys", "hey duggee toys", "thomas tank engine",
+            "fireman sam", "postman pat", "ben and holly", "in the night garden",
+            "building blocks", "jigsaw puzzles", "board games", "card games", "dolls",
+            "action figures", "soft toys", "teddy bears", "play dough", "arts and crafts",
+            "colouring books", "sticker books", "educational toys", "learning toys",
+            "stem toys", "science kits", "chemistry set", "telescope for kids",
+            "microscope for kids", "coding toys", "robot toys", "remote control car",
+            "train set", "race track", "dolls house", "play kitchen", "tool set kids",
+            "doctor kit", "vet kit", "musical instruments kids", "keyboard for kids",
+            "guitar for kids", "drum kit kids", "xylophone", "recorder",
+            "outdoor toys", "garden toys", "trampoline", "swing set", "slide",
+            "paddling pool", "water toys", "sand pit", "bubble machine", "kite",
+            "frisbee", "football", "basketball hoop", "scooter", "balance bike",
+            "bike with stabilisers", "roller skates", "skateboard", "pogo stick",
+            "space hopper", "bouncy castle", "climbing frame", "goal posts",
+            "tennis racket kids", "badminton set", "cricket set kids",
+            "baby toys", "baby clothes", "baby monitor", "baby bottles", "dummies",
+            "teething toys", "rattles", "baby mobile", "play mat", "baby bouncer",
+            "baby walker", "highchair", "pushchair", "car seat", "baby carrier",
+            "nappies", "baby wipes", "baby bath", "baby towels", "muslins",
+            "baby sleeping bag", "baby blanket", "nursing pillow", "breast pump",
+            "steriliser", "bottle warmer", "baby food maker", "weaning spoons",
+            "kids clothes", "boys clothes", "girls clothes", "school uniform",
+            "kids shoes", "trainers for kids", "wellies for kids", "winter coat kids",
+            "raincoat kids", "kids pyjamas", "kids dressing gown", "kids swimwear",
+            "swimming costume girls", "swim shorts boys", "kids hats", "kids gloves",
+            "kids scarves", "kids socks", "kids underwear", "school shoes",
+            "children books", "picture books", "story books", "bedtime stories",
+            "early readers", "chapter books", "activity books", "sticker books",
+            "colouring books", "puzzle books", "educational books", "phonics books",
+            "reading books age 5", "reading books age 7", "reading books age 9",
+            "roald dahl books", "david walliams books", "julia donaldson books",
+            "kids tablet", "vtech toys", "leapfrog toys", "kids headphones",
+            "kids camera", "walkie talkies", "karaoke machine", "kids smartwatch",
+            "nintendo switch games", "playstation games kids", "xbox games kids",
+            "party supplies", "birthday balloons", "party bags", "party decorations",
+            "birthday cake decorations", "birthday candles", "party plates", "party cups",
+            "pass the parcel prizes", "party games", "pinata", "birthday banner",
+            "school bag", "lunch box", "water bottle kids", "pencil case",
+            "school stationery", "calculator", "geometry set", "colouring pencils",
+            "felt tip pens", "glue sticks", "scissors kids", "ruler",
+            "kids bed", "bunk beds", "toddler bed", "kids desk", "kids chair",
+            "toy storage", "bookshelf kids", "wardrobe kids", "kids bedding",
+            "duvet cover kids", "kids curtains", "kids rug", "bean bag kids",
+            "baby gate", "cupboard locks", "socket covers", "corner protectors",
+            "bed guard", "car seat", "bike helmet kids", "knee pads kids",
+            "easter eggs", "easter toys", "halloween costume kids", "christmas jumper kids",
+            "advent calendar toys", "stocking fillers", "christmas eve box",
+            "summer toys", "winter toys", "rainy day activities",
+            "cheap toys", "toys under 10", "toys under 20", "toys under 50",
+            "budget gifts", "affordable presents", "bargain toys",
+            "sensory toys", "fidget toys", "autism toys", "adhd toys",
+            "calming toys", "anxiety toys", "weighted blanket kids",
+            "travel toys", "car journey toys", "plane activities kids",
+            "portable toys", "travel games", "activity pack",
+            "kids room decor", "wall stickers kids", "night light", "fairy lights",
+            "kids lamp", "kids clock", "growth chart", "kids mirror",
+            "poster kids room", "bunting kids room",
+            "craft kits", "baking set kids", "sewing kit kids", "knitting kit kids",
+            "jewellery making kit", "slime kit", "bath bombs kit", "candle making kit",
+            "pottery kit kids", "painting set kids", "easel kids",
+            "football boots kids", "shin pads kids", "goalkeeper gloves kids",
+            "rugby ball kids", "tennis balls", "swimming goggles kids",
+            "armbands", "float", "kickboard",
+            "princess costume", "superhero costume", "dinosaur costume",
+            "unicorn costume", "pirate costume", "fairy costume", "knight costume",
+            "animal costume kids", "world book day costume",
+            "kids snacks", "lunch box snacks", "healthy snacks kids",
+            "kids drinks", "fruit pouches", "kids vitamins",
+            "wooden toys", "eco friendly toys", "plastic free toys",
+            "montessori toys", "waldorf toys", "handmade toys",
+            "personalised gifts kids", "name puzzle", "custom teddy",
+            "board games family", "board games 5 year old", "board games 8 year old",
+            "card games kids", "uno", "monopoly junior", "game of life junior",
+            "guess who", "connect 4", "operation game", "hungry hippos",
+            "mouse trap", "buckaroo", "jenga", "twister",
+            "jigsaw puzzle 50 pieces", "jigsaw puzzle 100 pieces", "jigsaw puzzle 500 pieces",
+            "floor puzzle", "3d puzzle", "wooden puzzle toddler",
+            "play shop", "cash register toy", "play food", "tea set kids",
+            "doctor set", "vet set", "hairdresser set", "cleaning set kids",
+            "workbench kids", "tool kit kids",
+            "lego classic", "lego duplo", "lego city", "lego friends",
+            "lego star wars", "lego harry potter", "lego technic",
+            "mega bloks", "knex", "meccano", "magnatiles", "magnetic blocks",
+            "baby doll", "baby annabell", "lol dolls", "barbie dream house",
+            "sylvanian families", "playmobil figures", "schleich animals",
+            "dinosaur figures", "farm animals toys", "zoo animals toys",
+            "toy cars", "matchbox cars", "toy trucks", "digger toys",
+            "tractor toys", "fire engine toy", "police car toy", "ambulance toy",
+            "helicopter toy", "aeroplane toy", "train toys", "boat toys",
+            "paint by numbers kids", "diamond painting kids", "cross stitch kids",
+            "origami kit", "paper craft kit", "scrapbook kit",
+            "friendship bracelet kit", "bead kit", "perler beads",
+            "toy box", "lego storage", "craft storage", "art supplies storage",
+            "under bed storage", "hanging storage kids",
+            "bedtime toys", "glow in dark toys", "projector night light",
+            "sleep training clock", "white noise machine kids", "lullaby toy",
+            "bath toys", "bath crayons", "bath bombs kids", "hooded towel kids",
+            "bath robe kids",
+            "kids plates", "kids cutlery", "sippy cups", "snack pots",
+            "bento box kids", "kids apron", "kids cookbook",
+            "first aid kit kids", "plasters kids", "thermometer kids",
+            "medicine spoon", "nasal aspirator",
+            "birthday present nephew", "birthday present niece", "gift for grandchild",
+            "christening gift", "new baby gift", "twins gift",
+            "gift for child who has everything", "unique kids gift",
+            "last minute gift kids", "next day delivery toys",
+            "free delivery toys", "sale toys", "clearance toys",
+            "best toys 2024", "award winning toys", "top toys christmas",
+            "most popular toys", "trending toys", "viral toys tiktok",
+            "what to buy 5 year old birthday", "best gift for toddler",
+            "toys that keep kids busy", "educational gift ideas",
+            "screen free toys", "toys without batteries",
+            "quiet toys", "toys for car journeys",
+            "toys for waiting rooms", "toys for restaurants",
+            "pocket money toys", "party bag fillers",
+            "prizes for kids", "reward chart", "sticker chart",
+            "present ideas", "gift ideas kids", "toy recommendations",
+            "best selling toys", "new toys", "classic toys",
+            "retro toys", "80s toys", "90s toys",
+            "nostalgic toys", "toys parents love", "annoying toys",
+            "quiet toys grandparents house", "toys for grandparents house",
+            "travel size toys", "compact toys", "foldable toys",
+            "inflatable toys", "ride on toys", "sit on toys",
+            "push along toys", "pull along toys", "shape sorter",
+            "stacking toys", "nesting toys", "threading toys",
+            "lacing toys", "peg board", "hammer bench",
+            "marble run", "ball run", "domino set kids",
+            "magic set", "science experiments", "volcano kit",
+            "crystal growing kit", "bug catcher", "nature kit",
+            "gardening kit kids", "bird house kit", "fairy garden kit",
+            "den building kit", "fort kit", "teepee kids",
+            "play tent", "tunnel kids", "ball pit", "foam pit",
+            "crash mat", "gymnastics mat", "yoga mat kids",
+            "exercise equipment kids", "kids fitness", "dance mat",
+            "karaoke", "disco ball kids", "party lights kids"
+        ];
+
+        let results = [];
+        let running = false;
+        let completed = 0;
+        let successCount = 0;
+        let errorCount = 0;
+        let totalTime = 0;
+        let totalProducts = 0;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function runQuery(query, index) {
+            const startTime = Date.now();
+            try {
+                const response = await fetch(`${API_BASE}/shopping/awin-link?query=${encodeURIComponent(query)}&limit=9`);
+                const data = await response.json();
+                const elapsed = Date.now() - startTime;
+                
+                const productCount = data.results ? data.results.length : (data.products ? data.products.length : 0);
+                
+                return {
+                    index: index + 1,
+                    query,
+                    products: productCount,
+                    time: elapsed,
+                    status: 'success',
+                    data
+                };
+            } catch (error) {
+                return {
+                    index: index + 1,
+                    query,
+                    products: 0,
+                    time: Date.now() - startTime,
+                    status: 'error',
+                    error: error.message
+                };
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('completed').textContent = completed;
+            document.getElementById('success').textContent = successCount;
+            document.getElementById('errors').textContent = errorCount;
+            document.getElementById('avgTime').textContent = completed > 0 ? Math.round(totalTime / completed) + 'ms' : '0ms';
+            document.getElementById('avgProducts').textContent = successCount > 0 ? (totalProducts / successCount).toFixed(1) : '0';
+            
+            const total = parseInt(document.getElementById('queryCount').value);
+            const percent = Math.round((completed / total) * 100);
+            document.getElementById('progress').style.width = percent + '%';
+            document.getElementById('progress').textContent = percent + '%';
+        }
+
+        function addResultRow(result) {
+            const container = document.getElementById('results');
+            const row = document.createElement('div');
+            row.className = `result-row ${result.status} ${result.time > 2000 ? 'slow' : ''}`;
+            row.innerHTML = `
+                <span>${result.index}</span>
+                <span>${result.query}</span>
+                <span>${result.products}</span>
+                <span>${result.time}ms</span>
+                <span>${result.status}</span>
+            `;
+            container.appendChild(row);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function startTest() {
+            const total = parseInt(document.getElementById('queryCount').value);
+            const delay = parseInt(document.getElementById('delayMs').value);
+            
+            results = [];
+            completed = 0;
+            successCount = 0;
+            errorCount = 0;
+            totalTime = 0;
+            totalProducts = 0;
+            running = true;
+            
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('downloadBtn').disabled = true;
+            
+            const container = document.getElementById('results');
+            container.innerHTML = `<div class="result-row header">
+                <span>#</span>
+                <span>Query</span>
+                <span>Products</span>
+                <span>Time</span>
+                <span>Status</span>
+            </div>`;
+            
+            const testQueries = shuffle([...queries]).slice(0, total);
+            
+            for (let i = 0; i < testQueries.length && running; i++) {
+                const result = await runQuery(testQueries[i], i);
+                results.push(result);
+                
+                completed++;
+                totalTime += result.time;
+                
+                if (result.status === 'success') {
+                    successCount++;
+                    totalProducts += result.products;
+                } else {
+                    errorCount++;
+                }
+                
+                addResultRow(result);
+                updateStats();
+                
+                if (i < testQueries.length - 1 && running) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            
+            running = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('downloadBtn').disabled = false;
+        }
+
+        function stopTest() {
+            running = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('downloadBtn').disabled = false;
+        }
+
+        function downloadCSV() {
+            const headers = ['Index', 'Query', 'Products Found', 'Response Time (ms)', 'Status'];
+            const rows = results.map(r => [r.index, `"${r.query}"`, r.products, r.time, r.status]);
+            
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sunny-stress-test-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
