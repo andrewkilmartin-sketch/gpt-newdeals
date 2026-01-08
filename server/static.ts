@@ -1,5 +1,3 @@
-import { fileURLToPath } from 'url';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
