@@ -14,6 +14,17 @@ import * as os from "os";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
+// Build version for deployment verification - increment this when making changes
+const BUILD_VERSION = '2026.01.08.v3';
+const BUILD_DATE = '2026-01-08T23:30:00Z';
+const BUILD_FEATURES = [
+  'Expanded knownBrands with all shoe brands, characters, licenses',
+  'GPT prompt: mustMatch requires product type + qualifier + brand',
+  'Price range extraction (minPrice/maxPrice)',
+  'Fallback suggestions when 0 results',
+  'Event + product type handling (world book day costume)'
+];
+
 // ============================================================
 // QUERY INTERPRETATION CACHE - Avoids repeated GPT calls
 // ============================================================
@@ -904,6 +915,20 @@ export async function registerRoutes(
         hintsandtips: "operational",
         sunny: "operational"
       }
+    });
+  });
+
+  // Version endpoint for deployment verification
+  app.get("/api/meta/version", (req, res) => {
+    res.json({
+      buildVersion: BUILD_VERSION,
+      buildDate: BUILD_DATE,
+      features: BUILD_FEATURES,
+      railwayCommit: process.env.RAILWAY_GIT_COMMIT_SHA || 'not-railway',
+      railwayBranch: process.env.RAILWAY_GIT_BRANCH || 'unknown',
+      nodeEnv: process.env.NODE_ENV,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
     });
   });
 
