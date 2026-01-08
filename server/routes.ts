@@ -523,15 +523,15 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
     // Electronics
     'sony', 'bose', 'apple', 'samsung', 'jbl',
     // Toys
-    'lego', 'playmobil', 'barbie', 'hot wheels', 'sylvanian families', 'fisher price', 'vtech', 'hasbro', 'mattel',
+    'lego', 'playmobil', 'barbie', 'hot wheels', 'sylvanian families', 'fisher price', 'vtech', 'hasbro', 'mattel', 'leapfrog', 'melissa and doug',
     // Baby
-    'tommee tippee', 'mam', 'chicco', 'baby bjorn', 'silver cross', 'bugaboo',
+    'tommee tippee', 'mam', 'chicco', 'baby bjorn', 'silver cross', 'bugaboo', 'joie', 'maxi cosi',
     // Characters/Licenses (treat same as brands)
     'paw patrol', 'peppa pig', 'bluey', 'hey duggee', 'cocomelon', 'baby shark',
     'frozen', 'disney princess', 'spiderman', 'batman', 'marvel', 'avengers',
     'pokemon', 'minecraft', 'fortnite', 'roblox', 'mario', 'sonic',
     'harry potter', 'star wars', 'thomas', 'paddington', 'gruffalo',
-    'pj masks', 'ben and holly', 'numberblocks', 'octonauts', 'gabby', 'encanto'
+    'pj masks', 'ben and holly', 'numberblocks', 'octonauts', 'gabby', 'encanto', 'lol surprise', 'moana'
   ];
   let detectedBrand: string | undefined;
   let cleanedQuery = lower;
