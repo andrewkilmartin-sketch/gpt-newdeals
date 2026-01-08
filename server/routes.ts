@@ -1040,6 +1040,72 @@ export async function registerRoutes(
     res.json({ success: true, message: 'Migration started in background', status: migrationStatus });
   });
 
+  // Create database indexes for fast text search
+  app.post("/api/admin/create-indexes", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      
+      const results: string[] = [];
+      
+      // 1. Enable pg_trgm extension
+      try {
+        await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+        results.push("pg_trgm extension: enabled");
+      } catch (err) {
+        results.push(`pg_trgm extension: ${(err as Error).message}`);
+      }
+      
+      // 2. Create GIN index on name for fast ILIKE
+      try {
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON products USING GIN (name gin_trgm_ops)`);
+        results.push("idx_products_name_trgm: created");
+      } catch (err) {
+        results.push(`idx_products_name_trgm: ${(err as Error).message}`);
+      }
+      
+      // 3. Create GIN index on brand for fast ILIKE
+      try {
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_products_brand_trgm ON products USING GIN (brand gin_trgm_ops)`);
+        results.push("idx_products_brand_trgm: created");
+      } catch (err) {
+        results.push(`idx_products_brand_trgm: ${(err as Error).message}`);
+      }
+      
+      // 4. Create GIN index on description for fast ILIKE
+      try {
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_products_description_trgm ON products USING GIN (description gin_trgm_ops)`);
+        results.push("idx_products_description_trgm: created");
+      } catch (err) {
+        results.push(`idx_products_description_trgm: ${(err as Error).message}`);
+      }
+      
+      // 5. Create vector index for semantic search (if embedding column exists)
+      try {
+        await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_products_embedding ON products USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)`);
+        results.push("idx_products_embedding: created");
+      } catch (err) {
+        results.push(`idx_products_embedding: ${(err as Error).message}`);
+      }
+      
+      // 6. Check existing indexes
+      const indexes = await db.execute(sql`SELECT indexname FROM pg_indexes WHERE tablename = 'products'`) as any;
+      const indexList = (indexes?.rows || indexes || []).map((r: any) => r.indexname);
+      
+      res.json({
+        success: true,
+        message: "Index creation completed",
+        results: results,
+        currentIndexes: indexList
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // ============================================================
   // SIMPLE SEARCH - CTO's approach: keyword SQL + GPT reranker
   // One simple endpoint. 115k products. OpenAI picks the best.
