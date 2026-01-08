@@ -142,6 +142,7 @@ export async function checkAndBootstrapProducts(): Promise<void> {
   };
   
   try {
+    // Check products_v2 for bootstrap (legacy V2 feed products)
     const result = await db.select({ count: sql<number>`count(*)::int` })
       .from(productsV2)
       .limit(1);
@@ -149,7 +150,8 @@ export async function checkAndBootstrapProducts(): Promise<void> {
     const count = result[0]?.count || 0;
     bootstrapStatus.productsCount = count;
     
-    console.log(`[Bootstrap] Current products_v2 count: ${count}`);
+    // Note: Main search uses 'products' table (1.1M) which includes merged V2 data
+    console.log(`[Bootstrap] products_v2 count: ${count} (search uses merged 'products' table)`);
     
     if (count >= MIN_PRODUCTS_THRESHOLD) {
       bootstrapStatus = {
