@@ -10,7 +10,6 @@ export function serveStatic(app: Express) {
   console.log(`Warning: Public directory not found at ${distPath}, skipping static file serving`);
   return;
 }
-    );
   }
 
   app.use(express.static(distPath));
