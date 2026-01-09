@@ -1,0 +1,86 @@
+Excellent! You finally got the CJ feed! Let's do this properly.
+
+Instructions for Replit - CJ Import
+Copy and send this to Replit:
+
+"We have a CJ (Commission Junction) product feed CSV to import. This needs to work alongside our existing Awin products.
+1. DATABASE SETUP
+Add a source column to identify products if not already there:
+sqlALTER TABLE products ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'awin';
+
+-- Update existing products as Awin
+UPDATE products SET source = 'awin' WHERE source IS NULL;
+2. UPLOAD THE CSV
+I'm uploading the CJ CSV file now. It's in Google Shopping format with these fields:
+
+id - product ID
+title - product name
+description - product description
+link - affiliate link
+image_link - product image
+price - product price (format: "29.99 GBP")
+brand - brand name
+availability - in stock status
+google_product_category - category
+advertiser_name or similar - merchant name
+
+3. IMPORT SCRIPT
+Create an import script that:
+javascript// Map CJ fields to our products table
+const mapCJProduct = (row) => ({
+  id: `cj_${row.id}`,  // Prefix to avoid ID conflicts with Awin
+  name: row.title,
+  description: row.description,
+  affiliateLink: row.link,
+  imageUrl: row.image_link,
+  price: parseFloat(row.price.replace(/[^0-9.]/g, '')),
+  brand: row.brand || null,
+  merchant: row.advertiser_name || 'CJ Advertiser',
+  merchantId: row.advertiser_id || null,
+  category: row.google_product_category || row.product_type,
+  inStock: row.availability === 'in_stock' || row.availability === 'in stock',
+  source: 'cj'  // IMPORTANT: Mark as CJ product
+});
+4. FILTER FOR UK ONLY
+Only import products where:
+
+Currency is GBP, OR
+Country is UK/GB, OR
+Advertiser name contains 'UK'
+
+Skip US/EUR products.
+5. SEARCH MUST QUERY BOTH SOURCES
+Update the search to return both Awin AND CJ products:
+javascript// searchProducts should already work - just ensure no source filter
+const results = await db.select().from(productsTable)
+  .where(/* existing conditions */)
+  // Do NOT filter by source - return all products
+  .limit(limit);
+6. PROMOTIONS FOR CJ
+Link CJ promotions to CJ products the same way Awin promotions work:
+
+Match by merchant or merchantId
+Display deal badges on CJ products too
+
+7. VERIFY AFTER IMPORT
+Run these checks:
+sql-- Total products by source
+SELECT source, COUNT(*) FROM products GROUP BY source;
+
+-- Should show:
+-- awin: ~1,100,000
+-- cj: ~900,000 (or however many in the CSV)
+
+-- Test search returns both
+SELECT source, COUNT(*) FROM products 
+WHERE LOWER(name) LIKE '%barbie%' 
+GROUP BY source;
+8. TARGET OUTCOME
+
+Total products: ~2 million (Awin + CJ combined)
+Search returns results from BOTH sources seamlessly
+User doesn't know/care if product is from Awin or CJ
+Promotions work for both networks
+
+Upload location: Put the CSV in /mnt/user-data/uploads/ or wherever you can access it.
+Start the import now and let me know progress."
