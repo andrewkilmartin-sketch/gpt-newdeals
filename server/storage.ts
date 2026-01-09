@@ -663,7 +663,7 @@ export class DatabaseStorage implements IStorage {
         // Use pgvector inner product for semantic similarity
         const semanticQuery = `
           SELECT id, name, description, merchant, merchant_id, category, brand, price, 
-                 affiliate_link, image_url, in_stock,
+                 affiliate_link, image_url, image_status, in_stock,
                  canonical_category, canonical_franchises,
                  embedding <#> '${embeddingStr}'::vector AS distance
           FROM products 
@@ -973,6 +973,16 @@ export class DatabaseStorage implements IStorage {
       if (categoryLower === 'decorations' && !intent.categories.includes('Home')) {
         score -= 80;
       }
+      
+      // CRITICAL: Deprioritize products with broken images (from image_status column)
+      // Handle all status variations: broken, BROKEN_AT_SOURCE, valid, working, unknown
+      const imgStatus = ((product as any).imageStatus || '').toLowerCase();
+      if (imgStatus === 'broken' || imgStatus === 'broken_at_source') {
+        score -= 1000; // Heavy penalty - push to bottom of results
+      } else if (imgStatus === 'valid' || imgStatus === 'working') {
+        score += 50; // Small boost for verified working images
+      }
+      // Products with 'unknown' status get no adjustment (benefit of the doubt)
       
       productMap.set(product.id, { product, score });
     }

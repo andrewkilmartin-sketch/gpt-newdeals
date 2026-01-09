@@ -5884,6 +5884,7 @@ ONLY use IDs from the list. Never invent IDs.`
   });
 
   // Background image validator - validates and marks broken images in batches
+  // SECURITY: Uses parameterized queries to prevent SQL injection
   app.post('/api/diagnostic/validate-images-batch', async (req, res) => {
     try {
       const { 
@@ -5893,27 +5894,41 @@ ONLY use IDs from the list. Never invent IDs.`
         dryRun = true  // Default to dry run for safety
       } = req.body;
       
+      // Validate inputs
+      const safeBatchSize = Math.min(Math.max(1, parseInt(batchSize) || 100), 500);
+      const safeOffset = Math.max(0, parseInt(offset) || 0);
+      
       const { db } = await import('./db');
       const { products } = await import('@shared/schema');
-      const { sql, eq, and, isNotNull, or } = await import('drizzle-orm');
+      const { sql, eq, and, isNotNull, or, ilike } = await import('drizzle-orm');
       
-      // Build WHERE clause
-      let whereClause = `image_url IS NOT NULL AND image_url != ''`;
-      if (merchant) {
-        whereClause += ` AND LOWER(merchant) LIKE '%${merchant.toLowerCase()}%'`;
+      // Build conditions using Drizzle's query builder (parameterized)
+      const conditions: any[] = [
+        isNotNull(products.imageUrl),
+        sql`${products.imageUrl} != ''`,
+        or(
+          sql`${products.imageStatus} IS NULL`,
+          eq(products.imageStatus, 'unknown')
+        )
+      ];
+      
+      // Add merchant filter if provided (parameterized)
+      if (merchant && typeof merchant === 'string') {
+        conditions.push(ilike(products.merchant, `%${merchant}%`));
       }
-      // Only check unknown or NULL status
-      whereClause += ` AND (image_status IS NULL OR image_status = 'unknown')`;
       
-      // Get batch of products to validate
-      const prods = await db.execute(sql.raw(`
-        SELECT id, name, image_url as "imageUrl", merchant
-        FROM products 
-        WHERE ${whereClause}
-        ORDER BY id
-        LIMIT ${batchSize}
-        OFFSET ${offset}
-      `)) as any[];
+      // Get batch of products to validate using Drizzle ORM
+      const prods = await db.select({
+        id: products.id,
+        name: products.name,
+        imageUrl: products.imageUrl,
+        merchant: products.merchant
+      })
+        .from(products)
+        .where(and(...conditions))
+        .orderBy(products.id)
+        .limit(safeBatchSize)
+        .offset(safeOffset);
       
       if (prods.length === 0) {
         return res.json({
@@ -5934,76 +5949,97 @@ ONLY use IDs from the list. Never invent IDs.`
         details: [] as any[]
       };
       
-      for (const prod of prods) {
-        results.checked++;
+      // CONCURRENT IMAGE VALIDATION - process 20 images in parallel for speed
+      const CONCURRENCY = 20;
+      
+      async function validateSingleImage(prod: typeof prods[0]): Promise<{
+        id: string;
+        name: string;
+        merchant: string;
+        status: string;
+        isWorking: boolean;
+        isError: boolean;
+      }> {
         let imageStatus = 'unknown';
+        let isError = false;
         
         try {
-          const response = await fetch(prod.imageUrl, { 
+          const response = await fetch(prod.imageUrl!, { 
             method: 'HEAD',
             redirect: 'manual',
             signal: AbortSignal.timeout(5000)
           });
           
           if (response.status === 200) {
-            // Check content-length to catch tiny placeholder images
             const contentLength = parseInt(response.headers.get('content-length') || '99999');
             if (contentLength < 1000) {
               imageStatus = 'broken';
-              results.broken++;
             } else {
               imageStatus = 'valid';
-              results.working++;
             }
           } else if (response.status === 302 || response.status === 301) {
             const location = response.headers.get('location');
             if (location?.includes('noimage') || location?.includes('placeholder') || location?.includes('no-image')) {
               imageStatus = 'broken';
-              results.broken++;
             } else {
-              // Redirects to another image - likely valid
               imageStatus = 'valid';
-              results.working++;
             }
           } else {
             imageStatus = 'broken';
-            results.broken++;
           }
         } catch (err) {
-          // Timeout or network error - mark as broken
           imageStatus = 'broken';
-          results.broken++;
-          results.errors++;
+          isError = true;
         }
         
-        // Update database if not dry run
-        if (!dryRun) {
-          try {
-            await db.execute(sql.raw(`
-              UPDATE products 
-              SET image_status = '${imageStatus}'
-              WHERE id = '${prod.id}'
-            `));
-            results.updated++;
-          } catch (err) {
-            console.error(`Failed to update product ${prod.id}:`, err);
-          }
-        }
-        
-        results.details.push({
+        return {
           id: prod.id,
           name: (prod.name || '').substring(0, 40),
           merchant: prod.merchant,
-          status: imageStatus
-        });
+          status: imageStatus,
+          isWorking: imageStatus === 'valid',
+          isError
+        };
+      }
+      
+      // Process in concurrent chunks
+      for (let i = 0; i < prods.length; i += CONCURRENCY) {
+        const chunk = prods.slice(i, i + CONCURRENCY);
+        const chunkResults = await Promise.all(chunk.map(validateSingleImage));
+        
+        for (const result of chunkResults) {
+          results.checked++;
+          if (result.isWorking) results.working++;
+          else results.broken++;
+          if (result.isError) results.errors++;
+          
+          // Update database using parameterized query
+          if (!dryRun) {
+            try {
+              await db.update(products)
+                .set({ imageStatus: result.status })
+                .where(eq(products.id, result.id));
+              results.updated++;
+            } catch (err) {
+              console.error(`Failed to update product ${result.id}:`, err);
+            }
+          }
+          
+          results.details.push({
+            id: result.id,
+            name: result.name,
+            merchant: result.merchant,
+            status: result.status
+          });
+        }
       }
       
       res.json({
         mode: dryRun ? 'DRY_RUN (no DB updates)' : 'LIVE (DB updated)',
         merchant: merchant || 'all',
-        batchSize,
-        offset,
-        nextOffset: prods.length === batchSize ? offset + batchSize : null,
+        batchSize: safeBatchSize,
+        offset: safeOffset,
+        nextOffset: prods.length === safeBatchSize ? safeOffset + safeBatchSize : null,
         ...results
       });
     } catch (error: any) {
