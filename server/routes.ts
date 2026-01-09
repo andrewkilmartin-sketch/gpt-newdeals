@@ -2354,10 +2354,14 @@ Format: ["id1", "id2", ...]`
       
       if (detectedBrand && !filterBrand && !isKnownBrand) {
         // Only do brand check for unknown brands (not in our known list)
+        // FIX: Check BOTH brand column AND product name (for characters like Hulk, Moana, Encanto)
         const brandCheckStart = Date.now();
         const brandCheckResult = await db.select({ id: products.id })
           .from(products)
-          .where(ilike(products.brand, `%${detectedBrand}%`))
+          .where(or(
+            ilike(products.brand, `%${detectedBrand}%`),
+            ilike(products.name, `%${detectedBrand}%`)
+          ))
           .limit(1);
         
         const brandExists = brandCheckResult.length > 0;
@@ -2365,7 +2369,7 @@ Format: ["id1", "id2", ...]`
         console.log(`[Shop Search] TIMING: Brand check took ${Date.now() - brandCheckStart}ms`);
         
         if (brandCount === 0) {
-          // Brand doesn't exist in our catalog - return empty results with message
+          // Brand/character doesn't exist in our catalog - return empty results with message
           console.log(`[Shop Search] INVENTORY GAP: "${detectedBrand}" not found in catalog (0 products)`);
           inventoryGapMessage = `No ${detectedBrand} products found in our catalog`;
           
@@ -2384,7 +2388,7 @@ Format: ["id1", "id2", ...]`
           });
         }
         
-        console.log(`[Shop Search] Brand check: "${detectedBrand}" has ${brandCount} products`);
+        console.log(`[Shop Search] Brand/character check: "${detectedBrand}" exists in catalog`);
       }
 
       // STEP 2: Search using expanded keywords (multiple searches for semantic queries)
