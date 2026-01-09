@@ -621,6 +621,19 @@ export class DatabaseStorage implements IStorage {
     
     if (mustMatchTerm) {
       console.log(`[Storage] BRAND/CHARACTER DETECTED: "${mustMatchTerm}" - will filter results strictly`);
+      console.log(`[Storage] MUSTMATCH WILL BE ENFORCED IN SQL WHERE CLAUSE`);
+    }
+    
+    // Build mustMatch SQL filter - this will be added to ALL queries
+    // This is the CRITICAL fix: mustMatch must be in SQL, not just post-filtering
+    // NOTE: Only check name and brand - description matching causes false positives
+    // (e.g., "Em Clarkson" in book description matching "clarks" brand search)
+    const mustMatchSqlFilter = mustMatchTerm 
+      ? `(LOWER(name) LIKE '%${mustMatchTerm.toLowerCase().replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${mustMatchTerm.toLowerCase().replace(/'/g, "''")}%')`
+      : null;
+    
+    if (mustMatchSqlFilter) {
+      console.log(`[Storage] MUSTMATCH SQL FILTER: ${mustMatchSqlFilter}`);
     }
     
     // Known multi-word phrases to match together (brands, franchises, etc.)
@@ -652,6 +665,8 @@ export class DatabaseStorage implements IStorage {
       if (queryEmbedding.length > 0) {
         const embeddingStr = `[${queryEmbedding.join(",")}]`;
         const priceFilter = maxPrice && maxPrice > 0 ? `AND price <= ${maxPrice}` : '';
+        // CRITICAL: Add mustMatch to semantic query SQL WHERE clause
+        const mustMatchFilter = mustMatchSqlFilter ? `AND ${mustMatchSqlFilter}` : '';
         
         // Use pgvector inner product for semantic similarity
         const semanticQuery = `
@@ -660,10 +675,14 @@ export class DatabaseStorage implements IStorage {
                  canonical_category, canonical_franchises,
                  embedding <#> '${embeddingStr}'::vector AS distance
           FROM products 
-          WHERE embedding IS NOT NULL ${priceFilter}
+          WHERE embedding IS NOT NULL ${priceFilter} ${mustMatchFilter}
           ORDER BY embedding <#> '${embeddingStr}'::vector
           LIMIT ${Math.max(limit * 5, 100)}
         `;
+        
+        if (mustMatchSqlFilter) {
+          console.log(`[Semantic Search] SQL includes mustMatch filter: ${mustMatchFilter}`);
+        }
         
         const result = await db.execute(sql.raw(semanticQuery));
         semanticResults = result as any[];
@@ -677,6 +696,20 @@ export class DatabaseStorage implements IStorage {
     const baseConditions: any[] = [];
     if (maxPrice !== undefined && maxPrice > 0) {
       baseConditions.push(lte(productsTable.price, maxPrice));
+    }
+    
+    // CRITICAL FIX: Add mustMatch as a SQL WHERE condition for keyword searches
+    // This ensures ALL keyword phases only return products containing the brand/character
+    // NOTE: Only check name and brand fields - description causes false positives
+    // (e.g., "Em Clarkson" in book description matching "clarks" brand search)
+    if (mustMatchTerm) {
+      const mustMatchPattern = `%${mustMatchTerm.toLowerCase()}%`;
+      const mustMatchCondition = or(
+        ilike(productsTable.name, mustMatchPattern),
+        ilike(productsTable.brand, mustMatchPattern)
+      );
+      baseConditions.push(mustMatchCondition);
+      console.log(`[Keyword Search] MUSTMATCH ENFORCED: All phases require "${mustMatchTerm}" in name/brand ONLY`);
     }
     
     let keywordResults: Product[] = [];
@@ -873,15 +906,17 @@ export class DatabaseStorage implements IStorage {
     const allResults = Array.from(productMap.values());
     
     // CRITICAL: If a brand/character was detected, HARD FILTER results that don't contain it
+    // NOTE: Only check name and brand - description matching causes false positives
     let filteredResults = allResults;
     if (mustMatchTerm) {
       const termLower = mustMatchTerm.toLowerCase();
       const beforeCount = filteredResults.length;
       filteredResults = filteredResults.filter(r => {
-        const productText = `${r.product.name} ${r.product.brand || ''} ${r.product.description || ''}`.toLowerCase();
-        return productText.includes(termLower);
+        const nameLower = r.product.name.toLowerCase();
+        const brandLower = (r.product.brand || '').toLowerCase();
+        return nameLower.includes(termLower) || brandLower.includes(termLower);
       });
-      console.log(`[Storage] BRAND/CHARACTER FILTER: "${mustMatchTerm}" - kept ${filteredResults.length}/${beforeCount} products`);
+      console.log(`[Storage] BRAND/CHARACTER FILTER: "${mustMatchTerm}" - kept ${filteredResults.length}/${beforeCount} products (name/brand only)`);
     }
     
     // Filter out hard-failed products first, then sort by score
@@ -891,10 +926,12 @@ export class DatabaseStorage implements IStorage {
       // If product is not in hardFailIds, it passes
       if (!hardFailIds.has(r.product.id)) return true;
       
-      // If we have a mustMatchTerm and the product contains it, override the hardFail
+      // If we have a mustMatchTerm and the product contains it in name/brand, override the hardFail
       if (mustMatchTerm) {
-        const productText = `${r.product.name} ${r.product.brand || ''} ${r.product.description || ''}`.toLowerCase();
-        if (productText.includes(mustMatchTerm.toLowerCase())) {
+        const nameLower = r.product.name.toLowerCase();
+        const brandLower = (r.product.brand || '').toLowerCase();
+        const termLower = mustMatchTerm.toLowerCase();
+        if (nameLower.includes(termLower) || brandLower.includes(termLower)) {
           console.log(`[Storage] OVERRIDE hardFail for brand match: "${r.product.name.substring(0, 50)}..."`);
           return true;
         }
