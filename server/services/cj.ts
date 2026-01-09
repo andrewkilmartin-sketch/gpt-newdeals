@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
 const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
 
-const CJ_GRAPHQL_ENDPOINT = 'https://productcatalog.api.cj.com/graphql';
+// CJ Product Feed API endpoint (from docs: https://ads.api.cj.com/query)
+const CJ_GRAPHQL_ENDPOINT = 'https://ads.api.cj.com/query';
 
 export interface CJProduct {
   id: string;
@@ -39,21 +40,33 @@ export async function searchCJProducts(
     return { totalCount: 0, products: [] };
   }
 
+  // CJ Product Feed API - uses 'products' query with companyId
+  // See: https://developers.cj.com/graphql/reference/Product%20Feed
+  // Field names verified from API error messages
   const query = `
-    query ProductSearch($companyId: String!, $keywords: String!, $limit: Int) {
-      products(companyId: $companyId, keywords: $keywords, limit: $limit) {
+    {
+      products(
+        companyId: "${CJ_PUBLISHER_ID}",
+        partnerStatus: JOINED,
+        keywords: "${keywords.replace(/"/g, '\\"')}",
+        limit: ${limit}
+      ) {
         totalCount
-        records {
+        count
+        resultList {
           catalogId
           title
           description
-          price { amount currency }
-          link
+          price {
+            amount
+            currency
+          }
           imageLink
+          link
+          brand
+          advertiserId
           advertiserName
           advertiserCountry
-          brand
-          inStock
         }
       }
     }
@@ -68,14 +81,7 @@ export async function searchCJProducts(
         'Authorization': `Bearer ${CJ_API_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        query,
-        variables: {
-          companyId: CJ_PUBLISHER_ID,
-          keywords,
-          limit,
-        },
-      }),
+      body: JSON.stringify({ query }),
     });
 
     if (!response.ok) {
@@ -87,11 +93,11 @@ export async function searchCJProducts(
     const data = await response.json();
 
     if (data.errors) {
-      console.error('[CJ] GraphQL errors:', data.errors);
+      console.error('[CJ] GraphQL errors:', JSON.stringify(data.errors, null, 2));
       return { totalCount: 0, products: [] };
     }
 
-    const records = data.data?.products?.records || [];
+    const records = data.data?.products?.resultList || [];
     const totalCount = data.data?.products?.totalCount || 0;
 
     console.log(`[CJ] Found ${records.length} products (total: ${totalCount})`);
@@ -109,7 +115,8 @@ export async function searchCJProducts(
       advertiserName: r.advertiserName || '',
       advertiserCountry: r.advertiserCountry || 'UK',
       brand: r.brand || '',
-      inStock: r.inStock !== false,
+      category: '',
+      inStock: true, // Not available in CJ API
     }));
 
     return { totalCount, products };

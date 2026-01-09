@@ -1456,6 +1456,8 @@ export async function registerRoutes(
   // Get CJ product count in database
   app.get("/api/cj/stats", async (req, res) => {
     try {
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
       const result = await db.execute(sql`SELECT COUNT(*) as count FROM products WHERE id LIKE 'cj_%'`);
       const count = (result as any).rows?.[0]?.count || (result as any)[0]?.count || 0;
       
