@@ -1,0 +1,222 @@
+Good call on Option B - less maintenance, scales better.
+
+Additional Recommendations:
+1. Upsell Scoring Logic
+Don't just pick random products. Rank upsells by:
+
+Commission rate (higher = better for you)
+Conversion rate (if Awin/CJ provides this data)
+Price point (match to context - cheap snacks for night in, pricier restaurant for cinema)
+Recency (newer deals first)
+
+2. Upsell Rotation
+Don't show the same 2 upsells every time:
+
+Rotate through top 10 relevant products
+Prevents "banner blindness"
+A/B tests naturally which ones convert
+
+3. Seasonal/Event Awareness
+
+Friday/Saturday night → More food delivery upsells
+School holidays → More activity/day out upsells
+Christmas → Gift wrap, batteries, party stuff
+Halloween → Costumes, decorations, sweets
+
+4. Click Tracking
+Track separately:
+
+Content tile clicks
+Upsell tile clicks
+Which upsell categories convert best
+This data improves the algorithm over time
+
+5. Fallback Upsells
+If no relevant category match, default to:
+
+Kids Pass membership (always relevant to families)
+Top trending deal of the week
+
+
+Tell Replit:
+"We're adding TMDB integration and a smart upsell system. Here's the full spec:
+
+PART 1: TMDB INTEGRATION
+API Credentials:
+
+API Key: [YOUR_API_KEY]
+Access Token: [YOUR_ACCESS_TOKEN]
+
+Read TMDB Documentation:
+
+https://developer.themoviedb.org/docs
+Must comply with their attribution requirements
+Must show 'Powered by TMDB' logo somewhere on pages displaying their data
+Check their terms for caching rules
+
+Data to Import & Cache in Neon:
+Create movies table:
+sqlCREATE TABLE movies (
+  id SERIAL PRIMARY KEY,
+  tmdb_id INTEGER UNIQUE NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  overview TEXT,
+  poster_path VARCHAR(255),
+  backdrop_path VARCHAR(255),
+  release_date DATE,
+  vote_average DECIMAL(3,1),
+  vote_count INTEGER,
+  genres TEXT[], -- Array of genre names
+  runtime INTEGER,
+  certification VARCHAR(10), -- U, PG, 12A, 15, 18
+  is_now_showing BOOLEAN DEFAULT false,
+  is_coming_soon BOOLEAN DEFAULT false,
+  streaming_platforms TEXT[], -- Netflix, Disney+, Prime, etc.
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+Import these endpoints:
+
+/movie/now_playing?region=GB - What's on at cinema
+/movie/upcoming?region=GB - Coming soon
+/discover/movie with watch providers - What's on streaming
+/movie/{id} - Full details for each movie
+/movie/{id}/release_dates - Get UK certification (U, PG, 12A, etc.)
+/movie/{id}/watch/providers - Which streaming services have it
+
+Cache Strategy:
+
+Refresh 'now showing' daily
+Refresh 'coming soon' weekly
+Refresh streaming availability weekly
+Store in Neon, don't hit TMDB API on every user search
+
+Family Filter:
+
+Only show U, PG, 12, 12A certifications by default
+User can toggle to include 15/18
+
+
+PART 2: UPSELL SYSTEM
+Create upsells table:
+sqlCREATE TABLE upsell_mappings (
+  id SERIAL PRIMARY KEY,
+  intent_category VARCHAR(50) NOT NULL, -- 'cinema', 'night_in', 'birthday', 'day_out', 'toys', 'clothes'
+  upsell_keywords TEXT[] NOT NULL, -- Keywords to search in products
+  priority INTEGER DEFAULT 1
+);
+
+-- Seed data
+INSERT INTO upsell_mappings (intent_category, upsell_keywords, priority) VALUES
+('cinema', ARRAY['restaurant', 'pizza', 'dining', 'kids eat free'], 1),
+('cinema', ARRAY['kids pass', 'cinema tickets', 'odeon', 'vue', 'cineworld'], 2),
+('night_in', ARRAY['deliveroo', 'uber eats', 'just eat', 'pizza', 'dominos'], 1),
+('night_in', ARRAY['snacks', 'popcorn', 'sweets', 'chocolate', 'blanket', 'pyjamas'], 2),
+('birthday', ARRAY['party supplies', 'balloons', 'decorations', 'banners'], 1),
+('birthday', ARRAY['cake', 'candles', 'party bags', 'plates', 'napkins'], 2),
+('day_out', ARRAY['restaurant', 'cafe', 'lunch', 'picnic'], 1),
+('day_out', ARRAY['raincoat', 'umbrella', 'sunscreen', 'backpack'], 2),
+('toys', ARRAY['batteries', 'gift wrap', 'gift bag', 'card'], 1),
+('toys', ARRAY['storage', 'toy box', 'shelving'], 2),
+('clothes', ARRAY['accessories', 'socks', 'bag', 'hat'], 1),
+('clothes', ARRAY['shoes', 'trainers', 'boots'], 2);
+Upsell Selection Logic:
+javascriptasync function getUpsells(intentCategory, count = 2) {
+  // 1. Get keywords for this intent
+  const mappings = await db.select()
+    .from(upsellMappings)
+    .where(eq(upsellMappings.intentCategory, intentCategory))
+    .orderBy(upsellMappings.priority);
+  
+  const upsells = [];
+  
+  // 2. For each priority level, find a matching product
+  for (const mapping of mappings) {
+    if (upsells.length >= count) break;
+    
+    // Search products with these keywords
+    // Prioritize by: has active promotion > higher price (more commission) > random
+    const product = await db.select()
+      .from(products)
+      .where(
+        or(...mapping.upsellKeywords.map(kw => 
+          ilike(products.name, `%${kw}%`)
+        ))
+      )
+      .orderBy(desc(products.price)) // Higher price = likely higher commission
+      .limit(10);
+    
+    // Pick random from top 10 (rotation)
+    if (product.length > 0) {
+      const randomIndex = Math.floor(Math.random() * Math.min(product.length, 10));
+      upsells.push({
+        ...product[randomIndex],
+        isUpsell: true // Flag for tracking
+      });
+    }
+  }
+  
+  return upsells;
+}
+Fallback Upsells:
+If no matches found, return:
+
+Kids Pass membership deal
+Highest commission product with active promotion
+
+
+PART 3: MIXED RESULTS API
+Update search response format:
+javascript// When user searches for movies/cinema
+{
+  "type": "cinema",
+  "content": [
+    { "tileType": "movie", ...movieData },  // 1
+    { "tileType": "movie", ...movieData },  // 2
+    { "tileType": "movie", ...movieData },  // 3
+    { "tileType": "movie", ...movieData },  // 4
+    { "tileType": "movie", ...movieData },  // 5
+    { "tileType": "movie", ...movieData },  // 6
+    { "tileType": "upsell", ...productData, isUpsell: true },  // 7
+    { "tileType": "upsell", ...productData, isUpsell: true },  // 8
+  ],
+  "hasMore": true
+}
+
+// Load more returns 8 content, 0 upsells
+{
+  "content": [
+    { "tileType": "movie", ...movieData },  // All 8 are content
+    ...
+  ]
+}
+
+PART 4: CLICK TRACKING
+Track upsell performance:
+sqlCREATE TABLE upsell_clicks (
+  id SERIAL PRIMARY KEY,
+  product_id VARCHAR(255),
+  intent_category VARCHAR(50),
+  clicked_at TIMESTAMP DEFAULT NOW(),
+  converted BOOLEAN DEFAULT false -- Update if we get conversion webhook
+);
+Log every upsell click so we can optimize over time.
+
+PART 5: TMDB ATTRIBUTION
+Required by TMDB:
+
+Add to footer: 'Movie data provided by TMDB' with their logo
+Logo available at: https://www.themoviedb.org/about/logos-attribution
+Link the logo/text to https://www.themoviedb.org
+
+
+PRIORITY ORDER:
+
+Set up TMDB API connection and test
+Create movies table and import now_showing
+Create upsell_mappings table and seed data
+Update search to return mixed results (6+2)
+Add click tracking
+Add TMDB attribution to footer
+
+Start with step 1 - test the TMDB connection and show me the response."
