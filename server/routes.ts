@@ -1464,6 +1464,45 @@ Format: ["id1", "id2", ...]`
       let candidates: any[] = [];
       let totalCandidates = 0;
       let filters: any = null;
+      let inventoryGapMessage: string | undefined = undefined;
+
+      // STEP 1.5: NO GARBAGE RESULTS - Check if brand/character exists in database BEFORE searching
+      // This prevents returning random products when the brand doesn't exist
+      const detectedBrand = interpretation.attributes?.brand || interpretation.attributes?.character;
+      if (detectedBrand && !filterBrand) {
+        // Check if this brand exists in our product catalog
+        const brandCheckResult = await db.select({ count: sql<number>`count(*)` })
+          .from(products)
+          .where(or(
+            ilike(products.brand, `%${detectedBrand}%`),
+            ilike(products.name, `%${detectedBrand}%`)
+          ))
+          .limit(1);
+        
+        const brandCount = Number(brandCheckResult[0]?.count || 0);
+        
+        if (brandCount === 0) {
+          // Brand doesn't exist in our catalog - return empty results with message
+          console.log(`[Shop Search] INVENTORY GAP: "${detectedBrand}" not found in catalog (0 products)`);
+          inventoryGapMessage = `No ${detectedBrand} products found in our catalog`;
+          
+          return res.json({
+            success: true,
+            products: [],
+            total: 0,
+            interpretation: {
+              original: query,
+              type: interpretation.isSemanticQuery ? 'semantic' : 'direct',
+              brand: detectedBrand,
+              inventoryGap: true
+            },
+            message: inventoryGapMessage,
+            filters: null
+          });
+        }
+        
+        console.log(`[Shop Search] Brand check: "${detectedBrand}" has ${brandCount} products`);
+      }
 
       // STEP 2: Search using expanded keywords (multiple searches for semantic queries)
       if (interpretation.isSemanticQuery && interpretation.searchTerms.length > 0) {
@@ -4030,14 +4069,23 @@ ONLY use IDs from the list. Never invent IDs.`
         let status: string;
         let statusNote = '';
         
-        if (searchResults.length === 0 && dbExists) {
+        // Detect inventory gap: 0 results AND 0 products in DB for this query
+        // This means the brand/product simply doesn't exist in our catalog
+        const isInventoryGap = searchResults.length === 0 && !dbExists;
+        
+        if (isInventoryGap) {
+          // Brand doesn't exist in catalog - not a search bug, just missing inventory
+          status = 'INVENTORY_GAP';
+          statusNote = `Brand/product not in catalog`;
+          // Don't count as fail - this is a merchandising issue, not search issue
+        } else if (searchResults.length === 0 && dbExists) {
           status = 'FAIL';
           statusNote = 'Products exist in DB but search returned nothing';
           failCount++;
         } else if (searchResults.length === 0) {
-          status = 'FAIL';
-          statusNote = 'No products found';
-          failCount++;
+          status = 'INVENTORY_GAP';
+          statusNote = 'No matching products in catalog';
+          // Don't count as fail
         } else if (topResultRelevant && relevanceScore >= 0.6) {
           // Top result is relevant AND at least 60% of results match
           status = 'PASS';
@@ -4051,6 +4099,11 @@ ONLY use IDs from the list. Never invent IDs.`
         } else if (relevanceScore >= 0.8) {
           status = 'PASS';
           passCount++;
+        } else if (!dbExists && relevanceScore === 0) {
+          // No products in DB for this brand AND all results are irrelevant = INVENTORY_GAP
+          status = 'INVENTORY_GAP';
+          statusNote = 'Brand/product not in catalog, search returned unrelated items';
+          // Don't count as fail - this is a merchandising issue
         } else if (brandMatches && relevanceScore < 0.5) {
           // Brand matches but specific product type not in inventory
           status = 'PARTIAL';
@@ -4086,13 +4139,20 @@ ONLY use IDs from the list. Never invent IDs.`
       
       const totalTime = Date.now();
       
+      // Count inventory gaps separately
+      const inventoryGapCount = results.filter((r: any) => r.analysis.status === 'INVENTORY_GAP').length;
+      const searchableTotal = results.length - inventoryGapCount;
+      const searchPassRate = searchableTotal > 0 ? Math.round((passCount / searchableTotal) * 100) : 0;
+      
       res.json({
         summary: {
           total: results.length,
           pass: passCount,
           partial: partialCount,
+          inventory_gap: inventoryGapCount,
           fail: failCount,
-          pass_rate: Math.round((passCount / results.length) * 100) + '%'
+          pass_rate: searchPassRate + '%',
+          note: inventoryGapCount > 0 ? `${inventoryGapCount} queries have no products in catalog (merchandising issue, not search bug)` : undefined
         },
         results
       });

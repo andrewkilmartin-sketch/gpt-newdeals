@@ -568,6 +568,49 @@ function isBlockedMerchant(merchantName: string): boolean {
   return BLOCKED_MERCHANTS.some(blocked => name.includes(blocked));
 }
 
+// Known brand/character phrases that should be treated as specific searches
+const BRAND_CHARACTER_PHRASES = [
+  'paw patrol', 'peppa pig', 'star wars', 'hot wheels', 'barbie', 'frozen', 
+  'disney', 'lego', 'marvel', 'dc', 'pokemon', 'minecraft', 'fortnite',
+  'sonic', 'mario', 'bluey', 'cocomelon', 'hey duggee', 'thomas', 'bob the builder',
+  'orchard toys', 'dr martens', 'clarks', 'nike', 'adidas', 'vans', 'converse',
+  'jojo maman', 'fisher price', 'vtech', 'leapfrog', 'playmobil', 'sylvanian'
+];
+
+// Detect if query contains a brand or character that should be strictly matched
+function detectBrandOrCharacter(query: string): string | null {
+  const q = query.toLowerCase();
+  for (const phrase of BRAND_CHARACTER_PHRASES) {
+    if (q.includes(phrase)) {
+      return phrase;
+    }
+  }
+  return null;
+}
+
+// Check if a brand/character exists in our product database
+async function checkBrandExistsInDB(brand: string): Promise<boolean> {
+  try {
+    const { db } = await import('../db');
+    const { products } = await import('@shared/schema');
+    const { or, ilike, sql } = await import('drizzle-orm');
+    
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(or(
+        ilike(products.brand, `%${brand}%`),
+        ilike(products.name, `%${brand}%`)
+      ))
+      .limit(1);
+    
+    const count = Number(result[0]?.count || 0);
+    return count > 0;
+  } catch (error) {
+    console.error(`[checkBrandExistsInDB] Error checking brand "${brand}":`, error);
+    return true; // On error, allow search to proceed
+  }
+}
+
 export async function fetchAwinProducts(query?: string, category?: string, limit: number = 10): Promise<ShoppingDeal[]> {
   const deals: ShoppingDeal[] = [];
   const searchTerms = query ? expandSearchTerms(query) : [];
@@ -580,6 +623,19 @@ export async function fetchAwinProducts(query?: string, category?: string, limit
     console.log(`BRAND QUERY detected: "${query}" - searching promotions/deals`);
   } else {
     console.log(`PRODUCT QUERY detected: "${query}" - searching product datafeed`);
+  }
+
+  // NO GARBAGE RESULTS: Check if brand/character exists in database before searching
+  // This prevents returning random products when the brand doesn't exist
+  if (query && !brandSearch) {
+    const detectedBrand = detectBrandOrCharacter(query);
+    if (detectedBrand) {
+      const brandExists = await checkBrandExistsInDB(detectedBrand);
+      if (!brandExists) {
+        console.log(`[fetchAwinProducts] INVENTORY GAP: "${detectedBrand}" not in catalog - returning empty`);
+        return []; // Return empty instead of garbage
+      }
+    }
   }
 
   try {
