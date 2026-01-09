@@ -1,0 +1,64 @@
+The current search DOES find similar/related products when exact matches don't exist. So the test needs to account for that.
+
+Updated Test Logic:
+ScenarioOld Test SaysNew Test Should SaySearch "barbie", 0 barbie in DB, returns dolls❌ FAIL✅ PASS - found relatedSearch "barbie", 0 barbie in DB, returns nothing❌ FAIL📦 INVENTORY_GAPSearch "barbie", 50 barbie in DB, returns TV cabinets❌ FAIL📊 RANKING_BUG
+
+Tell Replit to Update:
+"Update the diagnostic test - it needs to understand that Sunny finds SIMILAR products when exact matches don't exist.
+NEW LOGIC:
+javascript// STEP 2B: CHECK FOR RELATED PRODUCTS (not just exact match)
+const relatedCheck = await db.execute(sql`
+  SELECT COUNT(*) as related_count
+  FROM products 
+  WHERE 
+    LOWER(category) LIKE ${`%${intent.category}%`}
+    OR LOWER(brand) IN (${intent.relatedBrands})
+`);
+
+result.diagnosis.database = {
+  exactMatches: dbCheck.total_matches,
+  relatedProducts: relatedCheck.related_count,
+  productsExist: dbCheck.total_matches > 0 || relatedCheck.related_count > 0
+};
+
+// UPDATED VERDICT LOGIC:
+if (result.diagnosis.database.exactMatches === 0 && 
+    result.diagnosis.database.relatedProducts === 0) {
+  // Nothing exists - true inventory gap
+  result.verdict = 'INVENTORY_GAP';
+  result.fixAction = 'No exact or related products exist. Add to feed.';
+} 
+else if (result.diagnosis.database.exactMatches === 0 && 
+         result.diagnosis.search.returnedCount > 0) {
+  // No exact match but found related - this is GOOD
+  result.verdict = 'PASS_WITH_FALLBACK';
+  result.fixAction = 'No exact match but found related products. Consider adding exact products.';
+}
+else if (result.diagnosis.database.exactMatches > 0 && 
+         result.diagnosis.search.returnedCount === 0) {
+  // Products exist but search failed - BUG
+  result.verdict = 'SEARCH_BUG';
+  result.fixAction = `${result.diagnosis.database.exactMatches} exact matches exist but search returned 0.`;
+}
+NEW VERDICT ADDED:
+VerdictMeaning✅ PASSFound exact matches✅ PASS_WITH_FALLBACKNo exact match, but found good alternatives📦 INVENTORY_GAPNothing found AND no related products exist❌ SEARCH_BUGProducts exist but search can't find them
+RELEVANCE CHECK UPDATE:
+Also check if returned products are RELEVANT alternatives:
+javascript// If searching 'barbie', acceptable fallbacks include:
+// - Other dolls (category match)
+// - Other girls toys (age/gender match)
+// - NOT: TV cabinets, sunglasses, random stuff
+
+const isRelevantFallback = (product, intent) => {
+  return product.category?.toLowerCase().includes(intent.category) ||
+         intent.relatedCategories.some(cat => 
+           product.category?.toLowerCase().includes(cat)
+         );
+};
+This way the test understands that 'no barbie but found other dolls' = ✅ GOOD"
+
+This makes the test smart enough to know the difference between:
+
+Good fallback: "No Barbie, showing other dolls" ✅
+Bad fallback: "No Barbie, showing TV cabinets" ❌
+True gap: "No Barbie, no dolls, no toys at all" 📦

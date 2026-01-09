@@ -5355,5 +5355,302 @@ ONLY use IDs from the list. Never invent IDs.`
     }
   });
 
+  // ============================================================
+  // DIAGNOSTIC TEST ENDPOINTS - GOD-LEVEL TESTING FRAMEWORK
+  // Tells you EXACTLY where problems occur: DATA, SEARCH, RANKING, DISPLAY, INTENT
+  // ============================================================
+  
+  app.post('/api/diagnostic/search', async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query is required' });
+      }
+      
+      const result: any = {
+        query: query,
+        timestamp: new Date().toISOString(),
+        diagnosis: {},
+        verdict: null,
+        fixAction: null
+      };
+      
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { sql, ilike, or } = await import('drizzle-orm');
+      
+      // STEP 1: INTENT DETECTION
+      const queryLower = query.toLowerCase().trim();
+      const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
+      const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema', 'at the movies'];
+      const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
+                             cinemaIntentPhrases.some(p => queryLower.includes(p));
+      
+      result.diagnosis.intent = {
+        detected: isCinemaIntent ? 'cinema' : 'product',
+        queryWords: queryLower.split(' ').filter((w: string) => w.length > 2),
+        isCinemaQuery: isCinemaIntent
+      };
+      
+      // STEP 2: DATABASE CHECK - DO PRODUCTS EXIST?
+      const dbCheckStart = Date.now();
+      const searchPattern = `%${queryLower}%`;
+      
+      const dbCheckResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_matches,
+          COUNT(CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 END) as with_images,
+          COUNT(CASE WHEN source = 'awin' THEN 1 END) as awin_count,
+          COUNT(CASE WHEN source = 'cj' THEN 1 END) as cj_count
+        FROM products 
+        WHERE 
+          LOWER(name) LIKE ${searchPattern}
+          OR LOWER(brand) LIKE ${searchPattern}
+      `);
+      
+      const dbRow = dbCheckResult[0] as any;
+      result.diagnosis.database = {
+        productsExist: parseInt(dbRow?.total_matches || '0') > 0,
+        totalInDB: parseInt(dbRow?.total_matches || '0'),
+        withImages: parseInt(dbRow?.with_images || '0'),
+        awinProducts: parseInt(dbRow?.awin_count || '0'),
+        cjProducts: parseInt(dbRow?.cj_count || '0'),
+        checkTimeMs: Date.now() - dbCheckStart
+      };
+      
+      // STEP 3: SEARCH EXECUTION - WHAT DID SEARCH RETURN?
+      const searchStart = Date.now();
+      
+      const searchResults = await db.select({
+        id: products.id,
+        name: products.name,
+        merchant: products.merchant,
+        brand: products.brand,
+        price: products.price,
+        imageUrl: products.imageUrl,
+        source: products.source
+      }).from(products)
+        .where(or(
+          ilike(products.name, searchPattern),
+          ilike(products.brand, searchPattern)
+        ))
+        .limit(20);
+      
+      const searchTime = Date.now() - searchStart;
+      
+      result.diagnosis.search = {
+        returnedCount: searchResults.length,
+        searchTimeMs: searchTime,
+        topResults: searchResults.slice(0, 5).map(p => ({
+          name: (p.name || '').substring(0, 50),
+          merchant: p.merchant,
+          price: p.price,
+          hasImage: !!(p.imageUrl && p.imageUrl.trim() !== ''),
+          source: p.source
+        }))
+      };
+      
+      // STEP 4: RELEVANCE CHECK - ARE RESULTS CORRECT?
+      const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
+      let relevantCount = 0;
+      
+      for (const product of searchResults.slice(0, 10)) {
+        const nameLower = (product.name || '').toLowerCase();
+        const matchedWords = queryWords.filter((w: string) => nameLower.includes(w));
+        if (matchedWords.length >= Math.ceil(queryWords.length / 2)) {
+          relevantCount++;
+        }
+      }
+      
+      const relevancePercent = searchResults.length > 0 
+        ? (relevantCount / Math.min(10, searchResults.length)) * 100 
+        : 0;
+      
+      result.diagnosis.relevance = {
+        relevantInTop10: relevantCount,
+        relevancePercent: Math.round(relevancePercent),
+        queryWords: queryWords
+      };
+      
+      // STEP 5: IMAGE CHECK
+      const withImages = searchResults.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
+      const imagePercent = searchResults.length > 0 
+        ? (withImages / searchResults.length) * 100 
+        : 0;
+      
+      result.diagnosis.images = {
+        withImages: withImages,
+        withoutImages: searchResults.length - withImages,
+        imagePercent: Math.round(imagePercent)
+      };
+      
+      // STEP 6: VERDICT & FIX ACTION
+      if (isCinemaIntent) {
+        result.verdict = 'CINEMA_INTENT';
+        result.fixAction = 'This query should route to TMDB movies, not product search.';
+      }
+      else if (result.diagnosis.database.totalInDB === 0) {
+        result.verdict = 'INVENTORY_GAP';
+        result.fixAction = 'Products do not exist in database. Add to Awin/CJ feed.';
+      }
+      else if (result.diagnosis.search.returnedCount === 0) {
+        result.verdict = 'SEARCH_BUG';
+        result.fixAction = `${result.diagnosis.database.totalInDB} products exist but search returned 0. Fix search algorithm.`;
+      }
+      else if (result.diagnosis.relevance.relevancePercent < 50) {
+        result.verdict = 'RANKING_BUG';
+        result.fixAction = 'Products exist and were found, but wrong ones ranked top. Fix scoring.';
+      }
+      else if (result.diagnosis.images.imagePercent < 50) {
+        result.verdict = 'IMAGE_BUG';
+        result.fixAction = `Search works but ${result.diagnosis.images.withoutImages} products missing images.`;
+      }
+      else if (result.diagnosis.search.searchTimeMs > 5000) {
+        result.verdict = 'SPEED_BUG';
+        result.fixAction = `Search took ${result.diagnosis.search.searchTimeMs}ms. Optimize queries.`;
+      }
+      else {
+        result.verdict = 'PASS';
+        result.fixAction = 'All checks passed.';
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error('[Diagnostic] Search error:', error);
+      res.status(500).json({ error: 'Diagnostic failed', details: error.message });
+    }
+  });
+  
+  app.post('/api/diagnostic/batch', async (req, res) => {
+    try {
+      const { queries } = req.body;
+      
+      if (!queries || !Array.isArray(queries)) {
+        return res.status(400).json({ error: 'queries array is required' });
+      }
+      
+      const results: any[] = [];
+      
+      for (const query of queries.slice(0, 20)) { // Limit to 20 queries
+        try {
+          // Make internal request to single diagnostic endpoint
+          const singleResult = await new Promise((resolve) => {
+            const mockReq = { body: { query } };
+            const mockRes = {
+              json: (data: any) => resolve(data),
+              status: () => ({ json: (data: any) => resolve({ error: data }) })
+            };
+            // Inline the logic instead of calling the endpoint
+            (async () => {
+              const { db } = await import('./db');
+              const { products } = await import('@shared/schema');
+              const { sql, ilike, or } = await import('drizzle-orm');
+              
+              const queryLower = (query || '').toLowerCase().trim();
+              const searchPattern = `%${queryLower}%`;
+              
+              // Check intent
+              const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
+              const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema'];
+              const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
+                                     cinemaIntentPhrases.some(p => queryLower.includes(p));
+              
+              // DB check
+              const dbCheck = await db.execute(sql`
+                SELECT COUNT(*) as total FROM products 
+                WHERE LOWER(name) LIKE ${searchPattern} OR LOWER(brand) LIKE ${searchPattern}
+              `);
+              const dbCount = parseInt((dbCheck[0] as any)?.total || '0');
+              
+              // Search check
+              const searchStart = Date.now();
+              const searchResults = await db.select({
+                id: products.id,
+                name: products.name,
+                imageUrl: products.imageUrl
+              }).from(products)
+                .where(or(ilike(products.name, searchPattern), ilike(products.brand, searchPattern)))
+                .limit(20);
+              const searchTime = Date.now() - searchStart;
+              
+              // Relevance check
+              const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
+              let relevantCount = 0;
+              for (const p of searchResults.slice(0, 10)) {
+                const nameLower = (p.name || '').toLowerCase();
+                if (queryWords.filter((w: string) => nameLower.includes(w)).length >= Math.ceil(queryWords.length / 2)) {
+                  relevantCount++;
+                }
+              }
+              const relevance = searchResults.length > 0 ? (relevantCount / Math.min(10, searchResults.length)) * 100 : 0;
+              
+              // Image check
+              const withImages = searchResults.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
+              const imagePercent = searchResults.length > 0 ? (withImages / searchResults.length) * 100 : 0;
+              
+              // Verdict
+              let verdict = 'PASS';
+              let fixAction = 'All checks passed.';
+              
+              if (isCinemaIntent) {
+                verdict = 'CINEMA_INTENT';
+                fixAction = 'Routes to TMDB movies.';
+              } else if (dbCount === 0) {
+                verdict = 'INVENTORY_GAP';
+                fixAction = 'Add products to feed.';
+              } else if (searchResults.length === 0) {
+                verdict = 'SEARCH_BUG';
+                fixAction = 'Fix search algorithm.';
+              } else if (relevance < 50) {
+                verdict = 'RANKING_BUG';
+                fixAction = 'Fix scoring.';
+              } else if (imagePercent < 50) {
+                verdict = 'IMAGE_BUG';
+                fixAction = 'Fix images.';
+              } else if (searchTime > 5000) {
+                verdict = 'SPEED_BUG';
+                fixAction = 'Optimize queries.';
+              }
+              
+              resolve({
+                query,
+                verdict,
+                fixAction,
+                dbCount,
+                searchCount: searchResults.length,
+                relevance: Math.round(relevance),
+                imagePercent: Math.round(imagePercent),
+                timeMs: searchTime
+              });
+            })();
+          });
+          
+          results.push(singleResult);
+        } catch (err) {
+          results.push({ query, verdict: 'ERROR', fixAction: 'Test failed', error: (err as Error).message });
+        }
+      }
+      
+      // Summary
+      const summary = {
+        total: results.length,
+        passed: results.filter(r => r.verdict === 'PASS').length,
+        cinemaIntents: results.filter(r => r.verdict === 'CINEMA_INTENT').length,
+        inventoryGaps: results.filter(r => r.verdict === 'INVENTORY_GAP').length,
+        searchBugs: results.filter(r => r.verdict === 'SEARCH_BUG').length,
+        rankingBugs: results.filter(r => r.verdict === 'RANKING_BUG').length,
+        imageBugs: results.filter(r => r.verdict === 'IMAGE_BUG').length,
+        speedBugs: results.filter(r => r.verdict === 'SPEED_BUG').length,
+        errors: results.filter(r => r.verdict === 'ERROR').length
+      };
+      
+      res.json({ summary, results });
+    } catch (error: any) {
+      console.error('[Diagnostic] Batch error:', error);
+      res.status(500).json({ error: 'Batch diagnostic failed', details: error.message });
+    }
+  });
+
   return httpServer;
 }

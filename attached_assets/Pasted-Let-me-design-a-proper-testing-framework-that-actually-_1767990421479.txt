@@ -1,0 +1,285 @@
+Let me design a proper testing framework that actually tells you WHAT'S WRONG, not just PASS/FAIL.
+
+The Problem With Current Tests:
+Current ApproachWhy It's Useless"0% relevance"Doesn't tell you WHY"FAIL"Is it data? Search? Frontend?100 queries at onceCan't see patternsTakes agesDiscourages testing
+
+GOD-LEVEL TEST FRAMEWORK
+The Philosophy:
+Every test result must answer: "WHERE is the problem?"
+1. DATA LAYER → Do the products exist in the database?
+2. SEARCH LAYER → Did the search find them?
+3. RANKING LAYER → Are they ranked correctly (top 5)?
+4. DISPLAY LAYER → Do they have images, prices, links?
+5. INTENT LAYER → Did we understand what the user wanted?
+
+THE DIAGNOSTIC TEST
+Tell Replit:
+"Create a diagnostic test endpoint that breaks down EXACTLY where problems occur.
+NEW ENDPOINT: /api/diagnostic/search
+javascript// POST /api/diagnostic/search
+// Body: { "query": "paw patrol toys" }
+
+async function diagnosticSearch(query) {
+  const result = {
+    query: query,
+    timestamp: new Date().toISOString(),
+    diagnosis: {},
+    verdict: null,
+    fixAction: null
+  };
+
+  // ============================================
+  // STEP 1: INTENT DETECTION
+  // ============================================
+  const intent = await extractIntent(query);
+  result.diagnosis.intent = {
+    detected: intent.type, // 'product', 'cinema', 'restaurant', 'attraction'
+    categories: intent.categories,
+    franchises: intent.franchises,
+    keywords: intent.keywords,
+    correct: null // Manual review needed
+  };
+
+  // ============================================
+  // STEP 2: DATABASE CHECK - DO PRODUCTS EXIST?
+  // ============================================
+  const dbCheck = await db.execute(sql`
+    SELECT 
+      COUNT(*) as total_matches,
+      COUNT(CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 END) as with_images,
+      COUNT(CASE WHEN source = 'awin' THEN 1 END) as awin_count,
+      COUNT(CASE WHEN source = 'cj' THEN 1 END) as cj_count,
+      array_agg(DISTINCT merchant) as merchants
+    FROM products 
+    WHERE 
+      LOWER(name) LIKE ${`%${query.toLowerCase()}%`}
+      OR LOWER(brand) LIKE ${`%${query.toLowerCase()}%`}
+  `);
+  
+  result.diagnosis.database = {
+    productsExist: dbCheck.total_matches > 0,
+    totalInDB: dbCheck.total_matches,
+    withImages: dbCheck.with_images,
+    awinProducts: dbCheck.awin_count,
+    cjProducts: dbCheck.cj_count,
+    merchants: dbCheck.merchants?.slice(0, 10) || []
+  };
+
+  // ============================================
+  // STEP 3: SEARCH EXECUTION - WHAT DID SEARCH RETURN?
+  // ============================================
+  const searchStart = Date.now();
+  const searchResults = await searchProducts(query, 20);
+  const searchTime = Date.now() - searchStart;
+  
+  result.diagnosis.search = {
+    returnedCount: searchResults.products.length,
+    searchTimeMs: searchTime,
+    topResults: searchResults.products.slice(0, 5).map(p => ({
+      name: p.name.substring(0, 50),
+      merchant: p.merchant,
+      price: p.price,
+      hasImage: !!p.imageUrl,
+      source: p.source
+    }))
+  };
+
+  // ============================================
+  // STEP 4: RELEVANCE CHECK - ARE RESULTS CORRECT?
+  // ============================================
+  const queryWords = query.toLowerCase().split(' ').filter(w => w.length > 2);
+  let relevantCount = 0;
+  
+  for (const product of searchResults.products.slice(0, 10)) {
+    const nameLower = product.name.toLowerCase();
+    const matchedWords = queryWords.filter(w => nameLower.includes(w));
+    if (matchedWords.length >= Math.ceil(queryWords.length / 2)) {
+      relevantCount++;
+    }
+  }
+  
+  result.diagnosis.relevance = {
+    relevantInTop10: relevantCount,
+    relevancePercent: (relevantCount / Math.min(10, searchResults.products.length)) * 100,
+    queryWords: queryWords,
+  };
+
+  // ============================================
+  // STEP 5: IMAGE CHECK
+  // ============================================
+  const withImages = searchResults.products.filter(p => p.imageUrl && p.imageUrl !== '').length;
+  result.diagnosis.images = {
+    withImages: withImages,
+    withoutImages: searchResults.products.length - withImages,
+    imagePercent: (withImages / searchResults.products.length) * 100
+  };
+
+  // ============================================
+  // STEP 6: VERDICT & FIX ACTION
+  // ============================================
+  if (result.diagnosis.database.totalInDB === 0) {
+    result.verdict = 'INVENTORY_GAP';
+    result.fixAction = 'Products do not exist in database. Add to Awin/CJ feed.';
+  } 
+  else if (result.diagnosis.search.returnedCount === 0) {
+    result.verdict = 'SEARCH_BUG';
+    result.fixAction = `${result.diagnosis.database.totalInDB} products exist but search returned 0. Fix search algorithm.`;
+  }
+  else if (result.diagnosis.relevance.relevancePercent < 50) {
+    result.verdict = 'RANKING_BUG';
+    result.fixAction = `Products exist and were found, but wrong ones ranked top. Fix scoring.`;
+  }
+  else if (result.diagnosis.images.imagePercent < 50) {
+    result.verdict = 'IMAGE_BUG';
+    result.fixAction = `Search works but ${result.diagnosis.images.withoutImages} products missing images.`;
+  }
+  else if (result.diagnosis.search.searchTimeMs > 5000) {
+    result.verdict = 'SPEED_BUG';
+    result.fixAction = `Search took ${result.diagnosis.search.searchTimeMs}ms. Optimize queries.`;
+  }
+  else {
+    result.verdict = 'PASS';
+    result.fixAction = 'All checks passed.';
+  }
+
+  return result;
+}
+
+EXAMPLE OUTPUT:
+json{
+  "query": "paw patrol toys",
+  "diagnosis": {
+    "intent": {
+      "detected": "product",
+      "categories": ["Toys"],
+      "franchises": ["Paw Patrol"],
+      "keywords": ["paw", "patrol", "toys"]
+    },
+    "database": {
+      "productsExist": true,
+      "totalInDB": 47,
+      "withImages": 12,
+      "awinProducts": 47,
+      "cjProducts": 0,
+      "merchants": ["M&S", "Debenhams", "Schuh"]
+    },
+    "search": {
+      "returnedCount": 8,
+      "searchTimeMs": 1240,
+      "topResults": [
+        {"name": "M&S Paw Patrol T-Shirt", "hasImage": true},
+        {"name": "Paw Patrol Backpack", "hasImage": false}
+      ]
+    },
+    "relevance": {
+      "relevantInTop10": 8,
+      "relevancePercent": 100
+    },
+    "images": {
+      "withImages": 5,
+      "withoutImages": 3,
+      "imagePercent": 62.5
+    }
+  },
+  "verdict": "PASS",
+  "fixAction": "All checks passed."
+}
+
+BATCH TEST ENDPOINT: /api/diagnostic/batch
+javascript// POST /api/diagnostic/batch
+// Body: { "queries": ["paw patrol toys", "nike trainers", "cinema", "barbie dolls"] }
+
+async function batchDiagnostic(queries) {
+  const results = [];
+  
+  for (const query of queries) {
+    const result = await diagnosticSearch(query);
+    results.push({
+      query: query,
+      verdict: result.verdict,
+      fixAction: result.fixAction,
+      dbCount: result.diagnosis.database.totalInDB,
+      searchCount: result.diagnosis.search.returnedCount,
+      relevance: result.diagnosis.relevance.relevancePercent,
+      imagePercent: result.diagnosis.images.imagePercent,
+      timeMs: result.diagnosis.search.searchTimeMs
+    });
+  }
+
+  // Summary
+  const summary = {
+    total: results.length,
+    passed: results.filter(r => r.verdict === 'PASS').length,
+    inventoryGaps: results.filter(r => r.verdict === 'INVENTORY_GAP').length,
+    searchBugs: results.filter(r => r.verdict === 'SEARCH_BUG').length,
+    rankingBugs: results.filter(r => r.verdict === 'RANKING_BUG').length,
+    imageBugs: results.filter(r => r.verdict === 'IMAGE_BUG').length,
+    speedBugs: results.filter(r => r.verdict === 'SPEED_BUG').length
+  };
+
+  return { summary, results };
+}
+
+QUICK TEST QUERIES (Covers All Scenarios):
+javascriptconst TEST_QUERIES = [
+  // PRODUCTS - Should find products
+  "nike trainers",
+  "school shoes",
+  "lego star wars",
+  "barbie dolls",
+  "paw patrol toys",
+  "kids pyjamas",
+  
+  // CINEMA - Should route to TMDB
+  "whats on at the cinema",
+  "movies",
+  "films tonight",
+  
+  // BRANDS - Should find specific brands
+  "clarks",
+  "dr martens",
+  "playmobil",
+  
+  // NATURAL LANGUAGE - Complex queries
+  "birthday gift for 5 year old girl under £20",
+  "something for a rainy day",
+  
+  // EDGE CASES
+  "asdfghjkl",  // Nonsense - should return empty gracefully
+  ""  // Empty - should handle gracefully
+];
+```
+
+---
+
+### FRONTEND: Simple Test Dashboard
+
+Create `/test` page that shows:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SUNNY DIAGNOSTIC DASHBOARD                                  │
+├─────────────────────────────────────────────────────────────┤
+│  ✅ PASS: 12    ❌ SEARCH_BUG: 2    📦 INVENTORY_GAP: 3     │
+│  🖼️ IMAGE_BUG: 1    🐢 SPEED_BUG: 0    📊 RANKING_BUG: 1   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Query                    │ Verdict      │ DB │ Found │ Fix │
+│  ─────────────────────────┼──────────────┼────┼───────┼─────│
+│  nike trainers            │ ✅ PASS      │ 847│   10  │  -  │
+│  paw patrol toys          │ ✅ PASS      │  47│    8  │  -  │
+│  barbie dolls             │ 📦 INV_GAP   │   0│    0  │ Add │
+│  whats on at cinema       │ ❌ SEARCH    │  40│    0  │ Fix │
+│  dr martens               │ 📦 INV_GAP   │   0│    0  │ Add │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+
+WHY THIS IS BETTER:
+Old TestNew Diagnostic"FAIL""INVENTORY_GAP: 0 products in DB""0% relevance""RANKING_BUG: 47 in DB but wrong ones ranked""Slow""SPEED_BUG: 23000ms"Takes 10 minutesRuns in 30 secondsNo fix guidanceTells you EXACTLY what to fix
+
+IMPLEMENTATION ORDER:
+
+Create /api/diagnostic/search endpoint
+Create /api/diagnostic/batch endpoint
+Create simple /test dashboard page
+Run the 15 test queries
+Fix issues BY CATEGORY (all inventory gaps together, all search bugs together)
