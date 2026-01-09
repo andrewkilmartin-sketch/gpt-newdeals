@@ -4843,7 +4843,21 @@ ONLY use IDs from the list. Never invent IDs.`
       let passCount = 0, partialCount = 0, failCount = 0;
       
       for (const testQuery of queries) {
-        const { query, required_keywords, max_price, expected_brand, expected_character, category } = testQuery;
+        // Handle both string format ("barbie dolls") and object format ({ query: "barbie dolls", ... })
+        const isStringQuery = typeof testQuery === 'string';
+        const query = isStringQuery ? testQuery : testQuery.query;
+        const required_keywords = isStringQuery ? '' : (testQuery.required_keywords || '');
+        const max_price = isStringQuery ? undefined : testQuery.max_price;
+        const expected_brand = isStringQuery ? undefined : testQuery.expected_brand;
+        const expected_character = isStringQuery ? undefined : testQuery.expected_character;
+        const category = isStringQuery ? undefined : testQuery.category;
+        
+        // Skip empty queries
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+          console.log(`[Audit] Skipping invalid query:`, testQuery);
+          continue;
+        }
+        
         const requiredKws = (required_keywords || '').split(',').map((k: string) => k.trim().toLowerCase()).filter((k: string) => k);
         
         const startTime = Date.now();
