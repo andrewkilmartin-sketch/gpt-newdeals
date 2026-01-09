@@ -4,7 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { verifyDatabaseIntegrity } from "./boot/dataIntegrity";
-import { ensureSearchIndexes } from "./db";
+import { ensureSearchIndexes, ensureMovieTables } from "./db";
 import { checkAndBootstrapProducts } from "./boot/productBootstrap";
 import { getAllActivePromotions } from "./services/awin";
 // CJ import disabled by user request
@@ -91,8 +91,12 @@ app.use((req, res, next) => {
     
     // Ensure search indexes exist for fast queries (development only)
     await ensureSearchIndexes();
+    // Also ensure movie tables exist
+    await ensureMovieTables();
   } else {
     console.log('[STARTUP] Production mode - skipping data integrity checks for fast startup');
+    // Ensure movie tables exist in production
+    await ensureMovieTables();
     // In production, check if database needs bootstrapping (runs in background)
     checkAndBootstrapProducts().catch(err => {
       console.error('[STARTUP] Bootstrap error:', err);
