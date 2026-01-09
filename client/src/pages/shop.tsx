@@ -5,24 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-// ProductImage component with robust error handling for broken/placeholder images
+// ProductImage component - simplified to trust database URLs
 function ProductImage({ src, alt }: { src: string | null; alt: string }) {
   const [hasError, setHasError] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Check if the image URL likely points to a placeholder or is invalid
-  const isLikelyPlaceholder = (url: string | null) => {
-    if (!url || url.trim() === '') return true;
-    const lower = url.toLowerCase();
-    return lower.includes('noimage') || 
-           lower.includes('placeholder') || 
-           lower.includes('no-image') ||
-           lower.includes('missing') ||
-           lower.includes('default') ||
-           !url.startsWith('http');
-  };
-  
-  if (hasError || isLikelyPlaceholder(src)) {
+  // Only reject truly empty URLs - let the browser handle the rest
+  if (!src || src.trim() === '' || hasError) {
     return (
       <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
         <ImageOff className="w-12 h-12 mb-2" />
@@ -39,24 +28,12 @@ function ProductImage({ src, alt }: { src: string | null; alt: string }) {
         </div>
       )}
       <img
-        src={src!}
+        src={src}
         alt={alt}
         className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="lazy"
         onError={() => setHasError(true)}
-        onLoad={(e) => {
-          const target = e.target as HTMLImageElement;
-          setIsLoaded(true);
-          // Detect the specific productserve noimage.gif placeholder (exactly 70x70)
-          // This is more precise than a broad threshold to avoid false positives
-          if (target.naturalWidth === 70 && target.naturalHeight === 70) {
-            setHasError(true);
-          }
-          // Also catch very tiny images that are clearly broken (1x1 tracking pixels etc)
-          if (target.naturalWidth < 10 || target.naturalHeight < 10) {
-            setHasError(true);
-          }
-        }}
+        onLoad={() => setIsLoaded(true)}
       />
     </>
   );
