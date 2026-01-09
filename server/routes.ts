@@ -2140,6 +2140,96 @@ Format: ["id1", "id2", ...]`
         return res.status(400).json({ success: false, error: "Query is required" });
       }
 
+      // CINEMA INTENT DETECTION - Route to movies API instead of product search
+      const cinemaIntents = [
+        'whats on at the cinema',
+        "what's on at the cinema",
+        'whats on at cinema',
+        'cinema',
+        'movies showing',
+        'film times',
+        'whats on at the movies',
+        "what's on at the movies",
+        'new films',
+        'now showing',
+        'cinema listings',
+        'movie listings',
+        'whats showing',
+        "what's showing",
+        'films on',
+        'movies on',
+        'at the cinema',
+        'at the movies'
+      ];
+      
+      const queryLower = query.toLowerCase().trim();
+      const isCinemaIntent = cinemaIntents.some(intent => queryLower.includes(intent));
+      
+      if (isCinemaIntent) {
+        console.log(`[Shop Search] CINEMA INTENT detected for query: "${query}" - routing to movies API`);
+        const cinemaStartTime = Date.now();
+        
+        const dbMovies = await getMoviesByType('cinema', 6);
+        
+        const contentItems = dbMovies.map(m => ({
+          type: 'movie' as const,
+          id: m.id,
+          title: m.title,
+          overview: m.overview,
+          poster: getPosterUrl(m.posterPath, 'w342'),
+          backdrop: getBackdropUrl(m.backdropPath),
+          releaseDate: m.releaseDate,
+          rating: m.voteAverage,
+          genres: m.genreIds ? getGenreNames(m.genreIds) : [],
+          certification: m.ukCertification,
+          contentType: m.contentType,
+        }));
+        
+        let upsellProducts: any[] = [];
+        if (contentItems.length > 0) {
+          const firstMovie = dbMovies[0];
+          upsellProducts = await getUpsellProducts({
+            contentId: String(firstMovie.id),
+            contentType: 'movie',
+            genreIds: firstMovie.genreIds || undefined,
+            title: firstMovie.title,
+          }, 2);
+        }
+        
+        const upsellItems = upsellProducts.map(p => ({
+          type: 'upsell' as const,
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          imageUrl: p.imageUrl,
+          affiliateLink: p.affiliateLink,
+          merchant: p.merchant,
+          upsellReason: p.upsellReason,
+        }));
+        
+        console.log(`[Shop Search] Cinema results returned in ${Date.now() - cinemaStartTime}ms`);
+        
+        return res.json({
+          success: true,
+          products: [],
+          total: 0,
+          interpretation: {
+            original: query,
+            type: 'cinema_intent',
+            intentDetected: 'cinema'
+          },
+          filters: null,
+          cinemaResults: {
+            content: contentItems,
+            upsells: upsellItems,
+            totalItems: contentItems.length + upsellItems.length,
+            attribution: 'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+          },
+          message: `Found ${contentItems.length} movies showing at the cinema`,
+          responseTimeMs: Date.now() - cinemaStartTime
+        });
+      }
+
       const safeLimit = Math.min(Math.max(1, limit), 20);
       const safeOffset = Math.max(0, offset);
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
