@@ -6,18 +6,25 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 // ProductImage component with robust error handling for broken/placeholder images
-function ProductImage({ src, alt }: { src: string; alt: string }) {
+function ProductImage({ src, alt }: { src: string | null; alt: string }) {
   const [hasError, setHasError] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Check if the image URL likely points to a placeholder
-  const isLikelyPlaceholder = (url: string) => {
-    return url.includes('noimage') || url.includes('placeholder') || url.includes('no-image');
+  // Check if the image URL likely points to a placeholder or is invalid
+  const isLikelyPlaceholder = (url: string | null) => {
+    if (!url || url.trim() === '') return true;
+    const lower = url.toLowerCase();
+    return lower.includes('noimage') || 
+           lower.includes('placeholder') || 
+           lower.includes('no-image') ||
+           lower.includes('missing') ||
+           lower.includes('default') ||
+           !url.startsWith('http');
   };
   
   if (hasError || isLikelyPlaceholder(src)) {
     return (
-      <div className="flex flex-col items-center text-gray-400">
+      <div className="flex flex-col items-center justify-center text-muted-foreground h-full">
         <ImageOff className="w-12 h-12 mb-2" />
         <span className="text-xs">Image unavailable</span>
       </div>
@@ -32,7 +39,7 @@ function ProductImage({ src, alt }: { src: string; alt: string }) {
         </div>
       )}
       <img
-        src={src}
+        src={src!}
         alt={alt}
         className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         loading="lazy"
