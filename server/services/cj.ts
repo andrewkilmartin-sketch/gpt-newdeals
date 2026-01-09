@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { products } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
 const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
@@ -141,6 +141,43 @@ export async function searchCJProducts(
   }
 }
 
+// Helper to derive brand from CJ product data
+function deriveBrand(product: CJProduct, searchKeyword: string): string | null {
+  // Priority 1: Use CJ brand field if valid (not empty, not generic)
+  const genericTerms = ['temu', 'amazon', 'ebay', 'marketplace', 'store', 'shop', 'warner home video'];
+  if (product.brand && product.brand.trim().length > 0) {
+    const brandLower = product.brand.toLowerCase().trim();
+    if (!genericTerms.includes(brandLower)) {
+      return product.brand.trim();
+    }
+  }
+  
+  // Priority 2: STRICT - Only assign search keyword as brand if the FULL keyword appears in the title
+  // This prevents "Sylvanian Families" being assigned to "Hair Dryer For Families"
+  const keywordLower = searchKeyword.toLowerCase().trim();
+  const titleLower = product.title.toLowerCase();
+  
+  // Check if the COMPLETE keyword phrase appears in the title
+  if (titleLower.includes(keywordLower)) {
+    // Verify this is a real match - the keyword should appear as a distinct phrase
+    // For multi-word brands, require ALL words to appear together or at start
+    const keywordWords = keywordLower.split(/\s+/);
+    if (keywordWords.length > 1) {
+      // Multi-word brand: require consecutive appearance or prominent placement
+      const titleStart = titleLower.substring(0, 50);
+      if (titleLower.includes(keywordLower) || titleStart.includes(keywordWords[0])) {
+        return searchKeyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      }
+    } else {
+      // Single word brand
+      return searchKeyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+  
+  // Priority 3: Return null - don't force a brand if we can't verify it
+  return null;
+}
+
 export async function importCJProductsToDatabase(
   keywords: string,
   limit: number = 100
@@ -189,6 +226,9 @@ export async function importCJProductsToDatabase(
         // Map to all required fields that the products schema expects
         const priceValue = product.price.amount > 0 ? product.price.amount : 0.01;
         
+        // CRITICAL: Derive proper brand for search visibility
+        const derivedBrand = deriveBrand(product, keywords);
+        
         await db.insert(products).values({
           id: productId,
           name: product.title || 'Unknown Product',
@@ -196,7 +236,7 @@ export async function importCJProductsToDatabase(
           price: priceValue,
           merchant: product.advertiserName || 'CJ Affiliate',
           merchantId: null, // CJ doesn't provide numeric merchant IDs
-          brand: product.brand || null,
+          brand: derivedBrand,
           category: product.category || null,
           imageUrl: product.imageLink || null,
           affiliateLink: product.link || '',
@@ -296,7 +336,7 @@ export const PRIORITY_BRANDS = [
   'Peppa Pig',
 ];
 
-export async function importPriorityBrands(): Promise<{
+export async function importPriorityBrands(limitPerBrand: number = 100): Promise<{
   total: number;
   byBrand: Record<string, number>;
 }> {
@@ -305,11 +345,65 @@ export async function importPriorityBrands(): Promise<{
 
   for (const brand of PRIORITY_BRANDS) {
     console.log(`[CJ] Importing brand: ${brand}`);
-    const result = await importCJProductsToDatabase(brand, 100);
+    const result = await importCJProductsToDatabase(brand, limitPerBrand);
     byBrand[brand] = result.imported;
     total += result.imported;
   }
 
   console.log(`[CJ] Priority brands import complete: ${total} total products`);
   return { total, byBrand };
+}
+
+// Backfill brands for existing CJ products that have null or generic brands
+export async function backfillCJBrands(): Promise<{ updated: number; errors: number }> {
+  let updated = 0;
+  let errors = 0;
+  
+  // Get CJ products with null or generic brands
+  const genericBrands = ['temu', 'amazon', 'ebay', ''];
+  const cjProducts = await db.select({ 
+    id: products.id, 
+    name: products.name, 
+    brand: products.brand 
+  })
+    .from(products)
+    .where(sql`id LIKE 'cj_%'`);
+  
+  console.log(`[CJ Backfill] Found ${cjProducts.length} CJ products to check`);
+  
+  for (const product of cjProducts) {
+    const currentBrand = product.brand?.toLowerCase().trim() || '';
+    
+    // Skip if brand is already valid
+    if (currentBrand && !genericBrands.includes(currentBrand) && currentBrand !== 'warner home video') {
+      continue;
+    }
+    
+    try {
+      // Try to extract brand from product name
+      let newBrand: string | null = null;
+      const nameLower = product.name.toLowerCase();
+      
+      for (const priorityBrand of PRIORITY_BRANDS) {
+        if (nameLower.includes(priorityBrand.toLowerCase())) {
+          newBrand = priorityBrand;
+          break;
+        }
+      }
+      
+      if (newBrand) {
+        await db.update(products)
+          .set({ brand: newBrand })
+          .where(eq(products.id, product.id));
+        updated++;
+        console.log(`[CJ Backfill] Updated ${product.id}: brand = "${newBrand}"`);
+      }
+    } catch (error) {
+      console.error(`[CJ Backfill] Error updating ${product.id}:`, error);
+      errors++;
+    }
+  }
+  
+  console.log(`[CJ Backfill] Complete: ${updated} updated, ${errors} errors`);
+  return { updated, errors };
 }

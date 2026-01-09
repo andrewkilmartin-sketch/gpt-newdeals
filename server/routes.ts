@@ -1428,6 +1428,7 @@ export async function registerRoutes(
   app.post("/api/cj/import-priority-brands", async (req, res) => {
     try {
       const { importPriorityBrands, isCJConfigured, PRIORITY_BRANDS } = await import('./services/cj');
+      const { limit = 100 } = req.body;
       
       if (!isCJConfigured()) {
         return res.status(400).json({
@@ -1436,14 +1437,35 @@ export async function registerRoutes(
         });
       }
       
-      console.log(`[CJ Import] Starting priority brands import...`);
-      const result = await importPriorityBrands();
+      console.log(`[CJ Import] Starting priority brands import (${limit} per brand)...`);
+      const result = await importPriorityBrands(Math.min(limit, 500));
       
       res.json({
         success: true,
         message: `Imported ${result.total} products from ${PRIORITY_BRANDS.length} priority brands`,
         ...result,
         brands: PRIORITY_BRANDS
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Backfill CJ product brands for search visibility
+  app.post("/api/cj/backfill-brands", async (req, res) => {
+    try {
+      const { backfillCJBrands } = await import('./services/cj');
+      
+      console.log(`[CJ Backfill] Starting brand backfill for existing CJ products...`);
+      const result = await backfillCJBrands();
+      
+      res.json({
+        success: true,
+        message: `Updated ${result.updated} CJ products with proper brands`,
+        ...result
       });
     } catch (error) {
       res.status(500).json({
