@@ -22,6 +22,17 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
 });
 
+// CJ Import State - tracks resumable import progress
+export const cjImportState = pgTable("cj_import_state", {
+  id: varchar("id", { length: 50 }).primaryKey().default("current"),
+  keyword: text("keyword").notNull().default("gift"),
+  offset: integer("offset").notNull().default(0),
+  totalImported: integer("total_imported").notNull().default(0),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export type CJImportState = typeof cjImportState.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,

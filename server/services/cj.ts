@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { products } from "@shared/schema";
+import { products, cjImportState } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
@@ -850,4 +850,132 @@ export async function importByAdvertiser(
   
   console.log(`[CJ] Advertiser import complete: ${imported} imported, ${skipped} skipped, ${errors} errors`);
   return { imported, skipped, errors };
+}
+
+// Keywords to cycle through for bulk import
+const IMPORT_KEYWORDS = [
+  'gift', 'toys', 'kids', 'baby', 'shoes', 'home', 'kitchen', 'garden',
+  'electronics', 'phone', 'sports', 'fitness', 'beauty', 'books', 'clothing',
+  'jacket', 'dress', 'furniture', 'games', 'outdoor', 'camping', 'luggage'
+];
+
+// Chunked import - imports a small batch and saves progress
+// Call this repeatedly until done. Each call takes ~50 seconds.
+export async function importCJChunk(maxCalls: number = 20): Promise<{
+  imported: number;
+  keyword: string;
+  offset: number;
+  totalImported: number;
+  done: boolean;
+}> {
+  // Get or create import state
+  let state = await db.select().from(cjImportState).where(eq(cjImportState.id, 'current')).limit(1);
+  
+  if (state.length === 0) {
+    await db.insert(cjImportState).values({
+      id: 'current',
+      keyword: IMPORT_KEYWORDS[0],
+      offset: 0,
+      totalImported: 0,
+    });
+    state = await db.select().from(cjImportState).where(eq(cjImportState.id, 'current')).limit(1);
+  }
+  
+  let { keyword, offset, totalImported } = state[0];
+  let imported = 0;
+  let callsMade = 0;
+  const pageSize = 100;
+  
+  console.log(`[CJ Chunk] Starting from keyword="${keyword}", offset=${offset}, total=${totalImported}`);
+  
+  while (callsMade < maxCalls) {
+    const result = await searchCJProducts(keyword, pageSize, offset);
+    callsMade++;
+    
+    if (result.products.length === 0 || offset >= 10000) {
+      // Move to next keyword
+      const currentIndex = IMPORT_KEYWORDS.indexOf(keyword);
+      const nextIndex = currentIndex + 1;
+      
+      if (nextIndex >= IMPORT_KEYWORDS.length) {
+        // All keywords done - reset for next cycle
+        await db.update(cjImportState)
+          .set({ keyword: IMPORT_KEYWORDS[0], offset: 0, totalImported, lastUpdated: new Date() })
+          .where(eq(cjImportState.id, 'current'));
+        console.log(`[CJ Chunk] All keywords complete. Total: ${totalImported}`);
+        return { imported, keyword, offset: 0, totalImported, done: true };
+      }
+      
+      keyword = IMPORT_KEYWORDS[nextIndex];
+      offset = 0;
+      console.log(`[CJ Chunk] Moving to next keyword: ${keyword}`);
+      continue;
+    }
+    
+    // Import products
+    for (const product of result.products) {
+      try {
+        const linkHash = Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 8);
+        const productId = `cj_${advertiserHash}_${linkHash}`;
+        
+        const existing = await db.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .limit(1);
+        
+        if (existing.length > 0) continue;
+        
+        const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
+        
+        await db.insert(products).values({
+          id: productId,
+          name: product.title || 'Unknown Product',
+          description: product.description || null,
+          price: product.price.amount > 0 ? product.price.amount : 0.01,
+          merchant: product.advertiserName || 'CJ Affiliate',
+          merchantId: null,
+          brand: product.brand || null,
+          category: product.category || null,
+          imageUrl: product.imageLink || null,
+          affiliateLink: affiliateLink,
+          inStock: product.inStock ?? true,
+          source: 'cj',
+        });
+        
+        imported++;
+        totalImported++;
+      } catch (error) {
+        // Skip duplicates silently
+      }
+    }
+    
+    offset += pageSize;
+  }
+  
+  // Save progress
+  await db.update(cjImportState)
+    .set({ keyword, offset, totalImported, lastUpdated: new Date() })
+    .where(eq(cjImportState.id, 'current'));
+  
+  console.log(`[CJ Chunk] Chunk complete: +${imported} this chunk, ${totalImported} total`);
+  return { imported, keyword, offset, totalImported, done: false };
+}
+
+// Reset import state to start fresh
+export async function resetCJImportState(): Promise<void> {
+  await db.delete(cjImportState).where(eq(cjImportState.id, 'current'));
+  console.log('[CJ] Import state reset');
+}
+
+// Get current import status
+export async function getCJImportStatus(): Promise<{
+  keyword: string;
+  offset: number;
+  totalImported: number;
+  lastUpdated: Date | null;
+} | null> {
+  const state = await db.select().from(cjImportState).where(eq(cjImportState.id, 'current')).limit(1);
+  if (state.length === 0) return null;
+  return state[0];
 }
