@@ -601,3 +601,22 @@ export const upsellClicks = pgTable("upsell_clicks", {
 export const insertUpsellClickSchema = createInsertSchema(upsellClicks).omit({ id: true, clickedAt: true });
 export type InsertUpsellClick = z.infer<typeof insertUpsellClickSchema>;
 export type UpsellClick = typeof upsellClicks.$inferSelect;
+
+// ============ QUERY INTERPRETATION CACHE ============
+// Persistent cache for GPT query interpretations to save costs
+export const queryCache = pgTable("query_cache", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  queryHash: varchar("query_hash", { length: 64 }).notNull().unique(), // MD5 of normalized query
+  originalQuery: text("original_query").notNull(),
+  normalizedQuery: text("normalized_query").notNull(),
+  interpretation: jsonb("interpretation").notNull(), // Full QueryInterpretation object
+  cacheVersion: integer("cache_version").default(1), // Increment when interpretation format changes
+  createdAt: timestamp("created_at").defaultNow(),
+  lastAccessedAt: timestamp("last_accessed_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // TTL for automatic cleanup
+  hitCount: integer("hit_count").default(1),
+});
+
+export const insertQueryCacheSchema = createInsertSchema(queryCache).omit({ id: true, createdAt: true, lastAccessedAt: true, hitCount: true });
+export type InsertQueryCache = z.infer<typeof insertQueryCacheSchema>;
+export type QueryCacheEntry = typeof queryCache.$inferSelect;
