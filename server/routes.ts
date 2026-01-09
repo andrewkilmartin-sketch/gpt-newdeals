@@ -1475,18 +1475,72 @@ export async function registerRoutes(
     }
   });
   
-  // Get CJ product count in database
+  // Get comprehensive CJ stats including available products and advertisers
   app.get("/api/cj/stats", async (req, res) => {
     try {
-      const { db } = await import('./db');
-      const { sql } = await import('drizzle-orm');
-      const result = await db.execute(sql`SELECT COUNT(*) as count FROM products WHERE id LIKE 'cj_%'`);
-      const count = (result as any).rows?.[0]?.count || (result as any)[0]?.count || 0;
+      const { getCJStats } = await import('./services/cj');
+      const stats = await getCJStats();
       
       res.json({
         success: true,
-        cjProductCount: parseInt(count),
-        message: `${count} CJ products in database`
+        totalAvailable: stats.totalAvailable,
+        currentImported: stats.currentImported,
+        advertisers: stats.advertisers,
+        message: `${stats.currentImported} imported of ${stats.totalAvailable.toLocaleString()} available`
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Bulk import CJ products using category keywords (bypasses pagination limit)
+  app.post("/api/cj/bulk-import", async (req, res) => {
+    try {
+      const { bulkImportCJProducts, BULK_IMPORT_CATEGORIES } = await import('./services/cj');
+      const { limitPerCategory = 5000, categories } = req.body || {};
+      
+      console.log(`[CJ Bulk] Starting bulk import (${limitPerCategory} per category)`);
+      
+      // Run import asynchronously and respond immediately with status
+      res.json({
+        success: true,
+        status: 'started',
+        message: `Bulk import started for ${categories?.length || BULK_IMPORT_CATEGORIES.length} categories`,
+        categories: categories || BULK_IMPORT_CATEGORIES,
+        limitPerCategory
+      });
+      
+      // Run actual import after response
+      bulkImportCJProducts(limitPerCategory, categories).then(result => {
+        console.log(`[CJ Bulk] Complete: ${result.total} products in ${result.duration}s`);
+      }).catch(error => {
+        console.error('[CJ Bulk] Error:', error);
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Synchronous bulk import (waits for completion) - for smaller batches
+  app.post("/api/cj/bulk-import-sync", async (req, res) => {
+    try {
+      const { bulkImportCJProducts, BULK_IMPORT_CATEGORIES } = await import('./services/cj');
+      const { limitPerCategory = 500, categories } = req.body || {};
+      
+      console.log(`[CJ Bulk Sync] Starting synchronous bulk import`);
+      const result = await bulkImportCJProducts(limitPerCategory, categories);
+      
+      res.json({
+        success: true,
+        message: `Imported ${result.total} products in ${result.duration}s`,
+        ...result,
+        categories: categories || BULK_IMPORT_CATEGORIES
       });
     } catch (error) {
       res.status(500).json({

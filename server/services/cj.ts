@@ -336,6 +336,26 @@ export const PRIORITY_BRANDS = [
   'Peppa Pig',
 ];
 
+// Broad category keywords to access different product segments from CJ's 5.2M catalog
+export const BULK_IMPORT_CATEGORIES = [
+  // Kids & Family
+  'toys', 'games', 'kids', 'children', 'baby', 'nursery', 'school',
+  // Fashion & Footwear
+  'shoes', 'trainers', 'boots', 'sandals', 'sneakers', 'clothing', 'jacket', 'coat', 'dress',
+  // Home & Living
+  'home', 'kitchen', 'garden', 'furniture', 'bedding', 'decor',
+  // Electronics & Tech
+  'electronics', 'phone', 'tablet', 'laptop', 'headphones', 'speaker',
+  // Sports & Outdoors
+  'sports', 'fitness', 'outdoor', 'camping', 'cycling', 'running',
+  // Beauty & Health
+  'beauty', 'skincare', 'makeup', 'health', 'wellness',
+  // Entertainment
+  'books', 'dvd', 'music', 'gifts', 'christmas',
+  // Travel
+  'luggage', 'travel', 'holiday',
+];
+
 export async function importPriorityBrands(limitPerBrand: number = 100): Promise<{
   total: number;
   byBrand: Record<string, number>;
@@ -406,4 +426,221 @@ export async function backfillCJBrands(): Promise<{ updated: number; errors: num
   
   console.log(`[CJ Backfill] Complete: ${updated} updated, ${errors} errors`);
   return { updated, errors };
+}
+
+// Get total available products and advertiser info from CJ
+export async function getCJStats(): Promise<{
+  totalAvailable: number;
+  advertisers: { id: string; name: string; country: string }[];
+  currentImported: number;
+}> {
+  if (!isCJConfigured()) {
+    return { totalAvailable: 0, advertisers: [], currentImported: 0 };
+  }
+
+  // Get a sample to find total count and unique advertisers
+  const query = `
+    {
+      products(
+        companyId: "${CJ_PUBLISHER_ID}",
+        partnerStatus: JOINED,
+        limit: 100,
+        offset: 0
+      ) {
+        totalCount
+        resultList {
+          advertiserId
+          advertiserName
+          advertiserCountry
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CJ_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const data = await response.json();
+    const advertisersMap = new Map<string, { name: string; country: string }>();
+    
+    data.data?.products?.resultList?.forEach((p: any) => {
+      if (!advertisersMap.has(p.advertiserId)) {
+        advertisersMap.set(p.advertiserId, { 
+          name: p.advertiserName, 
+          country: p.advertiserCountry 
+        });
+      }
+    });
+
+    // Count current CJ products in database
+    const countResult = await db.select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(sql`id LIKE 'cj_%'`);
+    
+    const currentImported = Number(countResult[0]?.count) || 0;
+
+    return {
+      totalAvailable: data.data?.products?.totalCount || 0,
+      advertisers: Array.from(advertisersMap.entries()).map(([id, info]) => ({
+        id,
+        name: info.name,
+        country: info.country,
+      })),
+      currentImported,
+    };
+  } catch (error) {
+    console.error('[CJ] Error getting stats:', error);
+    return { totalAvailable: 0, advertisers: [], currentImported: 0 };
+  }
+}
+
+// Bulk import using category keywords (bypasses pagination limit)
+export async function bulkImportCJProducts(
+  limitPerCategory: number = 5000,
+  categories?: string[]
+): Promise<{
+  total: number;
+  byCategory: Record<string, number>;
+  duration: number;
+}> {
+  const startTime = Date.now();
+  const byCategory: Record<string, number> = {};
+  let total = 0;
+  
+  const categoriesToImport = categories || BULK_IMPORT_CATEGORIES;
+  
+  console.log(`[CJ Bulk] Starting bulk import for ${categoriesToImport.length} categories (${limitPerCategory} max per category)`);
+  
+  for (const category of categoriesToImport) {
+    console.log(`[CJ Bulk] Importing category: ${category}`);
+    const result = await importCJProductsToDatabase(category, limitPerCategory);
+    byCategory[category] = result.imported;
+    total += result.imported;
+    
+    // Small delay between categories to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  
+  const duration = Math.round((Date.now() - startTime) / 1000);
+  console.log(`[CJ Bulk] Complete: ${total} products in ${duration}s`);
+  
+  return { total, byCategory, duration };
+}
+
+// Import products by specific advertiser ID
+export async function importByAdvertiser(
+  advertiserId: string,
+  limit: number = 10000
+): Promise<{ imported: number; skipped: number; errors: number }> {
+  // Use a broad query to get products from specific advertiser
+  // CJ API doesn't have direct advertiser filter, so we search and filter
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let offset = 0;
+  const pageSize = 100;
+  
+  console.log(`[CJ] Importing from advertiser ${advertiserId} (limit: ${limit})`);
+  
+  while (imported < limit) {
+    const query = `
+      {
+        products(
+          companyId: "${CJ_PUBLISHER_ID}",
+          partnerStatus: JOINED,
+          limit: ${pageSize},
+          offset: ${offset}
+        ) {
+          totalCount
+          resultList {
+            catalogId
+            title
+            description
+            price { amount currency }
+            imageLink
+            link
+            brand
+            advertiserId
+            advertiserName
+            advertiserCountry
+          }
+        }
+      }
+    `;
+
+    try {
+      const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CJ_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      const data = await response.json();
+      const results = data.data?.products?.resultList || [];
+      
+      if (results.length === 0) break;
+      
+      // Filter and import products from target advertiser
+      for (const product of results) {
+        if (product.advertiserId !== advertiserId) continue;
+        if (imported >= limit) break;
+        
+        try {
+          const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
+          const productId = `cj_${advertiserHash}_${product.catalogId}`;
+          
+          const existing = await db.select({ id: products.id })
+            .from(products)
+            .where(eq(products.id, productId))
+            .limit(1);
+          
+          if (existing.length > 0) {
+            skipped++;
+            continue;
+          }
+          
+          await db.insert(products).values({
+            id: productId,
+            name: product.title || 'Unknown',
+            description: product.description || null,
+            price: parseFloat(product.price?.amount) || 0.01,
+            merchant: product.advertiserName || 'CJ Affiliate',
+            merchantId: null,
+            brand: product.brand || null,
+            category: null,
+            imageUrl: product.imageLink || null,
+            affiliateLink: product.link || '',
+            inStock: true,
+            embedding: null,
+            canonicalCategory: null,
+            canonicalFranchises: null,
+          });
+          
+          imported++;
+        } catch (error) {
+          errors++;
+        }
+      }
+      
+      offset += pageSize;
+      if (offset >= 10000) break; // CJ pagination limit
+      
+    } catch (error) {
+      console.error(`[CJ] Error fetching page at offset ${offset}:`, error);
+      break;
+    }
+  }
+  
+  console.log(`[CJ] Advertiser import complete: ${imported} imported, ${skipped} skipped, ${errors} errors`);
+  return { imported, skipped, errors };
 }
