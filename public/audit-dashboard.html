@@ -179,24 +179,25 @@
 <body>
     <div class="container">
         <h1>Sunny Search Quality Audit</h1>
-        <p class="subtitle">Test search relevance across your query library</p>
+        <p class="subtitle" id="subtitleText">Testing search relevance across <strong id="queryCountSubtitle">0</strong> real-world queries</p>
         
         <div class="section">
             <h3>Query Editor <span class="badge" id="queryCount">0 queries</span></h3>
             <div class="query-editor">
-                <textarea id="customQueries" rows="6" placeholder="Paste queries here, one per line...
+                <textarea id="customQueries" rows="10" placeholder="Paste queries here, one per line (supports 2000+ queries)...
 Example:
 nike trainers
 barbie dolls under £30
-paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
+paw patrol toys for 3 year old
+# Lines starting with # are ignored" data-testid="textarea-queries"></textarea>
             </div>
             <div class="query-actions">
                 <button onclick="addQueries()" class="success small" data-testid="button-add-queries">Add Queries</button>
                 <button onclick="clearQueries()" class="danger small" data-testid="button-clear-queries">Clear All</button>
                 <button onclick="loadDefaultQueries()" class="secondary small" data-testid="button-load-defaults">Load Defaults</button>
                 <button onclick="exportQueryList()" class="secondary small" data-testid="button-export-queries">Export List</button>
-                <button onclick="document.getElementById('importFile').click()" class="secondary small" data-testid="button-import-queries">Import List</button>
-                <input type="file" id="importFile" class="file-input" accept=".txt,.json" onchange="importQueryList(event)">
+                <button onclick="document.getElementById('importFile').click()" class="secondary small" data-testid="button-import-queries">Import File</button>
+                <input type="file" id="importFile" class="file-input" accept=".txt,.json,.csv" onchange="importQueryList(event)">
                 <span class="query-count" id="queryCountText">0 queries loaded</span>
             </div>
         </div>
@@ -365,8 +366,10 @@ paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
         }
         
         function updateQueryCount() {
-            document.getElementById('queryCount').textContent = `${testQueries.length} queries`;
-            document.getElementById('queryCountText').textContent = `${testQueries.length} queries loaded`;
+            const count = testQueries.length;
+            document.getElementById('queryCount').textContent = `${count} queries`;
+            document.getElementById('queryCountText').textContent = `${count.toLocaleString()} queries loaded`;
+            document.getElementById('queryCountSubtitle').textContent = count.toLocaleString();
         }
         
         function addQueries() {
@@ -377,23 +380,24 @@ paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
                 .filter(q => q.length > 0 && !q.startsWith('#'));
             
             if (newQueries.length === 0) {
-                log('No valid queries to add', 'warning');
+                log('No valid queries to add. Check your input.', 'warning');
                 return;
             }
             
-            const before = testQueries.length;
-            testQueries = [...new Set([...testQueries, ...newQueries])];
-            const added = testQueries.length - before;
-            
+            const combined = [...new Set([...testQueries, ...newQueries])];
+            const added = combined.length - testQueries.length;
+            testQueries = combined;
             saveQueries();
+            updateQueryCount();
             textarea.value = '';
-            log(`Added ${added} new queries (${newQueries.length - added} duplicates skipped)`, 'success');
+            log(`Added ${added} new queries (${newQueries.length - added} duplicates skipped). Total: ${testQueries.length.toLocaleString()}`, 'success');
         }
         
         function clearQueries() {
             if (confirm('Clear all queries? This cannot be undone.')) {
                 testQueries = [];
                 saveQueries();
+                updateQueryCount();
                 log('All queries cleared', 'warning');
             }
         }
@@ -407,7 +411,8 @@ paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
                 const before = testQueries.length;
                 testQueries = [...new Set([...testQueries, ...serverQueries])];
                 saveQueries();
-                log(`Loaded ${testQueries.length - before} default queries`, 'success');
+                updateQueryCount();
+                log(`Loaded ${testQueries.length - before} default queries. Total: ${testQueries.length.toLocaleString()}`, 'success');
             } catch (e) {
                 log(`Failed to load defaults: ${e.message}`, 'error');
             }
@@ -446,13 +451,18 @@ paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
                         return;
                     }
                 } else {
-                    queries = content.split('\n').map(q => q.trim()).filter(q => q.length > 0);
+                    queries = content
+                        .split('\n')
+                        .map(q => q.trim())
+                        .filter(q => q.length > 0 && !q.startsWith('#'));
                 }
                 
                 const before = testQueries.length;
                 testQueries = [...new Set([...testQueries, ...queries])];
+                const added = testQueries.length - before;
                 saveQueries();
-                log(`Imported ${testQueries.length - before} queries from ${file.name}`, 'success');
+                updateQueryCount();
+                log(`Imported ${added} queries from ${file.name} (${queries.length - added} duplicates skipped). Total: ${testQueries.length.toLocaleString()}`, 'success');
             };
             reader.readAsText(file);
             event.target.value = '';
