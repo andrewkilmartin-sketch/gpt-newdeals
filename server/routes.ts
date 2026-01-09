@@ -5026,6 +5026,17 @@ ONLY use IDs from the list. Never invent IDs.`
   // TMDB MOVIES ENDPOINTS
   // ============================================================
 
+  // Debug endpoint to check env vars (doesn't expose values)
+  app.get('/api/debug/env-check', (req, res) => {
+    res.json({
+      TMDB_API_KEY: process.env.TMDB_API_KEY ? 'SET' : 'NOT SET',
+      TMDB_API_KEY_LENGTH: process.env.TMDB_API_KEY?.length || 0,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET',
+      DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+      NODE_ENV: process.env.NODE_ENV
+    });
+  });
+
   app.post('/api/movies/sync', async (req, res) => {
     try {
       console.log('[TMDB] Manual sync triggered');
