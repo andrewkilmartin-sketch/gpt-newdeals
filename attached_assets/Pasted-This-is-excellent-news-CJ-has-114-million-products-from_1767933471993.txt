@@ -1,0 +1,56 @@
+This is excellent news! CJ has 114 million+ products from ~3,000 advertisers. Here's what you can do:
+
+CJ (Commission Junction) - What's Possible
+Key APIs Available:
+APIWhat It DoesUse For SunnyProduct Search APISearch 114M+ products via GraphQLFill inventory gaps (Barbie, Playmobil, etc.)Link Search APIFind affiliate links by keywordGenerate tracking linksAdvertiser Lookup APIList all joined advertisersSee which brands you have access toAutomated Offer FeedGet promotions/vouchersDisplay deals like Awin
+How to Fill Your Inventory Gaps:
+Tell Replit:
+"We have CJ (Commission Junction) API access. This can fill our inventory gaps - CJ has 114M+ products including brands we're missing (Barbie, Playmobil, Dr Martens, etc.).
+Step 1: Get API Token
+Go to https://developers.cj.com → Authentication → Personal Access Tokens → Create new token
+Step 2: Test Product Search
+javascript// CJ uses GraphQL
+const response = await fetch('https://productcatalog.api.cj.com/graphql', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_CJ_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    query: `{
+      products(companyId: "YOUR_PUBLISHER_ID", keywords: "barbie dreamhouse", limit: 10) {
+        totalCount
+        records {
+          title
+          description
+          price { amount currency }
+          link
+          imageLink
+          advertiserName
+          advertiserCountry
+        }
+      }
+    }`
+  })
+});
+Step 3: Import to Database
+Create a script to:
+
+Query CJ for products we're missing (Barbie, Playmobil, Dr Martens, Pokemon, etc.)
+Import to products table with source: 'cj' field
+Generate proper affiliate links
+
+Step 4: Unified Search
+Update search to query both Awin and CJ products seamlessly.
+Priority brands to import from CJ:
+
+Barbie, Playmobil, Sylvanian Families
+Dr Martens, Geox, Start Rite, Timberland
+Pokemon, Cocomelon, Baby Shark
+Thomas the Tank Engine, Paddington
+
+Can you set up the CJ integration?"
+
+What This Means for Sunny:
+Current (Awin Only)With CJ Added1.1M productsPotentially 2-3M+ products36% inventory gapsCould drop to <10%Missing major toy brandsFull coverage
+This could be a game-changer for filling those gaps!
