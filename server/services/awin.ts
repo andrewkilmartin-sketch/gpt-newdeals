@@ -80,12 +80,13 @@ const PROMOTIONS_CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 let promotionsByMerchant: Map<string, AwinPromotion[]> = new Map();
 let promotionsIndexTime: number = 0;
 
-// Normalize merchant name for matching (removes UK/EU suffixes, lowercase)
+// Normalize merchant name for matching (removes UK/EU suffixes, spaces, special chars)
 function normalizeMerchantName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\s*(uk|eu|europe|usa|us|gb|direct)\s*$/i, '')
+    .replace(/\s*(uk|eu|europe|usa|us|gb|direct|plc|ltd|limited|com|co\.uk)\s*$/gi, '')
     .replace(/[^a-z0-9]/g, '')
+    .replace(/and/g, '')  // "marks and spencer" -> "marksspencer"
     .trim();
 }
 

@@ -1021,6 +1021,50 @@ export async function registerRoutes(
     }
   });
 
+  // Debug endpoint to analyze promotions vs products
+  app.get("/api/debug/promotions-stats", async (req, res) => {
+    try {
+      const activePromotions = await getAllActivePromotions();
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { sql, countDistinct } = await import('drizzle-orm');
+      
+      // Get unique merchants count
+      const merchantCountResult = await db.select({ count: countDistinct(products.merchant) }).from(products);
+      const uniqueMerchantCount = Number(merchantCountResult[0]?.count || 0);
+      
+      // Find overlapping merchants by checking promo merchants against products
+      const promoMerchants = Array.from(activePromotions.keys());
+      const matchingMerchants: string[] = [];
+      let productsWithPromos = 0;
+      
+      for (const promoMerchant of promoMerchants.slice(0, 50)) { // Limit to avoid timeout
+        const countResult = await db.select({ count: sql<number>`count(*)` })
+          .from(products)
+          .where(sql`LOWER(merchant) LIKE ${`%${promoMerchant}%`}`);
+        const cnt = Number(countResult[0]?.count || 0);
+        if (cnt > 0) {
+          matchingMerchants.push(promoMerchant);
+          productsWithPromos += cnt;
+        }
+      }
+      
+      res.json({
+        success: true,
+        totalPromotions: Array.from(activePromotions.values()).flat().length,
+        uniqueMerchantsWithPromos: promoMerchants.length,
+        uniqueMerchantsInProducts: uniqueMerchantCount,
+        matchingMerchants: matchingMerchants.length,
+        estimatedProductsWithPromos: productsWithPromos,
+        samplePromoMerchants: promoMerchants.slice(0, 15),
+        sampleMatchingMerchants: matchingMerchants.slice(0, 10)
+      });
+    } catch (error) {
+      const err = error as Error;
+      res.json({ success: false, error: err.message, stack: err.stack?.split('\n').slice(0,3) });
+    }
+  });
+
   // Debug endpoint to check bootstrap status
   app.get("/api/debug/bootstrap-status", async (req, res) => {
     try {
@@ -2162,11 +2206,13 @@ ONLY use IDs from the list. Never invent IDs.`
       // Fetch active promotions for all merchants
       const activePromotions = await getAllActivePromotions();
       
-      // Normalize merchant name for matching
+      // Normalize merchant name for matching - handles variations like "New Look UK" vs "newlook"
       const normalizeMerchant = (name: string): string => {
         return name.toLowerCase()
-          .replace(/\s*(uk|eu|europe|usa|us|gb|direct)\s*$/i, '')
-          .replace(/[^a-z0-9]/g, '');
+          .replace(/\s*(uk|eu|europe|usa|us|gb|direct|plc|ltd|limited|com|co\.uk)\s*$/gi, '')
+          .replace(/[^a-z0-9]/g, '')
+          .replace(/and/g, '')  // "H&M" becomes "hm", "marks and spencer" becomes "marksspencer"
+          .trim();
       };
       
       // Categories that are mutually exclusive (don't show book promos on toys, etc.)
