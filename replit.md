@@ -18,6 +18,13 @@ Key architectural decisions and features include:
 -   **Dual-Source Pricing**: Automatically recommends the cheaper option by comparing affiliate and direct pricing for attractions.
 -   **Data Integrity Safeguards**: Includes startup validation to ensure minimum data thresholds are met across critical tables (attractions, cinema_movies, nightin_movies, activities, products) and runtime audit logging for traceability.
 -   **UI/UX**: The client-side includes a `SunnyChat.tsx` component for the main chat interface and `home.tsx` for API documentation, providing a user-friendly experience.
+-   **Sunny Voice Assistant (VS01)**: Voice-first shopping experience with OpenAI TTS (shimmer voice) and STT (Whisper). Features include:
+    - 6-state machine: IDLE, GREETING, LISTENING, PROCESSING, CLARIFYING, SEARCHING
+    - 20+ greeting variations for first-time and follow-up interactions
+    - GPT-4o-mini intent parser with multi-intent support ("shoes AND pizza" = 2 searches)
+    - Clarification flow for size, age, budget, gender
+    - Error handling for inappropriate/off-topic requests
+    - Backend endpoints: `/api/voice/tts`, `/api/voice/stt`, `/api/voice/parse-intent`
 -   **Product Catalog Management**: Features a 3-tier automated refresh system for product catalog freshness: daily price/stock refresh, weekly new product imports (from Awin/CJ feeds), and monthly full catalog synchronization. This system tracks product views and sales to prioritize refresh cycles.
 -   **Affiliate Network Integration**: Supports bulk import from Commission Junction (CJ) with mechanisms to handle API rate limits and prevent product duplication using unique ID strategies.
 -   **Search Reranker Logic**: The GPT reranker for search results *must* include product descriptions (first 60 characters) to accurately understand product context and avoid irrelevant results.

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Sun, Cat, Film, Popcorn, Palette, Ticket, Utensils, LucideIcon } from 'lucide-react';
+import { SunnyVoice } from './SunnyVoice';
 
 interface Message {
   id: string;
@@ -165,7 +166,14 @@ export default function SunnyChat() {
       </div>
 
       <div style={{ padding: '16px 20px 24px', backgroundColor: 'white', borderTop: '1px solid #E5E7EB' }}>
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} style={{ display: 'flex', gap: '12px' }}>
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <SunnyVoice 
+            onSearch={(query, type) => {
+              console.log('[Voice] Search:', query, 'Type:', type);
+              sendMessage(query);
+            }}
+            hasResults={messages.length > 0}
+          />
           <input
             type="text"
             value={input}

@@ -13,6 +13,15 @@ import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import multer from "multer";
+import { 
+  textToSpeech, 
+  speechToText, 
+  parseIntent, 
+  getRandomGreeting, 
+  getRandomTransition,
+  getRandomError 
+} from "./services/voice";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
@@ -4989,17 +4998,7 @@ ONLY use IDs from the list. Never invent IDs.`
   // SUNNY VOICE ASSISTANT ENDPOINTS
   // ============================================================
   
-  const multer = require('multer');
   const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-  
-  const { 
-    textToSpeech, 
-    speechToText, 
-    parseIntent, 
-    getRandomGreeting, 
-    getRandomTransition,
-    getRandomError 
-  } = require('./services/voice');
 
   app.post('/api/voice/tts', async (req, res) => {
     try {

@@ -25,7 +25,7 @@ interface ParsedIntent {
 }
 
 interface SunnyVoiceProps {
-  onSearch: (query: string, type: string) => void;
+  onSearch: (query: string, type?: string) => void;
   hasResults?: boolean;
   className?: string;
 }
@@ -268,6 +268,14 @@ export function SunnyVoice({ onSearch, hasResults = false, className }: SunnyVoi
       
     } catch (error) {
       console.error('Voice interaction error:', error);
+      try {
+        const errorMsg = await getErrorMessage('not_understood');
+        await speak(errorMsg);
+      } catch (speakError) {
+        console.error('Failed to speak error message:', speakError);
+        setStatusText('Something went wrong. Try again.');
+        setTimeout(() => setStatusText(''), 3000);
+      }
       setState('IDLE');
       setStatusText('');
     }

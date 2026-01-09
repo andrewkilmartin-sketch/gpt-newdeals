@@ -138,10 +138,13 @@ export async function textToSpeech(text: string, voice: string = 'shimmer'): Pro
 }
 
 export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audio/webm'): Promise<string> {
-  const file = new File([audioBuffer], 'audio.webm', { type: mimeType });
+  const { Readable } = await import('stream');
+  
+  const readable = Readable.from(audioBuffer);
+  (readable as any).path = 'audio.webm';
   
   const transcription = await openai.audio.transcriptions.create({
-    file: file,
+    file: readable as any,
     model: 'whisper-1',
     language: 'en'
   });
@@ -237,7 +240,16 @@ export async function parseIntent(
   const content = response.choices[0]?.message?.content || '{}';
   
   try {
-    return JSON.parse(content) as ParsedIntent;
+    const parsed = JSON.parse(content) as ParsedIntent;
+    
+    if (parsed.needsClarification && parsed.clarifyField && !parsed.clarifyingQuestion) {
+      const field = parsed.clarifyField as keyof typeof CLARIFICATIONS;
+      if (CLARIFICATIONS[field]) {
+        parsed.clarifyingQuestion = getRandomClarification(field);
+      }
+    }
+    
+    return parsed;
   } catch {
     return {
       searches: [],
