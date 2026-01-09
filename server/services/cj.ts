@@ -5,8 +5,12 @@ import { eq, sql } from "drizzle-orm";
 const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
 const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
 
-// CJ Product Feed API endpoint (from docs: https://ads.api.cj.com/query)
+// CJ Product Search API endpoint
+// See: https://developers.cj.com/graphql/reference/Product%20Search
 const CJ_GRAPHQL_ENDPOINT = 'https://ads.api.cj.com/query';
+
+// Rate limit: 25 calls per minute = 2500ms between calls
+const CJ_RATE_LIMIT_DELAY = 2500;
 
 // Generate proper CJ affiliate tracking link
 // CJ uses deep linking via their tracking domains
@@ -55,9 +59,8 @@ export async function searchCJProducts(
     return { totalCount: 0, products: [] };
   }
 
-  // CJ Product Feed API - uses 'products' query with companyId
-  // See: https://developers.cj.com/graphql/reference/Product%20Feed
-  // Field names verified from API error messages
+  // CJ Product Search API - uses 'products' query
+  // See: https://developers.cj.com/graphql/reference/Product%20Search
   const query = `
     {
       products(
@@ -91,8 +94,8 @@ export async function searchCJProducts(
   try {
     console.log(`[CJ] Searching for "${keywords}" (limit: ${limit}, offset: ${offset})`);
     
-    // Add delay between requests to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+    // Rate limit: 25 calls per minute = 2.5 second delay
+    await new Promise(resolve => setTimeout(resolve, CJ_RATE_LIMIT_DELAY));
     
     const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -150,7 +153,7 @@ export async function searchCJProducts(
       advertiserCountry: r.advertiserCountry || 'UK',
       brand: r.brand || '',
       category: '',
-      inStock: true, // Not available in CJ API
+      inStock: true,
     }));
 
     return { totalCount, products };
@@ -655,6 +658,8 @@ export async function getCJStats(): Promise<{
   `;
 
   try {
+    await new Promise(resolve => setTimeout(resolve, CJ_RATE_LIMIT_DELAY));
+    
     const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -773,6 +778,8 @@ export async function importByAdvertiser(
     `;
 
     try {
+      await new Promise(resolve => setTimeout(resolve, CJ_RATE_LIMIT_DELAY));
+      
       const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
         method: 'POST',
         headers: {
