@@ -33,7 +33,8 @@ export function isCJConfigured(): boolean {
 
 export async function searchCJProducts(
   keywords: string,
-  limit: number = 20
+  limit: number = 20,
+  offset: number = 0
 ): Promise<CJSearchResult> {
   if (!isCJConfigured()) {
     console.log('[CJ] API not configured - missing CJ_API_TOKEN or CJ_PUBLISHER_ID');
@@ -49,7 +50,8 @@ export async function searchCJProducts(
         companyId: "${CJ_PUBLISHER_ID}",
         partnerStatus: JOINED,
         keywords: "${keywords.replace(/"/g, '\\"')}",
-        limit: ${limit}
+        limit: ${limit},
+        offset: ${offset}
       ) {
         totalCount
         count
@@ -143,54 +145,97 @@ export async function importCJProductsToDatabase(
   keywords: string,
   limit: number = 100
 ): Promise<{ imported: number; skipped: number; errors: number }> {
-  const result = await searchCJProducts(keywords, limit);
-  
   let imported = 0;
   let skipped = 0;
   let errors = 0;
+  let offset = 0;
+  const pageSize = 100; // CJ API typically returns max 100 per page
+  let totalAvailable = 0;
+  
+  let consecutiveEmptyPages = 0;
+  const maxEmptyPages = 3; // Stop after 3 consecutive pages with 0 new imports
+  
+  // Paginate through results until we import 'limit' products or run out of products
+  while (imported < limit) {
+    const result = await searchCJProducts(keywords, pageSize, offset);
+    totalAvailable = result.totalCount;
+    
+    if (result.products.length === 0) {
+      console.log(`[CJ] No more products found for "${keywords}" at offset ${offset}`);
+      break;
+    }
+    
+    const importedBefore = imported;
 
-  for (const product of result.products) {
-    try {
-      // Create unique ID using advertiser name hash + catalog ID to avoid collisions
-      // across different advertisers who might reuse numeric catalogIds
-      const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
-      const productId = `cj_${advertiserHash}_${product.id}`;
+    for (const product of result.products) {
+      if (imported >= limit) break;
       
-      const existing = await db.select({ id: products.id })
-        .from(products)
-        .where(eq(products.id, productId))
-        .limit(1);
-      
-      if (existing.length > 0) {
-        skipped++;
-        continue;
+      try {
+        // Create unique ID using advertiser name hash + catalog ID to avoid collisions
+        // across different advertisers who might reuse numeric catalogIds
+        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
+        const productId = `cj_${advertiserHash}_${product.id}`;
+        
+        const existing = await db.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .limit(1);
+        
+        if (existing.length > 0) {
+          skipped++;
+          continue;
+        }
+
+        // Map to all required fields that the products schema expects
+        const priceValue = product.price.amount > 0 ? product.price.amount : 0.01;
+        
+        await db.insert(products).values({
+          id: productId,
+          name: product.title || 'Unknown Product',
+          description: product.description || null,
+          price: priceValue,
+          merchant: product.advertiserName || 'CJ Affiliate',
+          merchantId: null, // CJ doesn't provide numeric merchant IDs
+          brand: product.brand || null,
+          category: product.category || null,
+          imageUrl: product.imageLink || null,
+          affiliateLink: product.link || '',
+          inStock: product.inStock ?? true,
+          // Optional fields set to null - will be populated by search enrichment later
+          embedding: null,
+          canonicalCategory: null,
+          canonicalFranchises: null,
+        });
+        
+        imported++;
+      } catch (error) {
+        console.error(`[CJ] Failed to import product ${product.id}:`, error);
+        errors++;
       }
-
-      // Map to all required fields that the products schema expects
-      const priceValue = product.price.amount > 0 ? product.price.amount : 0.01;
-      
-      await db.insert(products).values({
-        id: productId,
-        name: product.title || 'Unknown Product',
-        description: product.description || null,
-        price: priceValue,
-        merchant: product.advertiserName || 'CJ Affiliate',
-        merchantId: null, // CJ doesn't provide numeric merchant IDs
-        brand: product.brand || null,
-        category: product.category || null,
-        imageUrl: product.imageLink || null,
-        affiliateLink: product.link || '',
-        inStock: product.inStock ?? true,
-        // Optional fields set to null - will be populated by search enrichment later
-        embedding: null,
-        canonicalCategory: null,
-        canonicalFranchises: null,
-      });
-      
-      imported++;
-    } catch (error) {
-      console.error(`[CJ] Failed to import product ${product.id}:`, error);
-      errors++;
+    }
+    
+    // Check if we made progress on this page
+    if (imported === importedBefore) {
+      consecutiveEmptyPages++;
+      if (consecutiveEmptyPages >= maxEmptyPages) {
+        console.log(`[CJ] Stopping "${keywords}" - ${consecutiveEmptyPages} consecutive pages with no new imports`);
+        break;
+      }
+    } else {
+      consecutiveEmptyPages = 0;
+    }
+    
+    offset += pageSize;
+    
+    // Safety: if we got less than a full page, we've reached the end
+    if (result.products.length < pageSize) {
+      break;
+    }
+    
+    // Safety: if we've gone past the total available, stop
+    if (offset >= totalAvailable) {
+      console.log(`[CJ] Reached end of available products for "${keywords}" (${totalAvailable} total)`);
+      break;
     }
   }
 
