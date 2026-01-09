@@ -112,16 +112,22 @@ export async function ensureMovieTables(): Promise<void> {
       console.log('[DB] Creating upsell_mappings table...');
       await client`
         CREATE TABLE IF NOT EXISTS upsell_mappings (
-          id SERIAL PRIMARY KEY,
+          id VARCHAR(100) PRIMARY KEY DEFAULT gen_random_uuid(),
           content_type TEXT NOT NULL,
           intent_category TEXT NOT NULL,
-          product_keywords JSONB NOT NULL,
+          product_keywords TEXT[] NOT NULL,
+          product_categories TEXT[],
           priority INTEGER DEFAULT 1,
-          is_active BOOLEAN DEFAULT true,
-          created_at TIMESTAMP DEFAULT NOW()
+          is_active BOOLEAN DEFAULT true
         )
       `;
       console.log('[DB] Upsell mappings table created');
+    } else {
+      try {
+        await client`ALTER TABLE upsell_mappings ADD COLUMN IF NOT EXISTS product_categories TEXT[]`;
+      } catch (e) {
+        // Ignore if column already exists
+      }
     }
     
     const upsellClicksExists = await client`SELECT to_regclass('upsell_clicks') as exists`;
