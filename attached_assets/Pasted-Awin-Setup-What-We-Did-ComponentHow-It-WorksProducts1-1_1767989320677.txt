@@ -1,0 +1,57 @@
+Awin Setup (What We Did):
+ComponentHow It WorksProducts1.1M products from CSV in Neon databasePromotions/DealsFetched LIVE via Awin API (/api/promotions)MatchingPromotions matched to products by merchant or merchantIdDisplayOrange "Deals on X" banner + "DEAL" badge on matching productsFallbackIf no products match, still show the promotion tile (e.g., "20% off at Schuh")
+
+CJ Needs the Same Setup:
+Tell Replit:
+"CJ needs promotion/deal support just like Awin.
+1. CJ PROMOTIONS API
+Does CJ have a promotions/offers API? Check:
+
+https://developers.cj.com/docs/rest-apis/link-search - for promotional links
+Or check if the CSV includes promotion data
+
+2. IF CJ HAS PROMOTIONS API:
+javascript// Fetch CJ promotions (similar to Awin)
+async function fetchCJPromotions() {
+  const response = await fetch('https://link-search.api.cj.com/v2/link-search', {
+    headers: { 'Authorization': `Bearer ${CJ_API_TOKEN}` },
+    params: {
+      'website-id': CJ_WEBSITE_ID,
+      'link-type': 'promotion',
+      'promotion-type': 'coupon,sale'
+    }
+  });
+  return response.json();
+}
+3. MATCH PROMOTIONS TO CJ PRODUCTS:
+javascript// When displaying CJ products, check for matching promotions
+const cjPromo = cjPromotions.find(p => 
+  p.advertiserName.toLowerCase() === product.merchant.toLowerCase() ||
+  p.advertiserId === product.merchantId
+);
+
+if (cjPromo) {
+  product.promotion = {
+    title: cjPromo.linkName,
+    code: cjPromo.couponCode,
+    endDate: cjPromo.endDate
+  };
+}
+4. SHOW PROMOTIONS EVEN WITHOUT PRODUCTS:
+If we have a CJ promotion for a merchant but no products from that merchant, still show a promotion tile in results (like we do with Awin).
+5. UNIFIED DEALS BANNER:
+The orange 'Deals on X' banner should show BOTH:
+
+Awin promotions
+CJ promotions
+
+Combined, filtered by relevance to the search query.
+
+Questions to answer:
+
+Does CJ have a promotions/offers API?
+If yes, what's the endpoint and auth?
+If no, can we extract promotions from the CSV or another source?"
+
+
+This will make CJ products show deals just like Awin products do. The user won't know/care which network the deal comes from.
