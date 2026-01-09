@@ -156,6 +156,28 @@ export async function searchCJProducts(
   }
 }
 
+// Known brand names that can be assigned as brands (NOT categories)
+const KNOWN_BRANDS = [
+  'Barbie', 'Playmobil', 'Sylvanian Families', 'Dr Martens', 'Geox',
+  'Start Rite', 'Timberland', 'Pokemon', 'Cocomelon', 'Baby Shark',
+  'Thomas the Tank Engine', 'Paddington', 'Bluey', 'Paw Patrol', 'Peppa Pig',
+  'Lego', 'Nike', 'Adidas', 'Clarks', 'Crocs', 'Converse', 'Vans',
+  'Disney', 'Marvel', 'Star Wars', 'Harry Potter', 'Minecraft', 'Fortnite',
+  'Ray-Ban', 'Costa', 'Funko', 'Hasbro', 'Mattel', 'Fisher-Price'
+];
+
+// Generic category keywords that should NEVER be assigned as brands
+const CATEGORY_KEYWORDS = [
+  'toys', 'games', 'kids', 'children', 'baby', 'nursery', 'school',
+  'shoes', 'trainers', 'boots', 'sandals', 'sneakers', 'clothing', 'jacket', 'coat', 'dress',
+  'home', 'kitchen', 'garden', 'furniture', 'bedding', 'decor',
+  'electronics', 'phone', 'tablet', 'laptop', 'headphones', 'speaker',
+  'sports', 'fitness', 'outdoor', 'camping', 'cycling', 'running',
+  'beauty', 'skincare', 'makeup', 'health', 'wellness',
+  'books', 'dvd', 'music', 'gifts', 'christmas',
+  'luggage', 'travel', 'holiday'
+];
+
 // Helper to derive brand from CJ product data
 function deriveBrand(product: CJProduct, searchKeyword: string): string | null {
   // Priority 1: Use CJ brand field if valid (not empty, not generic)
@@ -167,29 +189,29 @@ function deriveBrand(product: CJProduct, searchKeyword: string): string | null {
     }
   }
   
-  // Priority 2: STRICT - Only assign search keyword as brand if the FULL keyword appears in the title
-  // This prevents "Sylvanian Families" being assigned to "Hair Dryer For Families"
+  // Priority 2: NEVER assign category keywords as brands
+  // This prevents "Toys" being assigned as a brand for toy products
   const keywordLower = searchKeyword.toLowerCase().trim();
+  if (CATEGORY_KEYWORDS.includes(keywordLower)) {
+    return null; // Category keyword, not a brand - don't assign
+  }
+  
+  // Priority 3: STRICT - Only assign search keyword as brand if it's a known brand AND appears in title
+  // This prevents "Sylvanian Families" being assigned to "Hair Dryer For Families"
   const titleLower = product.title.toLowerCase();
+  
+  // Only consider as brand if it's from the known brands list
+  const isKnownBrand = KNOWN_BRANDS.some(b => b.toLowerCase() === keywordLower);
+  if (!isKnownBrand) {
+    return null; // Not a known brand, don't force it
+  }
   
   // Check if the COMPLETE keyword phrase appears in the title
   if (titleLower.includes(keywordLower)) {
-    // Verify this is a real match - the keyword should appear as a distinct phrase
-    // For multi-word brands, require ALL words to appear together or at start
-    const keywordWords = keywordLower.split(/\s+/);
-    if (keywordWords.length > 1) {
-      // Multi-word brand: require consecutive appearance or prominent placement
-      const titleStart = titleLower.substring(0, 50);
-      if (titleLower.includes(keywordLower) || titleStart.includes(keywordWords[0])) {
-        return searchKeyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      }
-    } else {
-      // Single word brand
-      return searchKeyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    }
+    return searchKeyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   }
   
-  // Priority 3: Return null - don't force a brand if we can't verify it
+  // Priority 4: Return null - don't force a brand if we can't verify it
   return null;
 }
 

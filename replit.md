@@ -10,25 +10,51 @@ I prefer simple language. I want iterative development. Ask before making major 
 
 ## MAJOR MILESTONES
 
-### January 9, 2026 - CJ (Commission Junction) Integration
-**Second affiliate network added to fill inventory gaps.**
+### January 9, 2026 - CJ (Commission Junction) Bulk Import System
+**Second affiliate network with 5.2M products available for import.**
 
 Key achievements:
 - CJ Product Feed API integration using GraphQL (https://ads.api.cj.com/query)
-- 5 new API endpoints for CJ management
+- **5.2 million products available** from joined advertisers
+- Proper CJ affiliate tracking links: `jdoqocy.net/click-{pid}-{aid}?url=...`
+- Bulk import by category keywords (bypasses 10K pagination limit)
 - Unique ID strategy: `cj_{advertiser}_{catalogId}` prevents collisions
-- Rate limiting and error handling implemented
 
-New CJ endpoints:
+Current Database Status:
+| Source | Count | ID Pattern |
+|--------|-------|------------|
+| Awin | 997,356 | `v2_xxx` |
+| CJ | 59+ | `cj_xxx` |
+| **Total** | **1,112,702+** | Combined |
+
+CJ Endpoints:
 - `GET /api/cj/test` - Test CJ API connection
+- `GET /api/cj/stats` - Show total available (5.2M) and current imported
 - `POST /api/cj/search` - Search CJ products (preview without importing)
 - `POST /api/cj/import` - Import products by keyword
-- `POST /api/cj/import-priority-brands` - Import missing brands (Barbie, Playmobil, etc.)
-- `GET /api/cj/stats` - Count CJ products in database
+- `POST /api/cj/import-priority-brands` - Import missing brands (Barbie, etc.)
+- `POST /api/cj/bulk-import` - Async bulk import by category (fires and forgets)
+- `POST /api/cj/bulk-import-sync` - Sync bulk import (waits for completion)
+- `POST /api/cj/backfill-brands` - Fix brands on existing CJ products
+
+Bulk Import Categories (35 total):
+- Kids: toys, games, kids, children, baby, nursery, school
+- Fashion: shoes, trainers, boots, sandals, sneakers, clothing, jacket, coat, dress
+- Home: home, kitchen, garden, furniture, bedding, decor
+- Electronics: electronics, phone, tablet, laptop, headphones, speaker
+- Sports: sports, fitness, outdoor, camping, cycling, running
+- Beauty: beauty, skincare, makeup, health, wellness
+- Entertainment: books, dvd, music, gifts, christmas
+- Travel: luggage, travel, holiday
+
+Joined Advertisers:
+- UK: Tesco Stores, BrandAlley, travelup, RDX Sports
+- US: CityPASS, GameFly, Origin PC
+- EU: Sunglass Hut, Oakley, Temu Europe
 
 Required secrets:
 - `CJ_API_TOKEN` - Personal Access Token from CJ Developer Portal
-- `CJ_PUBLISHER_ID` - Your CJ publisher ID
+- `CJ_PUBLISHER_ID` - Your CJ publisher ID (current: 5564717)
 
 Files:
 - `server/services/cj.ts` - CJ service with GraphQL integration
