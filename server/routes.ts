@@ -5443,7 +5443,11 @@ ONLY use IDs from the list. Never invent IDs.`
       let searchApiResponse: any = null;
       
       try {
-        const response = await fetch(`http://localhost:5000/api/shop/search`, {
+        const protocol = req.protocol || 'http';
+        const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+        const baseUrl = `${protocol}://${host}`;
+        
+        const response = await fetch(`${baseUrl}/api/shop/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, limit: Math.min(limit, 20) })
@@ -5607,12 +5611,16 @@ ONLY use IDs from the list. Never invent IDs.`
           `);
           const dbCount = parseInt((dbCheck[0] as any)?.total || '0');
           
-          // Call actual shop search API
+          // Call actual shop search API (derive URL from request)
           let searchResults: any[] = [];
           let searchApiResponse: any = null;
           
           try {
-            const response = await fetch(`http://localhost:5000/api/shop/search`, {
+            const protocol = req.protocol || 'http';
+            const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+            const baseUrl = `${protocol}://${host}`;
+            
+            const response = await fetch(`${baseUrl}/api/shop/search`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ query, limit: Math.min(limit, 20) })
