@@ -1,9 +1,44 @@
 import { useState } from "react";
-import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff } from "lucide-react";
+import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+
+function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+  
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      toast({
+        title: "Code copied!",
+        description: `"${code}" copied to clipboard`,
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({
+        title: "Copy failed",
+        description: "Please copy the code manually",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  return (
+    <button 
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs font-medium transition-colors"
+      data-testid="button-copy-code"
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
 
 // ProductImage component - simplified to trust database URLs
 function ProductImage({ src, alt }: { src: string | null; alt: string }) {
@@ -449,10 +484,17 @@ export default function ShopSearch() {
                         <div key={merchant} className="bg-white rounded-lg p-3 shadow-md">
                           <p className="font-semibold text-sm text-gray-800 truncate">{merchant}</p>
                           <p className="text-xs text-red-600 font-medium line-clamp-2 mt-1">{promo.title}</p>
-                          {promo.voucherCode && (
-                            <Badge className="mt-2 bg-green-100 text-green-700 text-xs">
-                              Code: {promo.voucherCode}
-                            </Badge>
+                          {promo.voucherCode ? (
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-gray-600">Use code:</span>
+                              <code className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-mono font-bold">{promo.voucherCode}</code>
+                              <CopyCodeButton code={promo.voucherCode} />
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex items-center gap-1 text-xs text-blue-600">
+                              <Sparkles className="w-3 h-3" />
+                              <span>No code needed - auto applies</span>
+                            </div>
                           )}
                           {promo.expiresAt && (
                             <p className="text-xs text-gray-400 mt-1">Until {promo.expiresAt}</p>
@@ -578,23 +620,33 @@ export default function ShopSearch() {
                 <div className="grid gap-4">
                   {dealsOnly.map((deal, idx) => (
                     <Card key={idx} className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200 p-4" data-testid={`card-deal-${idx}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold flex-shrink-0" data-testid={`badge-voucher-${idx}`}>
-                          <Tag className="w-4 h-4 inline mr-1" />
-                          {deal.voucherCode || 'DEAL'}
-                        </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                         <div className="flex-1 text-left">
-                          <p className="font-semibold text-gray-900" data-testid={`text-deal-title-${idx}`}>{deal.title}</p>
                           {deal.merchantName && (
-                            <p className="text-sm text-gray-600" data-testid={`text-deal-merchant-${idx}`}>{deal.merchantName}</p>
+                            <p className="font-bold text-gray-900 mb-1" data-testid={`text-deal-merchant-${idx}`}>{deal.merchantName}</p>
                           )}
+                          <p className="text-sm text-gray-700" data-testid={`text-deal-title-${idx}`}>{deal.title}</p>
+                          
+                          {deal.voucherCode ? (
+                            <div className="mt-2 flex items-center gap-2 flex-wrap bg-white/80 rounded-lg px-3 py-2">
+                              <span className="text-sm text-gray-600 font-medium">Use code:</span>
+                              <code className="bg-green-100 text-green-800 px-3 py-1 rounded text-sm font-mono font-bold">{deal.voucherCode}</code>
+                              <CopyCodeButton code={deal.voucherCode} />
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                              <Sparkles className="w-4 h-4 text-blue-500" />
+                              <span className="text-sm text-blue-700 font-medium">No code needed - discount applies automatically</span>
+                            </div>
+                          )}
+                          
                           {deal.expiresAt && (
-                            <p className="text-xs text-gray-500" data-testid={`text-deal-expires-${idx}`}>Expires: {deal.expiresAt}</p>
+                            <p className="text-xs text-gray-500 mt-2" data-testid={`text-deal-expires-${idx}`}>Expires: {deal.expiresAt}</p>
                           )}
                         </div>
                         {deal.deepLink && (
-                          <a href={deal.deepLink} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" className="bg-red-500 hover:bg-red-600" data-testid={`button-get-deal-${idx}`}>
+                          <a href={deal.deepLink} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                            <Button size="sm" className="bg-red-500 hover:bg-red-600 w-full sm:w-auto" data-testid={`button-get-deal-${idx}`}>
                               Get Deal <ExternalLink className="w-3 h-3 ml-1" />
                             </Button>
                           </a>
