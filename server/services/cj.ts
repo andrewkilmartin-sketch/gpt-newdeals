@@ -1135,7 +1135,27 @@ const CJ_PROMOTIONS_CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 
 // CJ promotions indexed by normalized advertiser name
 let cjPromotionsByMerchant: Map<string, CJPromotion[]> = new Map();
+// CJ promotions indexed by brand keywords for brand-based matching
+let cjPromotionsByBrand: Map<string, CJPromotion[]> = new Map();
 let cjPromotionsIndexTime: number = 0;
+
+// Known brands/franchises to extract from promotion titles (same as Awin)
+const KNOWN_BRANDS = [
+  'disney', 'marvel', 'star wars', 'starwars', 'frozen', 'pixar', 'princess',
+  'lego', 'duplo', 'technic',
+  'barbie', 'hot wheels', 'hotwheels', 'fisher price', 'fisherprice', 'mattel',
+  'paw patrol', 'pawpatrol', 'peppa pig', 'peppapig', 'bluey', 'cocomelon',
+  'pokemon', 'pikachu', 'nintendo', 'mario', 'zelda', 'switch',
+  'playstation', 'xbox', 'gaming',
+  'harry potter', 'harrypotter', 'hogwarts',
+  'transformers', 'nerf', 'hasbro', 'monopoly',
+  'playmobil', 'sylvanian', 'schleich',
+  'nike', 'adidas', 'puma', 'reebok', 'converse', 'vans', 'jordan',
+  'jd sports', 'jdsports', 'sports direct', 'sportsdirect',
+  'christmas', 'easter', 'halloween', 'birthday',
+  'baby', 'toddler', 'kids', 'children', 'boys', 'girls', 'teens',
+  'toys', 'games', 'puzzles', 'crafts', 'outdoor', 'garden'
+];
 
 // Normalize merchant name for matching
 function normalizeMerchantName(name: string): string {
@@ -1145,6 +1165,21 @@ function normalizeMerchantName(name: string): string {
     .replace(/[^a-z0-9]/g, '')
     .replace(/and/g, '')
     .trim();
+}
+
+// Extract brand/franchise keywords from promotion title/description
+function extractBrandsFromPromotion(linkName: string, description?: string): string[] {
+  const text = `${linkName} ${description || ''}`.toLowerCase();
+  const foundBrands: string[] = [];
+  
+  for (const brand of KNOWN_BRANDS) {
+    const normalizedBrand = brand.replace(/\s+/g, '');
+    if (text.includes(brand) || text.replace(/\s+/g, '').includes(normalizedBrand)) {
+      foundBrands.push(normalizedBrand);
+    }
+  }
+  
+  return foundBrands;
 }
 
 // Fetch CJ promotions using Link-Search API
@@ -1224,7 +1259,7 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
   }
 }
 
-// Build index of CJ promotions by merchant name
+// Build index of CJ promotions by merchant name AND brand keywords
 export async function buildCJPromotionsIndex(): Promise<void> {
   const promotions = await fetchCJPromotions();
   const now = Date.now();
@@ -1234,19 +1269,30 @@ export async function buildCJPromotionsIndex(): Promise<void> {
   }
   
   cjPromotionsByMerchant.clear();
+  cjPromotionsByBrand.clear();
   
   for (const promo of promotions) {
     if (!promo.advertiserName) continue;
     
+    // Index by merchant name
     const normalizedName = normalizeMerchantName(promo.advertiserName);
     if (!cjPromotionsByMerchant.has(normalizedName)) {
       cjPromotionsByMerchant.set(normalizedName, []);
     }
     cjPromotionsByMerchant.get(normalizedName)!.push(promo);
+    
+    // Index by brand keywords found in title/description
+    const brands = extractBrandsFromPromotion(promo.linkName, promo.description);
+    for (const brand of brands) {
+      if (!cjPromotionsByBrand.has(brand)) {
+        cjPromotionsByBrand.set(brand, []);
+      }
+      cjPromotionsByBrand.get(brand)!.push(promo);
+    }
   }
   
   cjPromotionsIndexTime = now;
-  console.log(`[CJ Promotions] Built index with ${cjPromotionsByMerchant.size} merchants, ${promotions.length} total promotions`);
+  console.log(`[CJ Promotions] Built index: ${cjPromotionsByMerchant.size} merchants, ${cjPromotionsByBrand.size} brands, ${promotions.length} total promotions`);
 }
 
 // CJ promotion metadata (matching Awin's ProductPromotion interface)
@@ -1313,6 +1359,33 @@ export async function getAllCJActivePromotions(): Promise<Map<string, CJProductP
     
     if (activePromos.length > 0) {
       result.set(merchantName, activePromos);
+    }
+  }
+  
+  return result;
+}
+
+// Get all active CJ promotions indexed by brand keyword
+export async function getAllCJBrandPromotions(): Promise<Map<string, CJProductPromotion[]>> {
+  await buildCJPromotionsIndex();
+  
+  const result = new Map<string, CJProductPromotion[]>();
+  const now = new Date();
+  
+  for (const [brandKeyword, promos] of Array.from(cjPromotionsByBrand.entries())) {
+    const activePromos = promos
+      .filter((p: CJPromotion) => !p.endDate || new Date(p.endDate) > now)
+      .map((p: CJPromotion) => ({
+        promotionTitle: p.linkName || p.description,
+        voucherCode: p.couponCode,
+        expiresAt: p.endDate?.split('T')[0],
+        promotionType: p.promotionType || 'promotion',
+        advertiserId: p.advertiserId,
+        source: 'cj' as const
+      }));
+    
+    if (activePromos.length > 0) {
+      result.set(brandKeyword, activePromos);
     }
   }
   

@@ -78,7 +78,28 @@ const PROMOTIONS_CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 
 // Promotions indexed by normalized advertiser name for fast lookup
 let promotionsByMerchant: Map<string, AwinPromotion[]> = new Map();
+// Promotions indexed by brand/franchise keywords for brand-based matching
+let promotionsByBrand: Map<string, AwinPromotion[]> = new Map();
 let promotionsIndexTime: number = 0;
+
+// Known brands/franchises to extract from promotion titles
+// These are popular UK family brands that appear in promotions
+const KNOWN_BRANDS = [
+  'disney', 'marvel', 'star wars', 'starwars', 'frozen', 'pixar', 'princess',
+  'lego', 'duplo', 'technic',
+  'barbie', 'hot wheels', 'hotwheels', 'fisher price', 'fisherprice', 'mattel',
+  'paw patrol', 'pawpatrol', 'peppa pig', 'peppapig', 'bluey', 'cocomelon',
+  'pokemon', 'pikachu', 'nintendo', 'mario', 'zelda', 'switch',
+  'playstation', 'xbox', 'gaming',
+  'harry potter', 'harrypotter', 'hogwarts',
+  'transformers', 'nerf', 'hasbro', 'monopoly',
+  'playmobil', 'sylvanian', 'schleich',
+  'nike', 'adidas', 'puma', 'reebok', 'converse', 'vans', 'jordan',
+  'jd sports', 'jdsports', 'sports direct', 'sportsdirect',
+  'christmas', 'easter', 'halloween', 'birthday',
+  'baby', 'toddler', 'kids', 'children', 'boys', 'girls', 'teens',
+  'toys', 'games', 'puzzles', 'crafts', 'outdoor', 'garden'
+];
 
 // Normalize merchant name for matching (removes UK/EU suffixes, spaces, special chars)
 function normalizeMerchantName(name: string): string {
@@ -90,7 +111,23 @@ function normalizeMerchantName(name: string): string {
     .trim();
 }
 
-// Build index of promotions by advertiser name
+// Extract brand/franchise keywords from promotion title/description
+function extractBrandsFromPromotion(title: string, description?: string): string[] {
+  const text = `${title} ${description || ''}`.toLowerCase();
+  const foundBrands: string[] = [];
+  
+  for (const brand of KNOWN_BRANDS) {
+    // Check for brand in text (with word boundary awareness)
+    const normalizedBrand = brand.replace(/\s+/g, '');
+    if (text.includes(brand) || text.replace(/\s+/g, '').includes(normalizedBrand)) {
+      foundBrands.push(normalizedBrand);
+    }
+  }
+  
+  return foundBrands;
+}
+
+// Build index of promotions by advertiser name AND by brand keywords
 async function buildPromotionsIndex(): Promise<void> {
   const promotions = await fetchPromotions();
   const now = Date.now();
@@ -101,19 +138,30 @@ async function buildPromotionsIndex(): Promise<void> {
   }
   
   promotionsByMerchant.clear();
+  promotionsByBrand.clear();
   
   for (const promo of promotions) {
     if (!promo.advertiser?.name) continue;
     
+    // Index by merchant name
     const normalizedName = normalizeMerchantName(promo.advertiser.name);
     if (!promotionsByMerchant.has(normalizedName)) {
       promotionsByMerchant.set(normalizedName, []);
     }
     promotionsByMerchant.get(normalizedName)!.push(promo);
+    
+    // Index by brand keywords found in title/description
+    const brands = extractBrandsFromPromotion(promo.title, promo.description);
+    for (const brand of brands) {
+      if (!promotionsByBrand.has(brand)) {
+        promotionsByBrand.set(brand, []);
+      }
+      promotionsByBrand.get(brand)!.push(promo);
+    }
   }
   
   promotionsIndexTime = now;
-  console.log(`[Promotions] Built index with ${promotionsByMerchant.size} merchants, ${promotions.length} total promotions`);
+  console.log(`[Promotions] Built index: ${promotionsByMerchant.size} merchants, ${promotionsByBrand.size} brands, ${promotions.length} total promotions`);
 }
 
 // Product promotion metadata to attach to search results
@@ -206,6 +254,49 @@ export async function getAllActivePromotions(): Promise<Map<string, ProductPromo
     // CJ promotions not available
   }
   
+  return result;
+}
+
+// Get all brand-based promotions indexed by brand keyword (UNIFIED: Awin + CJ)
+// This allows matching "10% off Disney" to any product with Disney in name/brand
+export async function getAllBrandPromotions(): Promise<Map<string, ProductPromotion[]>> {
+  await buildPromotionsIndex();
+  
+  const result = new Map<string, ProductPromotion[]>();
+  const now = new Date();
+  
+  // Add Awin brand promotions
+  for (const [brandKeyword, promos] of promotionsByBrand) {
+    const activePromos = promos
+      .filter(p => new Date(p.endDate) > now && p.status === 'active')
+      .map(p => ({
+        promotionTitle: p.title,
+        voucherCode: p.voucher?.code,
+        expiresAt: p.endDate?.split('T')[0],
+        promotionType: p.type,
+        advertiserId: p.advertiser.id,
+        source: 'awin' as const
+      }));
+    
+    if (activePromos.length > 0) {
+      result.set(brandKeyword, activePromos);
+    }
+  }
+  
+  // Merge CJ brand promotions
+  try {
+    const { getAllCJBrandPromotions } = await import('./cj');
+    const cjBrandPromos = await getAllCJBrandPromotions();
+    
+    for (const [brandKeyword, promos] of cjBrandPromos) {
+      const existing = result.get(brandKeyword) || [];
+      result.set(brandKeyword, [...existing, ...promos.map(p => ({ ...p, source: 'cj' as const }))]);
+    }
+  } catch (err) {
+    // CJ brand promotions not available
+  }
+  
+  console.log(`[Promotions] Brand index: ${result.size} brands with active promotions`);
   return result;
 }
 
