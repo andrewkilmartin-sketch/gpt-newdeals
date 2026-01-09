@@ -541,3 +541,62 @@ export const knowledgeMarketing = pgTable("knowledge_marketing", {
 export const insertKnowledgeMarketingSchema = createInsertSchema(knowledgeMarketing).omit({ lastUpdated: true });
 export type InsertKnowledgeMarketing = z.infer<typeof insertKnowledgeMarketingSchema>;
 export type KnowledgeMarketing = typeof knowledgeMarketing.$inferSelect;
+
+// ============ TMDB MOVIES TABLE ============
+// Unified movies table for cinema, streaming, and coming soon content
+export const movies = pgTable("movies", {
+  id: integer("id").primaryKey(), // TMDB ID
+  title: text("title").notNull(),
+  overview: text("overview"),
+  posterPath: text("poster_path"),
+  backdropPath: text("backdrop_path"),
+  releaseDate: text("release_date"),
+  voteAverage: real("vote_average"),
+  voteCount: integer("vote_count"),
+  popularity: real("popularity"),
+  genreIds: integer("genre_ids").array(),
+  adult: boolean("adult").default(false),
+  originalLanguage: text("original_language"),
+  runtime: integer("runtime"),
+  status: text("status"), // "Released", "Upcoming", "Now Playing"
+  contentType: text("content_type").notNull(), // "cinema", "streaming", "coming_soon"
+  streamingProviders: text("streaming_providers").array(), // Netflix, Prime, etc.
+  ukCertification: text("uk_certification"), // BBFC rating
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertMovieSchema = createInsertSchema(movies).omit({ lastUpdated: true });
+export type InsertMovie = z.infer<typeof insertMovieSchema>;
+export type Movie = typeof movies.$inferSelect;
+
+// ============ UPSELL MAPPINGS TABLE ============
+// Maps content categories to relevant product search keywords for smart upsells
+export const upsellMappings = pgTable("upsell_mappings", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  contentType: text("content_type").notNull(), // "movie", "attraction", "activity"
+  intentCategory: text("intent_category").notNull(), // "action", "family", "horror", "romance", etc.
+  productKeywords: text("product_keywords").array().notNull(), // Search terms for products
+  productCategories: text("product_categories").array(), // Filter categories
+  priority: integer("priority").default(1), // Higher = more likely to show
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertUpsellMappingSchema = createInsertSchema(upsellMappings).omit({ id: true });
+export type InsertUpsellMapping = z.infer<typeof insertUpsellMappingSchema>;
+export type UpsellMapping = typeof upsellMappings.$inferSelect;
+
+// ============ UPSELL CLICKS TRACKING ============
+// Track which upsells get clicked for optimization
+export const upsellClicks = pgTable("upsell_clicks", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  contentId: text("content_id").notNull(), // Movie/attraction ID that generated the upsell
+  contentType: text("content_type").notNull(), // "movie", "attraction", etc.
+  productId: text("product_id").notNull(), // Product that was clicked
+  intentCategory: text("intent_category"), // Category used for mapping
+  clickedAt: timestamp("clicked_at").defaultNow(),
+  sessionId: text("session_id"), // Optional session tracking
+});
+
+export const insertUpsellClickSchema = createInsertSchema(upsellClicks).omit({ id: true, clickedAt: true });
+export type InsertUpsellClick = z.infer<typeof insertUpsellClickSchema>;
+export type UpsellClick = typeof upsellClicks.$inferSelect;
