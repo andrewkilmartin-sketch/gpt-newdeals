@@ -2141,11 +2141,18 @@ Format: ["id1", "id2", ...]`
       }
 
       // CINEMA INTENT DETECTION - Route to movies API instead of product search
-      const cinemaIntents = [
+      // Matches: movies, movie, cinema, films, film, whats on, now showing, etc.
+      const queryLower = query.toLowerCase().trim();
+      
+      // Exact match keywords (query IS just this word)
+      const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
+      const isExactMovieQuery = exactMovieKeywords.includes(queryLower);
+      
+      // Phrase match keywords (query CONTAINS these)
+      const cinemaIntentPhrases = [
         'whats on at the cinema',
         "what's on at the cinema",
         'whats on at cinema',
-        'cinema',
         'movies showing',
         'film times',
         'whats on at the movies',
@@ -2159,11 +2166,14 @@ Format: ["id1", "id2", ...]`
         'films on',
         'movies on',
         'at the cinema',
-        'at the movies'
+        'at the movies',
+        'whats on',
+        "what's on",
+        'watch tonight',
+        'movie night'
       ];
       
-      const queryLower = query.toLowerCase().trim();
-      const isCinemaIntent = cinemaIntents.some(intent => queryLower.includes(intent));
+      const isCinemaIntent = isExactMovieQuery || cinemaIntentPhrases.some(phrase => queryLower.includes(phrase));
       
       if (isCinemaIntent) {
         console.log(`[Shop Search] CINEMA INTENT detected for query: "${query}" - routing to movies API`);
