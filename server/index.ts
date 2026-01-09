@@ -6,7 +6,8 @@ import { createServer } from "http";
 import { verifyDatabaseIntegrity } from "./boot/dataIntegrity";
 import { ensureSearchIndexes } from "./db";
 import { checkAndBootstrapProducts } from "./boot/productBootstrap";
-import { startCJImportWorker } from "./boot/cjImportWorker";
+// CJ import disabled by user request
+// import { startCJImportWorker } from "./boot/cjImportWorker";
 
 const app = express();
 const httpServer = createServer(app);
@@ -130,10 +131,6 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
-      // Start CJ import worker after server is running
-      startCJImportWorker().catch(err => {
-        console.error('[STARTUP] CJ import worker failed to start:', err);
-      });
     },
   );
 })();
