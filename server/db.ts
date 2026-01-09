@@ -78,21 +78,31 @@ export async function ensureMovieTables(): Promise<void> {
           vote_average REAL,
           vote_count INTEGER,
           popularity REAL,
-          genre_ids JSONB,
+          genre_ids INTEGER[],
+          adult BOOLEAN DEFAULT false,
+          original_language TEXT,
+          runtime INTEGER,
+          status TEXT,
+          content_type TEXT NOT NULL DEFAULT 'cinema',
+          streaming_providers TEXT[],
           uk_certification TEXT,
-          content_type TEXT DEFAULT 'cinema',
-          created_at TIMESTAMP DEFAULT NOW(),
-          updated_at TIMESTAMP DEFAULT NOW()
+          last_updated TIMESTAMP DEFAULT NOW()
         )
       `;
       console.log('[DB] Movies table created');
     } else {
-      // Ensure vote_count column exists (migration for existing tables)
+      // Ensure all columns exist (migration for existing tables)
       try {
         await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS vote_count INTEGER`;
         await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS popularity REAL`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS adult BOOLEAN DEFAULT false`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS original_language TEXT`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS runtime INTEGER`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS status TEXT`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS streaming_providers TEXT[]`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS last_updated TIMESTAMP DEFAULT NOW()`;
       } catch (e) {
-        // Ignore if column already exists
+        // Ignore migration errors
       }
     }
     
