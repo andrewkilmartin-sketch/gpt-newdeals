@@ -13,19 +13,31 @@ I prefer simple language. I want iterative development. Ask before making major 
 ### January 9, 2026 - CJ (Commission Junction) Bulk Import System
 **Second affiliate network with 5.2M products available for import.**
 
+**CRITICAL: CJ API Rate Limits Discovered**
+- CJ API returns **403 Forbidden** after ~100-200 rapid requests
+- Mass import of 1M products is NOT possible in a single session
+- Import must happen gradually over hours/days with delays between batches
+- Pagination returns overlapping products (different offsets return same products)
+- 10K offset limit per query keyword
+
+Current workarounds implemented:
+- 500ms delay between API requests
+- 60-second wait on 403/429 rate limit errors
+- Link-hash based product IDs prevent duplicates: `cj_{advertiserHash}_{linkHash}`
+
 Key achievements:
 - CJ Product Feed API integration using GraphQL (https://ads.api.cj.com/query)
 - **5.2 million products available** from joined advertisers
 - Proper CJ affiliate tracking links: `jdoqocy.net/click-{pid}-{aid}?url=...`
 - Bulk import by category keywords (bypasses 10K pagination limit)
-- Unique ID strategy: `cj_{advertiser}_{catalogId}` prevents collisions
+- Unique ID strategy: `cj_{advertiserHash}_{linkHash}` prevents collisions
 
 Current Database Status:
 | Source | Count | ID Pattern |
 |--------|-------|------------|
-| Awin | 997,356 | `v2_xxx` |
-| CJ | 59+ | `cj_xxx` |
-| **Total** | **1,112,702+** | Combined |
+| Awin | 1,112,643 | `v2_xxx` |
+| CJ | 90 | `cj_xxx` |
+| **Total** | **1,112,733** | Combined |
 
 CJ Endpoints:
 - `GET /api/cj/test` - Test CJ API connection
