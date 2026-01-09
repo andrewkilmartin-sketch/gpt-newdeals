@@ -50,6 +50,97 @@ export function isCJConfigured(): boolean {
   return !!(CJ_API_TOKEN && CJ_PUBLISHER_ID);
 }
 
+// Fast search without per-call delay - for high throughput imports
+// Rate limiting is managed at chunk level, not per call
+export async function searchCJProductsFast(
+  keywords: string,
+  limit: number = 1000,
+  offset: number = 0
+): Promise<CJSearchResult> {
+  if (!isCJConfigured()) {
+    return { totalCount: 0, products: [] };
+  }
+
+  // Note: Removed partnerStatus: JOINED to access wider catalog
+  // Products from non-joined advertisers may require approval for full affiliate links
+  const query = `
+    {
+      products(
+        companyId: "${CJ_PUBLISHER_ID}",
+        keywords: "${keywords.replace(/"/g, '\\"')}",
+        limit: ${limit},
+        offset: ${offset}
+      ) {
+        totalCount
+        count
+        resultList {
+          catalogId
+          title
+          description
+          price { amount currency }
+          imageLink
+          link
+          brand
+          advertiserId
+          advertiserName
+          advertiserCountry
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CJ_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) {
+      console.log(`[CJ Fast] API error ${response.status}`);
+      if (response.status === 429 || response.status === 403) {
+        console.log('[CJ] Rate limited - waiting 3s');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return { totalCount: 0, products: [] };
+      }
+      return { totalCount: 0, products: [] };
+    }
+
+    const data = await response.json();
+    if (data.errors) {
+      console.log('[CJ Fast] GraphQL errors:', JSON.stringify(data.errors).substring(0, 200));
+      return { totalCount: 0, products: [] };
+    }
+
+    const records = data.data?.products?.resultList || [];
+    const totalCount = data.data?.products?.totalCount || 0;
+    console.log(`[CJ Fast] "${keywords}" offset=${offset}: ${records.length} results, total=${totalCount}`);
+
+    const products: CJProduct[] = records.map((r: any) => ({
+      id: r.catalogId || `cj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      catalogId: r.catalogId || '',
+      title: r.title || '',
+      description: r.description || '',
+      price: { amount: parseFloat(r.price?.amount) || 0, currency: r.price?.currency || 'GBP' },
+      link: r.link || '',
+      imageLink: r.imageLink || '',
+      advertiserId: r.advertiserId || '',
+      advertiserName: r.advertiserName || '',
+      advertiserCountry: r.advertiserCountry || 'UK',
+      brand: r.brand || '',
+      category: '',
+      inStock: true,
+    }));
+
+    return { totalCount, products };
+  } catch (error) {
+    return { totalCount: 0, products: [] };
+  }
+}
+
 export async function searchCJProducts(
   keywords: string,
   limit: number = 20,
@@ -885,14 +976,14 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
   let { keyword, offset, totalImported } = state[0];
   let imported = 0;
   let callsMade = 0;
-  const pageSize = 100;
+  const pageSize = 1000; // CJ supports up to 1000 per page for high throughput
   const startTime = Date.now();
-  const maxDurationMs = 45000; // 45 second max to stay under Railway 60s limit
+  const maxDurationMs = 50000; // 50 second max for good progress
   
   console.log(`[CJ Chunk] Starting from keyword="${keyword}", offset=${offset}, total=${totalImported}`);
   
   while (callsMade < maxCalls && (Date.now() - startTime) < maxDurationMs) {
-    const result = await searchCJProducts(keyword, pageSize, offset);
+    const result = await searchCJProductsFast(keyword, pageSize, offset);
     callsMade++;
     
     if (result.products.length === 0 || offset >= 10000) {
@@ -920,11 +1011,18 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
     let errors = 0;
     for (const product of result.products) {
       try {
-        // Use catalogId for unique ID, fallback to link hash if missing
-        const catalogId = product.catalogId || 
-          Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(10, 30);
+        // Use catalogId for unique ID, or create robust hash from link+title
+        let productSuffix: string;
+        if (product.catalogId && product.catalogId.length > 0) {
+          productSuffix = product.catalogId;
+        } else {
+          // Create collision-resistant hash from link + title
+          const hashInput = `${product.advertiserId}:${product.link}:${product.title}`;
+          const hash = Buffer.from(hashInput).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+          productSuffix = hash.substring(0, 24);
+        }
         const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
-        const productId = `cj_${advertiserHash}_${catalogId}`;
+        const productId = `cj_${advertiserHash}_${productSuffix}`;
         
         const existing = await db.select({ id: products.id })
           .from(products)
@@ -933,7 +1031,14 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
         
         if (existing.length > 0) {
           skipped++;
+          if (skipped <= 5) {
+            console.log(`[CJ Chunk] Skip exists: ${productId}`);
+          }
           continue;
+        }
+        
+        if (imported < 5) {
+          console.log(`[CJ Chunk] New product: ${productId}`);
         }
         
         const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
@@ -957,9 +1062,13 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
         totalImported++;
       } catch (error) {
         errors++;
+        if (errors <= 3) {
+          console.log('[CJ Chunk] Insert error:', (error as Error).message);
+        }
       }
     }
     
+    console.log(`[CJ Chunk] Page done: ${result.products.length} fetched, ${imported} new, ${skipped} skipped, ${errors} errors`);
     offset += pageSize;
   }
   
