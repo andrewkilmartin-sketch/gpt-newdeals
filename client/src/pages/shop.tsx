@@ -1,9 +1,16 @@
 import { useState } from "react";
-import { Search, ExternalLink, Loader2, X, Sparkles } from "lucide-react";
+import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+interface ProductPromotion {
+  title: string;
+  voucherCode?: string;
+  expiresAt?: string;
+  type: string;
+}
 
 interface Product {
   id: string;
@@ -17,6 +24,7 @@ interface Product {
   imageUrl: string | null;
   affiliateLink: string;
   inStock: boolean | null;
+  promotion?: ProductPromotion;
 }
 
 interface FilterItem {
@@ -364,13 +372,62 @@ export default function ShopSearch() {
 
         {products.length > 0 && !isLoading && (
           <div>
+            {(() => {
+              const productsWithPromos = products.filter(p => p.promotion);
+              const uniquePromos = new Map<string, { merchant: string; promo: ProductPromotion }>();
+              productsWithPromos.forEach(p => {
+                if (p.promotion && !uniquePromos.has(p.merchant)) {
+                  uniquePromos.set(p.merchant, { merchant: p.merchant, promo: p.promotion });
+                }
+              });
+              const promoList = Array.from(uniquePromos.values()).slice(0, 4);
+              
+              if (promoList.length > 0) {
+                return (
+                  <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-xl p-4 mb-6 shadow-lg" data-testid="promotions-carousel">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Tag className="w-5 h-5 text-white" />
+                      <h2 className="text-white font-bold text-lg">Deals on {searchQuery}</h2>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {promoList.map(({ merchant, promo }) => (
+                        <div key={merchant} className="bg-white rounded-lg p-3 shadow-md">
+                          <p className="font-semibold text-sm text-gray-800 truncate">{merchant}</p>
+                          <p className="text-xs text-red-600 font-medium line-clamp-2 mt-1">{promo.title}</p>
+                          {promo.voucherCode && (
+                            <Badge className="mt-2 bg-green-100 text-green-700 text-xs">
+                              Code: {promo.voucherCode}
+                            </Badge>
+                          )}
+                          {promo.expiresAt && (
+                            <p className="text-xs text-gray-400 mt-1">Until {promo.expiresAt}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
             <p className="text-white text-center mb-6" data-testid="text-results-count">
               Showing <strong>{products.length}</strong> of <strong>{totalCount}</strong> products for "{searchQuery}"
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {products.map((product, index) => (
-                <Card key={`${product.id}-${index}`} className="overflow-hidden h-full flex flex-col" data-testid={`card-product-${product.id}`}>
+                <Card key={`${product.id}-${index}`} className="overflow-hidden h-full flex flex-col relative" data-testid={`card-product-${product.id}`}>
+                  {product.promotion && (
+                    <div className="absolute top-2 right-2 z-10">
+                      <Badge className="bg-red-500 text-white text-xs px-2 py-1 flex items-center gap-1 shadow-lg">
+                        <Tag className="w-3 h-3" />
+                        {product.promotion.voucherCode 
+                          ? `${product.promotion.voucherCode}` 
+                          : 'DEAL'}
+                      </Badge>
+                    </div>
+                  )}
                   <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center">
                     {product.imageUrl ? (
                       <img
@@ -393,6 +450,20 @@ export default function ShopSearch() {
                     <h3 className="font-semibold text-sm line-clamp-2 mb-2" data-testid={`text-product-name-${product.id}`}>
                       {product.name}
                     </h3>
+                    
+                    {product.promotion && (
+                      <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-100 rounded-md px-2 py-1.5 mb-2">
+                        <p className="text-xs font-medium text-red-600 line-clamp-2 flex items-center gap-1">
+                          <Ticket className="w-3 h-3 flex-shrink-0" />
+                          {product.promotion.title}
+                        </p>
+                        {product.promotion.expiresAt && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Expires: {product.promotion.expiresAt}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="mt-auto">
                       <div className="flex items-center justify-between gap-2 mb-2">
