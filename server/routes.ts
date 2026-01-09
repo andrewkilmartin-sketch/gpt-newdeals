@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { searchQuerySchema } from "@shared/schema";
-import { fetchAwinProducts, isAwinConfigured } from "./services/awin";
+import { fetchAwinProducts, isAwinConfigured, getAllActivePromotions, getPromotionsForMerchant, ProductPromotion } from "./services/awin";
 import { decodeTag, getAgeRange, getCategoryFromTags } from "./data/family-playbook";
 // Note: CSV product feed loading removed - now using PostgreSQL database directly
 import sunnyRouter from "./sunny";
@@ -2159,13 +2159,36 @@ ONLY use IDs from the list. Never invent IDs.`
 
       const hasMore = (safeOffset + selectedProducts.length) < totalCandidates;
       
-      const response: any = {
-        success: true,
-        query: query,
-        count: selectedProducts.length,
-        totalCount: totalCandidates,
-        hasMore: hasMore,
-        products: selectedProducts.map((p: any) => ({
+      // Fetch active promotions for all merchants
+      const activePromotions = await getAllActivePromotions();
+      
+      // Normalize merchant name for matching
+      const normalizeMerchant = (name: string): string => {
+        return name.toLowerCase()
+          .replace(/\s*(uk|eu|europe|usa|us|gb|direct)\s*$/i, '')
+          .replace(/[^a-z0-9]/g, '');
+      };
+      
+      // Attach promotions to products
+      const productsWithPromotions = selectedProducts.map((p: any) => {
+        const normalizedMerchant = normalizeMerchant(p.merchant || '');
+        let promotion: ProductPromotion | undefined;
+        
+        // Try exact match first
+        const promos = activePromotions.get(normalizedMerchant);
+        if (promos && promos.length > 0) {
+          promotion = promos[0]; // Use first/best promotion
+        } else {
+          // Try partial match
+          for (const [key, promoList] of activePromotions) {
+            if (key.includes(normalizedMerchant) || normalizedMerchant.includes(key)) {
+              promotion = promoList[0];
+              break;
+            }
+          }
+        }
+        
+        return {
           id: p.id,
           name: p.name,
           description: (p.description || '').slice(0, 200),
@@ -2176,8 +2199,31 @@ ONLY use IDs from the list. Never invent IDs.`
           category: p.category || '',
           imageUrl: p.image_url || '',
           affiliateLink: p.affiliate_link,
-          inStock: p.in_stock ?? true
-        }))
+          inStock: p.in_stock ?? true,
+          // Promotion fields
+          promotion: promotion ? {
+            title: promotion.promotionTitle,
+            voucherCode: promotion.voucherCode,
+            expiresAt: promotion.expiresAt,
+            type: promotion.promotionType
+          } : undefined
+        };
+      });
+      
+      // Sort to prioritize products with promotions (same relevance, promoted first)
+      productsWithPromotions.sort((a: any, b: any) => {
+        const aHasPromo = a.promotion ? 1 : 0;
+        const bHasPromo = b.promotion ? 1 : 0;
+        return bHasPromo - aHasPromo;
+      });
+      
+      const response: any = {
+        success: true,
+        query: query,
+        count: productsWithPromotions.length,
+        totalCount: totalCandidates,
+        hasMore: hasMore,
+        products: productsWithPromotions
       };
       
       // Include filters on first page without user filters applied

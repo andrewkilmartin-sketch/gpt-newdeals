@@ -76,6 +76,111 @@ let promotionsCache: AwinPromotion[] | null = null;
 let promotionsCacheTime: number = 0;
 const PROMOTIONS_CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
 
+// Promotions indexed by normalized advertiser name for fast lookup
+let promotionsByMerchant: Map<string, AwinPromotion[]> = new Map();
+let promotionsIndexTime: number = 0;
+
+// Normalize merchant name for matching (removes UK/EU suffixes, lowercase)
+function normalizeMerchantName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s*(uk|eu|europe|usa|us|gb|direct)\s*$/i, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// Build index of promotions by advertiser name
+async function buildPromotionsIndex(): Promise<void> {
+  const promotions = await fetchPromotions();
+  const now = Date.now();
+  
+  // Only rebuild if stale
+  if (promotionsIndexTime > 0 && now - promotionsIndexTime < PROMOTIONS_CACHE_DURATION) {
+    return;
+  }
+  
+  promotionsByMerchant.clear();
+  
+  for (const promo of promotions) {
+    if (!promo.advertiser?.name) continue;
+    
+    const normalizedName = normalizeMerchantName(promo.advertiser.name);
+    if (!promotionsByMerchant.has(normalizedName)) {
+      promotionsByMerchant.set(normalizedName, []);
+    }
+    promotionsByMerchant.get(normalizedName)!.push(promo);
+  }
+  
+  promotionsIndexTime = now;
+  console.log(`[Promotions] Built index with ${promotionsByMerchant.size} merchants, ${promotions.length} total promotions`);
+}
+
+// Product promotion metadata to attach to search results
+export interface ProductPromotion {
+  promotionTitle: string;
+  voucherCode?: string;
+  expiresAt?: string;
+  promotionType: string;
+  advertiserId: number;
+}
+
+// Get active promotions for a merchant name
+export async function getPromotionsForMerchant(merchantName: string): Promise<ProductPromotion[]> {
+  await buildPromotionsIndex();
+  
+  const normalizedName = normalizeMerchantName(merchantName);
+  const promos = promotionsByMerchant.get(normalizedName) || [];
+  
+  // Also try partial match for merchants with different naming
+  const allMatches: AwinPromotion[] = [...promos];
+  for (const [key, values] of promotionsByMerchant) {
+    if (key !== normalizedName && (key.includes(normalizedName) || normalizedName.includes(key))) {
+      allMatches.push(...values);
+    }
+  }
+  
+  // Filter to active promotions only
+  const now = new Date();
+  const activePromos = allMatches.filter(p => {
+    const endDate = new Date(p.endDate);
+    return endDate > now && p.status === 'active';
+  });
+  
+  return activePromos.map(p => ({
+    promotionTitle: p.title,
+    voucherCode: p.voucher?.code,
+    expiresAt: p.endDate?.split('T')[0],
+    promotionType: p.type,
+    advertiserId: p.advertiser.id
+  }));
+}
+
+// Get all active promotions indexed by normalized merchant name (for bulk operations)
+export async function getAllActivePromotions(): Promise<Map<string, ProductPromotion[]>> {
+  await buildPromotionsIndex();
+  
+  const result = new Map<string, ProductPromotion[]>();
+  const now = new Date();
+  
+  for (const [merchantName, promos] of promotionsByMerchant) {
+    const activePromos = promos
+      .filter(p => new Date(p.endDate) > now && p.status === 'active')
+      .map(p => ({
+        promotionTitle: p.title,
+        voucherCode: p.voucher?.code,
+        expiresAt: p.endDate?.split('T')[0],
+        promotionType: p.type,
+        advertiserId: p.advertiser.id
+      }));
+    
+    if (activePromos.length > 0) {
+      result.set(merchantName, activePromos);
+    }
+  }
+  
+  return result;
+}
+
 // Known advertisers with Enhanced Feeds (discovered through API testing)
 const ENHANCED_FEED_ADVERTISERS = [
   899,   // Fitness Options (confirmed working)
