@@ -715,8 +715,9 @@ export class DatabaseStorage implements IStorage {
     let keywordResults: Product[] = [];
     const fetchLimitPerPhase = Math.max(limit * 5, 100);
     
-    // PHASE 1: Exact phrase match (highest priority)
-    // Check if query matches a known phrase
+    // PHASE 1: Exact phrase match WITH remaining tokens (highest priority)
+    // CRITICAL FIX: If query has extra words beyond the phrase, require them too!
+    // e.g., "paw patrol tower playset" must match phrase "paw patrol" AND tokens "tower", "playset"
     const matchedPhrase = knownPhrases.find(p => queryLower.includes(p));
     if (matchedPhrase) {
       const phrasePattern = `%${matchedPhrase}%`;
@@ -724,9 +725,28 @@ export class DatabaseStorage implements IStorage {
         ilike(productsTable.name, phrasePattern),
         ilike(productsTable.brand, phrasePattern)
       ];
-      const phraseWhere = baseConditions.length > 0 
-        ? and(...baseConditions, or(...phraseConditions))
-        : or(...phraseConditions);
+      
+      // Get tokens that are NOT part of the matched phrase
+      const phraseTokens = matchedPhrase.split(/\s+/);
+      const remainingTokens = tokens.filter(t => !phraseTokens.includes(t));
+      
+      // Build conditions: phrase match AND all remaining tokens must match
+      let phase1Conditions = [...baseConditions, or(...phraseConditions)];
+      
+      if (remainingTokens.length > 0) {
+        // CRITICAL: Remaining tokens must ALSO match in name/brand/category
+        for (const token of remainingTokens) {
+          const tokenPattern = `%${token}%`;
+          phase1Conditions.push(or(
+            ilike(productsTable.name, tokenPattern),
+            ilike(productsTable.brand, tokenPattern),
+            ilike(productsTable.category, tokenPattern)
+          ));
+        }
+        console.log(`[Keyword Phase 1] Phrase "${matchedPhrase}" + required tokens: [${remainingTokens.join(', ')}]`);
+      }
+      
+      const phraseWhere = and(...phase1Conditions);
       
       const phraseResults = await db.select().from(productsTable)
         .where(phraseWhere)
@@ -755,19 +775,47 @@ export class DatabaseStorage implements IStorage {
       console.log(`[Keyword Phase 2] All tokens AND matched ${allTokenResults.length} products`);
     }
     
-    // PHASE 3: OR fallback - any token matches (broader search)
+    // PHASE 3: OR fallback - BUT require remaining tokens if no Phase 1/2 results
+    // CRITICAL FIX: If Phase 1+2 found nothing, don't fall back to brand-only matches
+    // Instead, require at least ONE of the remaining tokens (product type words)
     if (keywordResults.length < fetchLimitPerPhase * 2) {
-      const allTokenConditions = allTokens.flatMap(token => {
-        const pattern = `%${token}%`;
-        return [
-          ilike(productsTable.name, pattern),
-          ilike(productsTable.brand, pattern),
-          ilike(productsTable.category, pattern)
-        ];
-      });
-      const orWhere = baseConditions.length > 0
-        ? and(...baseConditions, or(...allTokenConditions))
-        : or(...allTokenConditions);
+      // Get non-phrase tokens (product type words like "tower", "playset", "dreamhouse")
+      // CRITICAL: Also exclude the mustMatch term - that's the brand, not a product type
+      const phraseTokens = matchedPhrase ? matchedPhrase.split(/\s+/) : [];
+      const mustMatchTokens = mustMatchTerm ? mustMatchTerm.toLowerCase().split(/\s+/) : [];
+      const excludeTokens = new Set([...phraseTokens, ...mustMatchTokens]);
+      const productTypeTokens = tokens.filter(t => !excludeTokens.has(t));
+      
+      // If we have product type tokens and Phase 1+2 returned 0, require at least one
+      let phase3Conditions = [...baseConditions];
+      
+      if (productTypeTokens.length > 0 && keywordResults.length === 0) {
+        // STRICT: At least one product type token must match
+        const typeConditions = productTypeTokens.flatMap(token => {
+          const pattern = `%${token}%`;
+          return [
+            ilike(productsTable.name, pattern),
+            ilike(productsTable.category, pattern)
+          ];
+        });
+        phase3Conditions.push(or(...typeConditions));
+        console.log(`[Keyword Phase 3] STRICT: Requiring at least one of [${productTypeTokens.join(', ')}]`);
+      } else {
+        // Normal OR fallback - any token matches
+        const allTokenConditions = allTokens.flatMap(token => {
+          const pattern = `%${token}%`;
+          return [
+            ilike(productsTable.name, pattern),
+            ilike(productsTable.brand, pattern),
+            ilike(productsTable.category, pattern)
+          ];
+        });
+        phase3Conditions.push(or(...allTokenConditions));
+      }
+      
+      const orWhere = phase3Conditions.length > 1 
+        ? and(...phase3Conditions)
+        : phase3Conditions[0];
       
       const orResults = await db.select().from(productsTable)
         .where(orWhere)
