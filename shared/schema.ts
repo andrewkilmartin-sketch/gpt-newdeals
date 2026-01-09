@@ -179,6 +179,7 @@ export const products = pgTable("products", {
   price: real("price").notNull(),
   affiliateLink: text("affiliate_link").notNull(),
   imageUrl: text("image_url"),
+  imageStatus: varchar("image_status", { length: 20 }).default("unknown"),
   inStock: boolean("in_stock").default(true),
   embedding: vector("embedding"),
   canonicalCategory: text("canonical_category"),

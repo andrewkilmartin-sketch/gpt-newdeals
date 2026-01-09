@@ -1,0 +1,77 @@
+This is a really important finding. 336,686 Debenhams products have dead images - that's a huge chunk of your database showing broken images.
+
+My Recommendation:
+Don't validate images on every search - that would be slow (HTTP request per product).
+Instead, do a ONE-TIME cleanup + periodic refresh:
+
+Tell Replit:
+"Yes, but do it smartly:
+OPTION 1: BACKGROUND IMAGE VALIDATOR (Recommended)
+Create a background job that:
+javascript// Run once now, then weekly via cron
+async function validateProductImages() {
+  const batchSize = 100;
+  let offset = 0;
+  let brokenCount = 0;
+  
+  while (true) {
+    const products = await db.select()
+      .from(products)
+      .where(isNotNull(products.imageUrl))
+      .limit(batchSize)
+      .offset(offset);
+    
+    if (products.length === 0) break;
+    
+    for (const product of products) {
+      try {
+        const response = await fetch(product.imageUrl, { method: 'HEAD', timeout: 5000 });
+        
+        // Check if redirected to noimage.gif or 404
+        const isBroken = response.status !== 200 || 
+                         response.url.includes('noimage') ||
+                         response.headers.get('content-length') < 1000; // Tiny = placeholder
+        
+        if (isBroken) {
+          await db.update(products)
+            .set({ imageUrl: null, imageStatus: 'broken' })
+            .where(eq(products.id, product.id));
+          brokenCount++;
+        }
+      } catch (e) {
+        // Timeout or error = mark as broken
+        await db.update(products)
+          .set({ imageUrl: null, imageStatus: 'broken' })
+          .where(eq(products.id, product.id));
+        brokenCount++;
+      }
+    }
+    
+    offset += batchSize;
+    console.log(`Checked ${offset} products, ${brokenCount} broken so far`);
+  }
+  
+  return { checked: offset, broken: brokenCount };
+}
+OPTION 2: ADD imageStatus COLUMN
+sqlALTER TABLE products ADD COLUMN image_status VARCHAR(20) DEFAULT 'unknown';
+-- Values: 'valid', 'broken', 'unknown'
+OPTION 3: SEARCH FILTER
+Update search to deprioritize (not hide) products with broken images:
+javascript// In search results, sort products WITH images first
+.orderBy(
+  desc(sql`CASE WHEN image_url IS NOT NULL AND image_status != 'broken' THEN 1 ELSE 0 END`),
+  desc(relevanceScore)
+)
+RUN NOW:
+
+Add image_status column
+Run validator on Debenhams products first (the known problem)
+Set up weekly cron to revalidate
+
+DON'T:
+
+Validate images during live search (too slow)
+Delete products entirely (they might get images back)
+
+Start with Debenhams products - that's the biggest problem. How long to validate 336,686 products?"

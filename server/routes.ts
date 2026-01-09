@@ -5883,5 +5883,174 @@ ONLY use IDs from the list. Never invent IDs.`
     }
   });
 
+  // Background image validator - validates and marks broken images in batches
+  app.post('/api/diagnostic/validate-images-batch', async (req, res) => {
+    try {
+      const { 
+        merchant = null, 
+        batchSize = 100, 
+        offset = 0,
+        dryRun = true  // Default to dry run for safety
+      } = req.body;
+      
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { sql, eq, and, isNotNull, or } = await import('drizzle-orm');
+      
+      // Build WHERE clause
+      let whereClause = `image_url IS NOT NULL AND image_url != ''`;
+      if (merchant) {
+        whereClause += ` AND LOWER(merchant) LIKE '%${merchant.toLowerCase()}%'`;
+      }
+      // Only check unknown or NULL status
+      whereClause += ` AND (image_status IS NULL OR image_status = 'unknown')`;
+      
+      // Get batch of products to validate
+      const prods = await db.execute(sql.raw(`
+        SELECT id, name, image_url as "imageUrl", merchant
+        FROM products 
+        WHERE ${whereClause}
+        ORDER BY id
+        LIMIT ${batchSize}
+        OFFSET ${offset}
+      `)) as any[];
+      
+      if (prods.length === 0) {
+        return res.json({
+          message: 'No more products to validate',
+          checked: 0,
+          working: 0,
+          broken: 0,
+          nextOffset: null
+        });
+      }
+      
+      const results = {
+        checked: 0,
+        working: 0,
+        broken: 0,
+        updated: 0,
+        errors: 0,
+        details: [] as any[]
+      };
+      
+      for (const prod of prods) {
+        results.checked++;
+        let imageStatus = 'unknown';
+        
+        try {
+          const response = await fetch(prod.imageUrl, { 
+            method: 'HEAD',
+            redirect: 'manual',
+            signal: AbortSignal.timeout(5000)
+          });
+          
+          if (response.status === 200) {
+            // Check content-length to catch tiny placeholder images
+            const contentLength = parseInt(response.headers.get('content-length') || '99999');
+            if (contentLength < 1000) {
+              imageStatus = 'broken';
+              results.broken++;
+            } else {
+              imageStatus = 'valid';
+              results.working++;
+            }
+          } else if (response.status === 302 || response.status === 301) {
+            const location = response.headers.get('location');
+            if (location?.includes('noimage') || location?.includes('placeholder') || location?.includes('no-image')) {
+              imageStatus = 'broken';
+              results.broken++;
+            } else {
+              // Redirects to another image - likely valid
+              imageStatus = 'valid';
+              results.working++;
+            }
+          } else {
+            imageStatus = 'broken';
+            results.broken++;
+          }
+        } catch (err) {
+          // Timeout or network error - mark as broken
+          imageStatus = 'broken';
+          results.broken++;
+          results.errors++;
+        }
+        
+        // Update database if not dry run
+        if (!dryRun) {
+          try {
+            await db.execute(sql.raw(`
+              UPDATE products 
+              SET image_status = '${imageStatus}'
+              WHERE id = '${prod.id}'
+            `));
+            results.updated++;
+          } catch (err) {
+            console.error(`Failed to update product ${prod.id}:`, err);
+          }
+        }
+        
+        results.details.push({
+          id: prod.id,
+          name: (prod.name || '').substring(0, 40),
+          merchant: prod.merchant,
+          status: imageStatus
+        });
+      }
+      
+      res.json({
+        mode: dryRun ? 'DRY_RUN (no DB updates)' : 'LIVE (DB updated)',
+        merchant: merchant || 'all',
+        batchSize,
+        offset,
+        nextOffset: prods.length === batchSize ? offset + batchSize : null,
+        ...results
+      });
+    } catch (error: any) {
+      console.error('[Diagnostic] Batch validate error:', error);
+      res.status(500).json({ error: 'Batch validation failed', details: error.message });
+    }
+  });
+
+  // Get image validation stats
+  app.get('/api/diagnostic/image-stats', async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      
+      const stats = await db.execute(sql.raw(`
+        SELECT 
+          merchant,
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE image_status = 'valid') as valid_images,
+          COUNT(*) FILTER (WHERE image_status = 'broken') as broken_images,
+          COUNT(*) FILTER (WHERE image_status IS NULL OR image_status = 'unknown') as unknown_status
+        FROM products
+        WHERE image_url IS NOT NULL AND image_url != ''
+        GROUP BY merchant
+        ORDER BY COUNT(*) DESC
+        LIMIT 20
+      `)) as any[];
+      
+      const totals = await db.execute(sql.raw(`
+        SELECT 
+          COUNT(*) as total_products,
+          COUNT(*) FILTER (WHERE image_url IS NOT NULL AND image_url != '') as with_images,
+          COUNT(*) FILTER (WHERE image_status = 'valid') as valid_images,
+          COUNT(*) FILTER (WHERE image_status = 'broken') as broken_images,
+          COUNT(*) FILTER (WHERE image_status IS NULL OR image_status = 'unknown') as pending_validation
+        FROM products
+      `)) as any[];
+      
+      res.json({
+        totals: totals[0],
+        byMerchant: stats
+      });
+    } catch (error: any) {
+      console.error('[Diagnostic] Image stats error:', error);
+      res.status(500).json({ error: 'Stats failed', details: error.message });
+    }
+  });
+
   return httpServer;
 }
