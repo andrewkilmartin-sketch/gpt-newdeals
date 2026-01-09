@@ -36,6 +36,11 @@ Key architectural decisions and features include:
     - **Simplified SQL**: Keyword search only uses indexed `name` column with GIN trigram index
     - **Reranker Skip**: Simple 1-2 word queries skip GPT reranker (saves 5-8s)
     - **Results**: Brand queries now return in 30-200ms (down from 7-18 seconds)
+-   **Character/Franchise Search Fix (Jan 2026)**:
+    - Brand validation now checks BOTH `products.brand` AND `products.name` columns using `or()`
+    - This fixes 90+ broken queries where character names (Hulk, Moana, Encanto, Mandalorian, Hermione) exist in product names but not the brand field
+    - Added fallback: When GPT returns empty keywords but a brand/character is detected, the search seeds `searchTerms` with the original query
+    - Results: hulk(30), encanto(1000), mandalorian(30), moana(1000), hermione(1) - all now return products
 -   **Fallback Behavior**: If OpenAI services fail, the system gracefully falls back to basic keyword search, logging warnings.
 
 -   **Brand-Based Promotions (Jan 2026)**:
