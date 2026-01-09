@@ -2448,7 +2448,10 @@ Format: ["id1", "id2", ...]`
             .offset(safeOffset);
           
           candidates = result as any[];
-          console.log(`[Shop Search] TIMING: DB query took ${Date.now() - dbQueryStart}ms (${candidates.length} results)`);
+          // FIX: If we hit the limit (100), assume there are more results (estimate 10x)
+          // This enables "Load More" button without expensive COUNT query
+          totalCandidates = candidates.length === 100 ? 1000 : candidates.length;
+          console.log(`[Shop Search] TIMING: DB query took ${Date.now() - dbQueryStart}ms (${candidates.length} results, est total: ${totalCandidates})`);
         }
         } // Close if (words.length > 0)
       } // Close else (original keyword search)
