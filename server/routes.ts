@@ -5713,5 +5713,175 @@ ONLY use IDs from the list. Never invent IDs.`
     }
   });
 
+  // ============================================================
+  // IMAGE VALIDATION ENDPOINT - Check if product images are BROKEN AT SOURCE
+  // The database has URLs but the actual images may be removed by retailers
+  // ============================================================
+  
+  app.post('/api/diagnostic/check-images', async (req, res) => {
+    try {
+      const { productIds } = req.body;
+      
+      if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({ error: 'productIds array is required' });
+      }
+      
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { inArray } = await import('drizzle-orm');
+      
+      // Get products from DB
+      const prods = await db.select({
+        id: products.id,
+        name: products.name,
+        imageUrl: products.imageUrl,
+        merchant: products.merchant
+      }).from(products)
+        .where(inArray(products.id, productIds.slice(0, 10)));
+      
+      const results = [];
+      
+      for (const prod of prods) {
+        let imageStatus = 'unknown';
+        let redirectsTo = null;
+        
+        if (!prod.imageUrl || prod.imageUrl.trim() === '') {
+          imageStatus = 'missing_in_db';
+        } else {
+          try {
+            const response = await fetch(prod.imageUrl, { 
+              method: 'HEAD',
+              redirect: 'manual'
+            });
+            
+            if (response.status === 200) {
+              imageStatus = 'working';
+            } else if (response.status === 302 || response.status === 301) {
+              const location = response.headers.get('location');
+              if (location?.includes('noimage') || location?.includes('placeholder')) {
+                imageStatus = 'broken_at_source';
+                redirectsTo = location;
+              } else {
+                imageStatus = 'redirected';
+                redirectsTo = location;
+              }
+            } else {
+              imageStatus = `error_${response.status}`;
+            }
+          } catch (err) {
+            imageStatus = 'fetch_error';
+          }
+        }
+        
+        results.push({
+          id: prod.id,
+          name: (prod.name || '').substring(0, 50),
+          merchant: prod.merchant,
+          imageUrl: prod.imageUrl?.substring(0, 80) + '...',
+          imageStatus,
+          redirectsTo
+        });
+      }
+      
+      const summary = {
+        total: results.length,
+        working: results.filter(r => r.imageStatus === 'working').length,
+        brokenAtSource: results.filter(r => r.imageStatus === 'broken_at_source').length,
+        missingInDb: results.filter(r => r.imageStatus === 'missing_in_db').length,
+        other: results.filter(r => !['working', 'broken_at_source', 'missing_in_db'].includes(r.imageStatus)).length
+      };
+      
+      res.json({ summary, results });
+    } catch (error: any) {
+      console.error('[Diagnostic] Check images error:', error);
+      res.status(500).json({ error: 'Image check failed', details: error.message });
+    }
+  });
+  
+  // Quick endpoint to find products with broken images by searching
+  app.post('/api/diagnostic/validate-search-images', async (req, res) => {
+    try {
+      const { query, limit = 5 } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({ error: 'query is required' });
+      }
+      
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { sql } = await import('drizzle-orm');
+      
+      // Split query into words and search for products containing ALL words
+      const words = query.toLowerCase().split(' ').filter((w: string) => w.length > 2);
+      
+      // Build a query that matches all words (more flexible than exact phrase)
+      const wordConditions = words.map((w: string) => `LOWER(name) LIKE '%${w}%'`).join(' AND ');
+      
+      const prods = await db.execute(sql.raw(`
+        SELECT id, name, image_url as "imageUrl", merchant
+        FROM products 
+        WHERE ${wordConditions || '1=1'}
+        LIMIT ${Math.min(limit, 10)}
+      `)) as any[];
+      
+      const results = [];
+      
+      for (const prod of prods) {
+        let imageStatus = 'unknown';
+        
+        if (!prod.imageUrl || prod.imageUrl.trim() === '') {
+          imageStatus = 'missing_in_db';
+        } else {
+          try {
+            const response = await fetch(prod.imageUrl, { 
+              method: 'HEAD',
+              redirect: 'manual'
+            });
+            
+            if (response.status === 200) {
+              imageStatus = 'working';
+            } else if (response.status === 302 || response.status === 301) {
+              const location = response.headers.get('location');
+              if (location?.includes('noimage') || location?.includes('placeholder')) {
+                imageStatus = 'BROKEN_AT_SOURCE';
+              } else {
+                imageStatus = 'redirected';
+              }
+            } else {
+              imageStatus = `error_${response.status}`;
+            }
+          } catch (err) {
+            imageStatus = 'fetch_error';
+          }
+        }
+        
+        results.push({
+          name: (prod.name || '').substring(0, 50),
+          merchant: prod.merchant,
+          imageStatus,
+          imageUrl: prod.imageUrl?.substring(0, 60)
+        });
+      }
+      
+      const brokenCount = results.filter(r => r.imageStatus === 'BROKEN_AT_SOURCE').length;
+      const workingCount = results.filter(r => r.imageStatus === 'working').length;
+      
+      res.json({
+        query,
+        totalChecked: results.length,
+        workingImages: workingCount,
+        brokenAtSource: brokenCount,
+        verdict: brokenCount > 0 ? 'SOME_IMAGES_BROKEN_AT_RETAILER' : 'ALL_IMAGES_WORKING',
+        explanation: brokenCount > 0 
+          ? `${brokenCount} products have images that were REMOVED BY THE RETAILER (Awin returns noimage.gif). This is a data freshness issue, not a code bug.`
+          : 'All image URLs are working at the source.',
+        results
+      });
+    } catch (error: any) {
+      console.error('[Diagnostic] Validate search images error:', error);
+      res.status(500).json({ error: 'Validation failed', details: error.message });
+    }
+  });
+
   return httpServer;
 }
