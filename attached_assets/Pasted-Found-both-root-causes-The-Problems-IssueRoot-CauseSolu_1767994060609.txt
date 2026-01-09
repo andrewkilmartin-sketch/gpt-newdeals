@@ -1,0 +1,80 @@
+Found both root causes!
+
+The Problems:
+IssueRoot CauseSolutionSpeed (13-18s)GPT-4o-mini called on EVERY searchCache interpretations / skip for simple queriesPaw Patrol rankingProducts exist but not ranking correctlyFix relevance scoring
+
+Tell Replit:
+"Found the issues. Fix both:
+FIX 1: SPEED - Stop Calling OpenAI on Every Query
+GPT-4o-mini adds 3-5 seconds per search. Most queries don't need AI interpretation.
+javascript// BEFORE: Every query hits OpenAI
+const interpretation = await interpretQuery(query, openaiKey);
+
+// AFTER: Only use OpenAI for complex/natural language queries
+async function smartSearch(query) {
+  // Simple queries - skip OpenAI entirely
+  const isSimpleQuery = (q) => {
+    const words = q.trim().split(' ');
+    // 1-3 words, no natural language patterns
+    return words.length <= 3 && 
+           !q.includes('for') && 
+           !q.includes('under') && 
+           !q.includes('best') &&
+           !q.includes('gift');
+  };
+  
+  if (isSimpleQuery(query)) {
+    // Direct database search - 62ms
+    return await directDatabaseSearch(query);
+  } else {
+    // Complex query - use OpenAI interpretation
+    return await interpretedSearch(query);
+  }
+}
+Simple queries (skip OpenAI):
+
+'nike trainers' → Direct search
+'school shoes' → Direct search
+'barbie' → Direct search
+'paw patrol toys' → Direct search
+
+Complex queries (use OpenAI):
+
+'birthday gift for 5 year old girl under £20' → Needs interpretation
+'something for a rainy day' → Needs interpretation
+
+This should drop simple queries from 15s → under 1s.
+FIX 2: CACHE OpenAI Interpretations
+For complex queries, cache the interpretation:
+javascriptconst interpretationCache = new Map();
+
+async function getCachedInterpretation(query) {
+  const cacheKey = query.toLowerCase().trim();
+  
+  if (interpretationCache.has(cacheKey)) {
+    return interpretationCache.get(cacheKey);
+  }
+  
+  const interpretation = await interpretQuery(query, openaiKey);
+  interpretationCache.set(cacheKey, interpretation);
+  
+  // Optional: Expire after 1 hour
+  setTimeout(() => interpretationCache.delete(cacheKey), 3600000);
+  
+  return interpretation;
+}
+FIX 3: PAW PATROL RANKING
+Products exist but aren't ranking top. Boost exact phrase matches:
+javascript// Add bonus score for exact phrase match
+const exactPhraseMatch = product.name.toLowerCase().includes(query.toLowerCase());
+const relevanceScore = baseScore + (exactPhraseMatch ? 100 : 0);
+
+Priority:
+
+Fix speed first (simple query bypass)
+Add caching for complex queries
+Fix Paw Patrol ranking
+
+Test after each fix. Target: under 3 seconds for simple queries."
+
+This should get you from 15 seconds → under 2 seconds for most searches!Claude is AI and can make mistakes. Please double-check responses.

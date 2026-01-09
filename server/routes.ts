@@ -2464,11 +2464,24 @@ Format: ["id1", "id2", ...]`
       } else {
         // Original keyword search for direct product queries
         const stopWords = new Set(['the', 'and', 'for', 'with', 'set', 'pack', 'from']);
-        const words = query.toLowerCase()
+        // Generic product type words that should NOT be required in product names
+        // when a brand/character is detected (e.g., "paw patrol toys" shouldn't require "toys" in name)
+        const genericProductWords = new Set(['toys', 'toy', 'gifts', 'gift', 'stuff', 'things', 'items', 'products', 'merchandise', 'merch']);
+        const detectedCharacter = interpretation.attributes?.brand?.toLowerCase();
+        
+        let words = query.toLowerCase()
           .replace(/[-]/g, ' ')
           .replace(/[^\w\s]/g, ' ')
           .split(/\s+/)
           .filter(w => w.length > 2 && !stopWords.has(w));
+        
+        // If we detected a character/license (like "paw patrol"), remove generic product words
+        // User says "paw patrol toys" meaning "toys FROM paw patrol", not "products with 'toys' in name"
+        if (detectedCharacter) {
+          const characterWords = detectedCharacter.split(' ');
+          words = words.filter(w => !genericProductWords.has(w) || characterWords.includes(w));
+          console.log(`[Shop Search] Character detected "${detectedCharacter}" - filtered words: [${words.join(', ')}]`);
+        }
         
         if (words.length > 0) {
           // PERFORMANCE FIX: Only search name column (indexed with GIN trigram)
