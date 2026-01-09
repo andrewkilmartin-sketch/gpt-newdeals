@@ -1,9 +1,59 @@
 import { useState } from "react";
-import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket } from "lucide-react";
+import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+// ProductImage component with robust error handling for broken/placeholder images
+function ProductImage({ src, alt }: { src: string; alt: string }) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  // Check if the image URL likely points to a placeholder
+  const isLikelyPlaceholder = (url: string) => {
+    return url.includes('noimage') || url.includes('placeholder') || url.includes('no-image');
+  };
+  
+  if (hasError || isLikelyPlaceholder(src)) {
+    return (
+      <div className="flex flex-col items-center text-gray-400">
+        <ImageOff className="w-12 h-12 mb-2" />
+        <span className="text-xs">Image unavailable</span>
+      </div>
+    );
+  }
+  
+  return (
+    <>
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        loading="lazy"
+        onError={() => setHasError(true)}
+        onLoad={(e) => {
+          const target = e.target as HTMLImageElement;
+          setIsLoaded(true);
+          // Detect the specific productserve noimage.gif placeholder (exactly 70x70)
+          // This is more precise than a broad threshold to avoid false positives
+          if (target.naturalWidth === 70 && target.naturalHeight === 70) {
+            setHasError(true);
+          }
+          // Also catch very tiny images that are clearly broken (1x1 tracking pixels etc)
+          if (target.naturalWidth < 10 || target.naturalHeight < 10) {
+            setHasError(true);
+          }
+        }}
+      />
+    </>
+  );
+}
 
 interface ProductPromotion {
   title: string;
@@ -451,24 +501,10 @@ export default function ShopSearch() {
                   )}
                   <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center relative">
                     {product.imageUrl ? (
-                      <>
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="max-w-full max-h-full object-contain relative z-10"
-                          loading="lazy"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const fallback = target.nextElementSibling as HTMLElement;
-                            if (fallback) fallback.style.display = 'flex';
-                          }}
-                        />
-                        <div className="absolute inset-0 items-center justify-center hidden flex-col text-gray-400">
-                          <Sparkles className="w-12 h-12 mb-2" />
-                          <span className="text-xs">Image unavailable</span>
-                        </div>
-                      </>
+                      <ProductImage 
+                        src={product.imageUrl} 
+                        alt={product.name} 
+                      />
                     ) : (
                       <div className="flex flex-col items-center text-gray-400">
                         <Sparkles className="w-12 h-12 mb-2" />
