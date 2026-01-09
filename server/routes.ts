@@ -2169,23 +2169,15 @@ ONLY use IDs from the list. Never invent IDs.`
           .replace(/[^a-z0-9]/g, '');
       };
       
-      // Attach promotions to products
+      // Attach promotions to products - EXACT MATCH ONLY to prevent wrong associations
       const productsWithPromotions = selectedProducts.map((p: any) => {
         const normalizedMerchant = normalizeMerchant(p.merchant || '');
         let promotion: ProductPromotion | undefined;
         
-        // Try exact match first
+        // Try exact match only - partial matches caused wrong promotions (e.g., books for LEGO)
         const promos = activePromotions.get(normalizedMerchant);
         if (promos && promos.length > 0) {
           promotion = promos[0]; // Use first/best promotion
-        } else {
-          // Try partial match
-          for (const [key, promoList] of activePromotions) {
-            if (key.includes(normalizedMerchant) || normalizedMerchant.includes(key)) {
-              promotion = promoList[0];
-              break;
-            }
-          }
         }
         
         return {
