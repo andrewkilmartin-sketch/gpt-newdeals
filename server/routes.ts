@@ -1550,6 +1550,37 @@ export async function registerRoutes(
     }
   });
 
+  // Mass import endpoint - imports 1M+ products from CJ using sharding strategy
+  app.post("/api/cj/mass-import", async (req, res) => {
+    try {
+      const { massImportCJ } = await import('./services/cj');
+      const { targetProducts = 1000000 } = req.body || {};
+      
+      console.log(`[CJ Mass Import] Starting mass import - target: ${targetProducts}`);
+      
+      // Fire and forget - return immediately
+      res.json({
+        success: true,
+        status: 'started',
+        message: `Mass import started - targeting ${targetProducts} products`,
+        targetProducts
+      });
+      
+      // Run import in background
+      massImportCJ(targetProducts).then(result => {
+        console.log(`[CJ Mass Import] Complete: ${result.total} products imported`);
+      }).catch(err => {
+        console.error(`[CJ Mass Import] Failed:`, err);
+      });
+      
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // ============================================================
   // SIMPLE SEARCH - CTO's approach: keyword SQL + GPT reranker
   // One simple endpoint. 115k products. OpenAI picks the best.

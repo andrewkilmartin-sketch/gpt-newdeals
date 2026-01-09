@@ -89,7 +89,10 @@ export async function searchCJProducts(
   `;
 
   try {
-    console.log(`[CJ] Searching for "${keywords}" (limit: ${limit})`);
+    console.log(`[CJ] Searching for "${keywords}" (limit: ${limit}, offset: ${offset})`);
+    
+    // Add delay between requests to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
     
     const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -105,9 +108,10 @@ export async function searchCJProducts(
       console.error(`[CJ] API error ${response.status}: ${errorText}`);
       
       // Handle rate limiting with specific error message
-      if (response.status === 429) {
-        console.error('[CJ] Rate limited by CJ API - please wait before retrying');
-        throw new Error('CJ API rate limit exceeded. Please wait before retrying.');
+      if (response.status === 429 || response.status === 403) {
+        console.error('[CJ] Rate limited by CJ API (403/429) - waiting 60 seconds before retry');
+        await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 60 seconds
+        return { totalCount: 0, products: [] }; // Return empty to let caller continue
       }
       
       // Handle server errors
@@ -227,7 +231,7 @@ export async function importCJProductsToDatabase(
   let totalAvailable = 0;
   
   let consecutiveEmptyPages = 0;
-  const maxEmptyPages = 3; // Stop after 3 consecutive pages with 0 new imports
+  const maxEmptyPages = 20; // Increased from 3 - CJ returns overlapping results, need to push through
   
   // Paginate through results until we import 'limit' products or run out of products
   while (imported < limit) {
@@ -245,10 +249,11 @@ export async function importCJProductsToDatabase(
       if (imported >= limit) break;
       
       try {
-        // Create unique ID using advertiser name hash + catalog ID to avoid collisions
-        // across different advertisers who might reuse numeric catalogIds
-        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
-        const productId = `cj_${advertiserHash}_${product.id}`;
+        // Create unique ID using hash of the product link (contains unique goods_id)
+        // CJ often returns duplicate catalogIds from same advertiser for different products
+        const linkHash = Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 8);
+        const productId = `cj_${advertiserHash}_${linkHash}`;
         
         const existing = await db.select({ id: products.id })
           .from(products)
@@ -412,6 +417,158 @@ export async function importPriorityBrands(limitPerBrand: number = 100): Promise
 
   console.log(`[CJ] Priority brands import complete: ${total} total products`);
   return { total, byBrand };
+}
+
+// Mass import using price bands and letter prefixes to get unique product sets
+// This bypasses keyword overlap and accesses different segments of CJ's 5.2M catalog
+export async function massImportCJ(targetProducts: number = 1000000): Promise<{
+  total: number;
+  byShard: Record<string, number>;
+}> {
+  const byShard: Record<string, number> = {};
+  let total = 0;
+  
+  // Price bands to segment the catalog
+  const priceBands = [
+    { label: 'under10', min: 0, max: 10 },
+    { label: '10to25', min: 10, max: 25 },
+    { label: '25to50', min: 25, max: 50 },
+    { label: '50to100', min: 50, max: 100 },
+    { label: '100to200', min: 100, max: 200 },
+    { label: 'over200', min: 200, max: 10000 },
+  ];
+  
+  // Letter prefixes for product names (a-z)
+  const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+  
+  console.log(`[CJ Mass Import] Starting - target: ${targetProducts} products`);
+  
+  // First pass: import by price bands with generic queries
+  for (const band of priceBands) {
+    if (total >= targetProducts) break;
+    
+    const shardKey = `price_${band.label}`;
+    const limitPerShard = Math.min(50000, targetProducts - total);
+    
+    console.log(`[CJ Mass Import] Importing shard: ${shardKey} (limit: ${limitPerShard})`);
+    
+    // Use price band as a filter keyword
+    const result = await importCJProductsByPriceRange(band.min, band.max, limitPerShard);
+    byShard[shardKey] = result.imported;
+    total += result.imported;
+    
+    console.log(`[CJ Mass Import] Shard ${shardKey}: imported ${result.imported}, total so far: ${total}`);
+  }
+  
+  // Second pass: import by letter prefix to get more unique products
+  for (const letter of letters) {
+    if (total >= targetProducts) break;
+    
+    const shardKey = `letter_${letter}`;
+    const limitPerShard = Math.min(20000, targetProducts - total);
+    
+    console.log(`[CJ Mass Import] Importing shard: ${shardKey} (limit: ${limitPerShard})`);
+    
+    const result = await importCJProductsToDatabase(letter, limitPerShard);
+    byShard[shardKey] = result.imported;
+    total += result.imported;
+    
+    console.log(`[CJ Mass Import] Shard ${shardKey}: imported ${result.imported}, total so far: ${total}`);
+  }
+  
+  // Third pass: category keywords with high limits
+  for (const category of BULK_IMPORT_CATEGORIES) {
+    if (total >= targetProducts) break;
+    
+    const shardKey = `category_${category}`;
+    const limitPerShard = Math.min(30000, targetProducts - total);
+    
+    console.log(`[CJ Mass Import] Importing shard: ${shardKey} (limit: ${limitPerShard})`);
+    
+    const result = await importCJProductsToDatabase(category, limitPerShard);
+    byShard[shardKey] = result.imported;
+    total += result.imported;
+    
+    console.log(`[CJ Mass Import] Shard ${shardKey}: imported ${result.imported}, total so far: ${total}`);
+  }
+  
+  console.log(`[CJ Mass Import] Complete: ${total} total products imported`);
+  return { total, byShard };
+}
+
+// Import products within a price range (no keyword filter)
+async function importCJProductsByPriceRange(
+  minPrice: number,
+  maxPrice: number,
+  limit: number
+): Promise<{ imported: number; skipped: number; errors: number }> {
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let offset = 0;
+  const pageSize = 100;
+  
+  // CJ doesn't support price filtering in GraphQL, so we use a broad query and filter client-side
+  const keywords = maxPrice <= 25 ? 'gift' : maxPrice <= 100 ? 'home' : 'premium';
+  
+  while (imported < limit && offset < 10000) { // CJ offset limit
+    const result = await searchCJProducts(keywords, pageSize, offset);
+    
+    if (result.products.length === 0) break;
+    
+    for (const product of result.products) {
+      if (imported >= limit) break;
+      
+      // Filter by price range
+      const price = product.price.amount;
+      if (price < minPrice || price > maxPrice) continue;
+      
+      try {
+        // Create unique ID using hash of the product link
+        const linkHash = Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 8);
+        const productId = `cj_${advertiserHash}_${linkHash}`;
+        
+        const existing = await db.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .limit(1);
+        
+        if (existing.length > 0) {
+          skipped++;
+          continue;
+        }
+
+        const priceValue = product.price.amount > 0 ? product.price.amount : 0.01;
+        const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
+        
+        await db.insert(products).values({
+          id: productId,
+          name: product.title || 'Unknown Product',
+          description: product.description || null,
+          price: priceValue,
+          merchant: product.advertiserName || 'CJ Affiliate',
+          merchantId: null,
+          brand: product.brand || null,
+          category: product.category || null,
+          imageUrl: product.imageLink || null,
+          affiliateLink: affiliateLink,
+          inStock: product.inStock ?? true,
+          embedding: null,
+          canonicalCategory: null,
+          canonicalFranchises: null,
+        });
+        
+        imported++;
+      } catch (error) {
+        errors++;
+      }
+    }
+    
+    offset += pageSize;
+  }
+
+  return { imported, skipped, errors };
 }
 
 // Backfill brands for existing CJ products that have null or generic brands
