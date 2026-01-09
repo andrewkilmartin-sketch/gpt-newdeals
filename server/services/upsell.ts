@@ -90,9 +90,10 @@ export async function getUpsellProducts(context: ContentContext, limit = 2): Pro
   const results: UpsellProduct[] = [];
   const seenIds = new Set<string>();
   
-  for (const keyword of searchKeywords.slice(0, 4)) {
-    if (results.length >= limit) break;
-    
+  const keywordsToTry = searchKeywords.slice(0, limit * 2);
+  const keywordConditions = keywordsToTry.map(k => `name ILIKE '%${k.replace(/'/g, "''")}%'`).join(' OR ');
+  
+  if (keywordConditions) {
     const matchingProducts = await db.select({
       id: products.id,
       name: products.name,
@@ -102,11 +103,13 @@ export async function getUpsellProducts(context: ContentContext, limit = 2): Pro
       merchant: products.merchant,
     })
     .from(products)
-    .where(sql`LOWER(${products.name}) LIKE ${'%' + keyword.toLowerCase() + '%'}`)
-    .orderBy(sql`RANDOM()`)
-    .limit(1);
+    .where(sql.raw(`(${keywordConditions})`))
+    .limit(limit * 3);
     
-    for (const product of matchingProducts) {
+    const shuffled = matchingProducts.sort(() => Math.random() - 0.5);
+    
+    for (const product of shuffled) {
+      if (results.length >= limit) break;
       if (!seenIds.has(product.id)) {
         seenIds.add(product.id);
         results.push({

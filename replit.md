@@ -38,6 +38,14 @@ Key architectural decisions and features include:
     - **Results**: Brand queries now return in 30-200ms (down from 7-18 seconds)
 -   **Fallback Behavior**: If OpenAI services fail, the system gracefully falls back to basic keyword search, logging warnings.
 
+-   **TMDB Integration (Jan 2026)**:
+    - Movie data from The Movie Database (TMDB) API for cinema listings and upcoming films
+    - Tables: `movies` (TMDB movie cache), `upsell_mappings` (genre-to-product keywords), `upsell_clicks` (tracking)
+    - Services: `server/services/tmdb.ts` (sync/fetch), `server/services/upsell.ts` (smart product recommendations)
+    - Mixed Results API: `/api/mixed/movies` returns 6 content tiles + 2 upsell tiles per CTO spec
+    - Performance: 146ms response time for mixed results
+    - Attribution: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.
 -   **Awin API**: Integrated for comprehensive shopping deals, product data feeds, and promotional content.
@@ -45,3 +53,4 @@ Key architectural decisions and features include:
 -   **Kids Pass**: A sponsor integration providing specific promotional links and access to partner attractions.
 -   **Uber Eats**: Featured for food deals, especially relevant for movie night recommendations.
 -   **Commission Junction (CJ) API**: Integrated for accessing and importing additional product catalogs from various advertisers.
+-   **TMDB API**: The Movie Database API for cinema now playing, upcoming films, and movie metadata with UK certifications.
