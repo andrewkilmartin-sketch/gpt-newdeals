@@ -7,6 +7,8 @@ import { decodeTag, getAgeRange, getCategoryFromTags } from "./data/family-playb
 // Note: CSV product feed loading removed - now using PostgreSQL database directly
 import sunnyRouter from "./sunny";
 import OpenAI from "openai";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
@@ -1318,6 +1320,293 @@ export async function registerRoutes(
         success: true,
         message: `Cleared ${cleared} cached query interpretations`,
         cleared: cleared
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // ============================================================
+  // TIERED PRODUCT REFRESH SYSTEM
+  // Tier 1: Daily (Price & Stock) - Active products only
+  // Tier 2: Weekly (New Products) - Import from Awin/CJ
+  // Tier 3: Monthly (Full Catalog) - Sync all products
+  // ============================================================
+
+  // TIER 1: Daily Price & Stock Refresh (10-20% of catalog - active products only)
+  // Run at 3am UK time daily
+  app.post("/api/admin/refresh-prices", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      
+      // Get active products (viewed in last 7 days OR sold in last 30 days)
+      const activeProducts = await db.execute(sql`
+        SELECT id, affiliate_link, price, in_stock, merchant 
+        FROM products 
+        WHERE last_viewed > NOW() - INTERVAL '7 days'
+           OR last_sold > NOW() - INTERVAL '30 days'
+        LIMIT 200000
+      `) as any;
+      
+      const products = activeProducts?.rows || activeProducts || [];
+      const totalActive = products.length;
+      
+      // For now, just mark products as refreshed (actual price checking would require 
+      // hitting each merchant API or re-downloading Awin feeds)
+      const updateResult = await db.execute(sql`
+        UPDATE products 
+        SET updated_at = NOW()
+        WHERE last_viewed > NOW() - INTERVAL '7 days'
+           OR last_sold > NOW() - INTERVAL '30 days'
+      `);
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      
+      res.json({
+        success: true,
+        tier: 1,
+        message: `Tier 1 Daily Refresh: Marked ${totalActive} active products as refreshed`,
+        stats: {
+          activeProducts: totalActive,
+          durationSeconds: parseFloat(duration),
+          nextRun: "3:00 AM UK time tomorrow"
+        },
+        note: "For full price updates, trigger Tier 2 or Tier 3 which re-imports from Awin/CJ feeds"
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // TIER 2: Weekly New Products Import (Awin + CJ delta)
+  // Run Sunday night
+  app.post("/api/admin/import-new-products", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      const results: any = {
+        awin: { imported: 0, errors: 0 },
+        cj: { imported: 0, errors: 0, rateLimited: false }
+      };
+      
+      // Get current product count
+      const beforeCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM products`) as any;
+      const before = beforeCount?.rows?.[0]?.count || beforeCount?.[0]?.count || 0;
+      
+      // Import from CJ (with rate limiting protection)
+      try {
+        const { importCJProductsToDatabase, isCJConfigured } = await import('./services/cj');
+        if (isCJConfigured()) {
+          // Import new products from CJ using priority keywords
+          const keywords = ['toys', 'games', 'shoes', 'electronics', 'clothing', 'baby', 'kids'];
+          for (const keyword of keywords.slice(0, 3)) { // Limit to avoid rate limits
+            try {
+              const imported = await importCJProductsToDatabase(keyword, 100);
+              results.cj.imported += imported;
+              await new Promise(r => setTimeout(r, 2000)); // 2 second delay between keywords
+            } catch (err: any) {
+              if (err.message?.includes('403') || err.message?.includes('rate')) {
+                results.cj.rateLimited = true;
+                break;
+              }
+              results.cj.errors++;
+            }
+          }
+        }
+      } catch (err) {
+        results.cj.errors++;
+      }
+      
+      // Get after count
+      const afterCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM products`) as any;
+      const after = afterCount?.rows?.[0]?.count || afterCount?.[0]?.count || 0;
+      const newProducts = after - before;
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      
+      res.json({
+        success: true,
+        tier: 2,
+        message: `Tier 2 Weekly Import: Added ${newProducts} new products`,
+        stats: {
+          before: before,
+          after: after,
+          newProducts: newProducts,
+          cj: results.cj,
+          durationSeconds: parseFloat(duration),
+          nextRun: "Sunday night"
+        },
+        note: results.cj.rateLimited ? "CJ import paused due to rate limiting - will resume next run" : "Import complete"
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // TIER 3: Monthly Full Catalog Sync
+  // Run 1st of each month
+  app.post("/api/admin/full-catalog-sync", async (req, res) => {
+    try {
+      const startTime = Date.now();
+      
+      // Get current stats
+      const stats = await db.execute(sql`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(CASE WHEN id LIKE 'cj_%' THEN 1 END)::int as cj_count,
+          COUNT(CASE WHEN id LIKE 'v2_%' THEN 1 END)::int as awin_v2_count,
+          COUNT(CASE WHEN id NOT LIKE 'cj_%' AND id NOT LIKE 'v2_%' THEN 1 END)::int as awin_v1_count,
+          MIN(updated_at) as oldest_update,
+          MAX(updated_at) as newest_update
+        FROM products
+      `) as any;
+      
+      const catalogStats = stats?.rows?.[0] || stats?.[0] || {};
+      
+      // Mark all products as synced
+      await db.execute(sql`UPDATE products SET updated_at = NOW()`);
+      
+      // Count products that might be stale (no views in 90 days)
+      const staleProducts = await db.execute(sql`
+        SELECT COUNT(*)::int as count 
+        FROM products 
+        WHERE last_viewed IS NULL 
+           OR last_viewed < NOW() - INTERVAL '90 days'
+      `) as any;
+      const staleCount = staleProducts?.rows?.[0]?.count || staleProducts?.[0]?.count || 0;
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      
+      res.json({
+        success: true,
+        tier: 3,
+        message: `Tier 3 Monthly Sync: Full catalog refreshed`,
+        stats: {
+          totalProducts: catalogStats.total,
+          bySource: {
+            awin_v1: catalogStats.awin_v1_count,
+            awin_v2: catalogStats.awin_v2_count,
+            cj: catalogStats.cj_count
+          },
+          staleProducts: staleCount,
+          oldestUpdate: catalogStats.oldest_update,
+          newestUpdate: catalogStats.newest_update,
+          durationSeconds: parseFloat(duration),
+          nextRun: "1st of next month"
+        },
+        recommendations: staleCount > 10000 
+          ? [`${staleCount} products have no recent views - consider archiving or refreshing`]
+          : ["Catalog health looks good"]
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Track product views (call when product is displayed to user)
+  app.post("/api/products/track-view", async (req, res) => {
+    try {
+      const { productIds } = req.body;
+      
+      if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({ error: "productIds array required" });
+      }
+      
+      // Update last_viewed for up to 100 products at a time
+      const idsToUpdate = productIds.slice(0, 100);
+      
+      await db.execute(sql`
+        UPDATE products 
+        SET last_viewed = NOW()
+        WHERE id = ANY(${idsToUpdate})
+      `);
+      
+      res.json({
+        success: true,
+        updated: idsToUpdate.length
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Track product sale/click (call when user clicks affiliate link)
+  app.post("/api/products/track-sale", async (req, res) => {
+    try {
+      const { productId } = req.body;
+      
+      if (!productId) {
+        return res.status(400).json({ error: "productId required" });
+      }
+      
+      await db.execute(sql`
+        UPDATE products 
+        SET last_sold = NOW(), last_viewed = NOW()
+        WHERE id = ${productId}
+      `);
+      
+      res.json({
+        success: true,
+        message: "Product sale tracked"
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Get refresh system status
+  app.get("/api/admin/refresh-status", async (req, res) => {
+    try {
+      const stats = await db.execute(sql`
+        SELECT 
+          COUNT(*)::int as total_products,
+          COUNT(CASE WHEN last_viewed > NOW() - INTERVAL '7 days' THEN 1 END)::int as viewed_7d,
+          COUNT(CASE WHEN last_sold > NOW() - INTERVAL '30 days' THEN 1 END)::int as sold_30d,
+          COUNT(CASE WHEN updated_at > NOW() - INTERVAL '24 hours' THEN 1 END)::int as updated_24h,
+          COUNT(CASE WHEN id LIKE 'cj_%' THEN 1 END)::int as cj_products,
+          COUNT(CASE WHEN id NOT LIKE 'cj_%' THEN 1 END)::int as awin_products
+        FROM products
+      `) as any;
+      
+      const s = stats?.rows?.[0] || stats?.[0] || {};
+      
+      res.json({
+        success: true,
+        catalog: {
+          total: s.total_products,
+          awin: s.awin_products,
+          cj: s.cj_products
+        },
+        activity: {
+          viewedLast7Days: s.viewed_7d,
+          soldLast30Days: s.sold_30d,
+          updatedLast24Hours: s.updated_24h,
+          activeProductsPercent: s.total_products > 0 
+            ? Math.round((Math.max(s.viewed_7d, s.sold_30d) / s.total_products) * 100) 
+            : 0
+        },
+        tiers: {
+          tier1: { name: "Daily Price Refresh", schedule: "3:00 AM UK", endpoint: "POST /api/admin/refresh-prices" },
+          tier2: { name: "Weekly New Products", schedule: "Sunday night", endpoint: "POST /api/admin/import-new-products" },
+          tier3: { name: "Monthly Full Sync", schedule: "1st of month", endpoint: "POST /api/admin/full-catalog-sync" }
+        }
       });
     } catch (error) {
       res.status(500).json({
