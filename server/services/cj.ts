@@ -87,6 +87,19 @@ export async function searchCJProducts(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[CJ] API error ${response.status}: ${errorText}`);
+      
+      // Handle rate limiting with specific error message
+      if (response.status === 429) {
+        console.error('[CJ] Rate limited by CJ API - please wait before retrying');
+        throw new Error('CJ API rate limit exceeded. Please wait before retrying.');
+      }
+      
+      // Handle server errors
+      if (response.status >= 500) {
+        console.error('[CJ] CJ API server error - service may be temporarily unavailable');
+        throw new Error('CJ API server error. Please try again later.');
+      }
+      
       return { totalCount: 0, products: [] };
     }
 
@@ -138,7 +151,10 @@ export async function importCJProductsToDatabase(
 
   for (const product of result.products) {
     try {
-      const productId = `cj_${product.id}`;
+      // Create unique ID using advertiser name hash + catalog ID to avoid collisions
+      // across different advertisers who might reuse numeric catalogIds
+      const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
+      const productId = `cj_${advertiserHash}_${product.id}`;
       
       const existing = await db.select({ id: products.id })
         .from(products)
@@ -150,17 +166,25 @@ export async function importCJProductsToDatabase(
         continue;
       }
 
+      // Map to all required fields that the products schema expects
+      const priceValue = product.price.amount > 0 ? product.price.amount : 0.01;
+      
       await db.insert(products).values({
         id: productId,
-        name: product.title,
-        description: product.description,
-        price: product.price.amount,
-        merchant: product.advertiserName,
+        name: product.title || 'Unknown Product',
+        description: product.description || null,
+        price: priceValue,
+        merchant: product.advertiserName || 'CJ Affiliate',
+        merchantId: null, // CJ doesn't provide numeric merchant IDs
         brand: product.brand || null,
         category: product.category || null,
-        imageUrl: product.imageLink,
-        affiliateLink: product.link,
+        imageUrl: product.imageLink || null,
+        affiliateLink: product.link || '',
         inStock: product.inStock ?? true,
+        // Optional fields set to null - will be populated by search enrichment later
+        embedding: null,
+        canonicalCategory: null,
+        canonicalFranchises: null,
       });
       
       imported++;

@@ -10,6 +10,32 @@ I prefer simple language. I want iterative development. Ask before making major 
 
 ## MAJOR MILESTONES
 
+### January 9, 2026 - CJ (Commission Junction) Integration
+**Second affiliate network added to fill inventory gaps.**
+
+Key achievements:
+- CJ Product Feed API integration using GraphQL (https://ads.api.cj.com/query)
+- 5 new API endpoints for CJ management
+- Unique ID strategy: `cj_{advertiser}_{catalogId}` prevents collisions
+- Rate limiting and error handling implemented
+
+New CJ endpoints:
+- `GET /api/cj/test` - Test CJ API connection
+- `POST /api/cj/search` - Search CJ products (preview without importing)
+- `POST /api/cj/import` - Import products by keyword
+- `POST /api/cj/import-priority-brands` - Import missing brands (Barbie, Playmobil, etc.)
+- `GET /api/cj/stats` - Count CJ products in database
+
+Required secrets:
+- `CJ_API_TOKEN` - Personal Access Token from CJ Developer Portal
+- `CJ_PUBLISHER_ID` - Your CJ publisher ID
+
+Files:
+- `server/services/cj.ts` - CJ service with GraphQL integration
+- Routes added to `server/routes.ts` around line 1333
+
+---
+
 ### January 8, 2026 - Railway Deployment + V2 Migration Success
 **This is a stable, working checkpoint. Return here if things break.**
 
