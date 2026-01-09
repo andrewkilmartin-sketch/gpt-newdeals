@@ -620,21 +620,13 @@ export class DatabaseStorage implements IStorage {
     const mustMatchTerm = detectedBrand || detectedCharacter;
     
     if (mustMatchTerm) {
-      console.log(`[Storage] BRAND/CHARACTER DETECTED: "${mustMatchTerm}" - will filter results strictly`);
-      console.log(`[Storage] MUSTMATCH WILL BE ENFORCED IN SQL WHERE CLAUSE`);
+      console.log(`[Storage] BRAND/CHARACTER DETECTED: "${mustMatchTerm}" - will post-filter results`);
     }
     
-    // Build mustMatch SQL filter - this will be added to ALL queries
-    // This is the CRITICAL fix: mustMatch must be in SQL, not just post-filtering
-    // NOTE: Only check name and brand - description matching causes false positives
-    // (e.g., "Em Clarkson" in book description matching "clarks" brand search)
-    const mustMatchSqlFilter = mustMatchTerm 
-      ? `(LOWER(name) LIKE '%${mustMatchTerm.toLowerCase().replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${mustMatchTerm.toLowerCase().replace(/'/g, "''")}%')`
-      : null;
-    
-    if (mustMatchSqlFilter) {
-      console.log(`[Storage] MUSTMATCH SQL FILTER: ${mustMatchSqlFilter}`);
-    }
+    // PERFORMANCE FIX: mustMatch is now applied as post-filtering, not SQL WHERE
+    // SQL LIKE queries on 1.1M rows cause 18+ second sequential scans
+    // Post-filtering is much faster when combined with indexed searches
+    const mustMatchSqlFilter = null; // Disabled for performance - use post-filtering instead
     
     // Known multi-word phrases to match together (brands, franchises, etc.)
     const knownPhrases = [
@@ -698,19 +690,9 @@ export class DatabaseStorage implements IStorage {
       baseConditions.push(lte(productsTable.price, maxPrice));
     }
     
-    // CRITICAL FIX: Add mustMatch as a SQL WHERE condition for keyword searches
-    // This ensures ALL keyword phases only return products containing the brand/character
-    // NOTE: Only check name and brand fields - description causes false positives
-    // (e.g., "Em Clarkson" in book description matching "clarks" brand search)
-    if (mustMatchTerm) {
-      const mustMatchPattern = `%${mustMatchTerm.toLowerCase()}%`;
-      const mustMatchCondition = or(
-        ilike(productsTable.name, mustMatchPattern),
-        ilike(productsTable.brand, mustMatchPattern)
-      );
-      baseConditions.push(mustMatchCondition);
-      console.log(`[Keyword Search] MUSTMATCH ENFORCED: All phases require "${mustMatchTerm}" in name/brand ONLY`);
-    }
+    // PERFORMANCE FIX: mustMatch is now post-filtered, not SQL WHERE
+    // The ilike conditions were causing 18+ second sequential scans on 1.1M rows
+    // Post-filtering is applied after fast indexed searches complete
     
     let keywordResults: Product[] = [];
     const fetchLimitPerPhase = Math.max(limit * 5, 100);
