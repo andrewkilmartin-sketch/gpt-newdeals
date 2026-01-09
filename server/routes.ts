@@ -8,7 +8,7 @@ import { decodeTag, getAgeRange, getCategoryFromTags } from "./data/family-playb
 import sunnyRouter from "./sunny";
 import OpenAI from "openai";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
+import { sql, or } from "drizzle-orm";
 import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
@@ -2392,6 +2392,13 @@ Format: ["id1", "id2", ...]`
       }
 
       // STEP 2: Search using expanded keywords (multiple searches for semantic queries)
+      // FIX: If searchTerms is empty but we have a detected brand/character, seed it with the original query
+      // This prevents the semantic search from running with no term groups and returning 0 results
+      if (interpretation.isSemanticQuery && interpretation.searchTerms.length === 0 && detectedBrand) {
+        console.log(`[Shop Search] FIX: GPT returned empty keywords, seeding searchTerms with original query "${query}"`);
+        interpretation.searchTerms = [[query]];
+      }
+      
       if (interpretation.isSemanticQuery && interpretation.searchTerms.length > 0) {
         // Run multiple searches for each keyword combination
         const allCandidates: any[] = [];
