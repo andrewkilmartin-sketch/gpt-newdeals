@@ -5362,12 +5362,13 @@ ONLY use IDs from the list. Never invent IDs.`
   
   app.post('/api/diagnostic/search', async (req, res) => {
     try {
-      const { query } = req.body;
+      const { query, limit = 20 } = req.body;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'Query is required' });
       }
       
+      const startTime = Date.now();
       const result: any = {
         query: query,
         timestamp: new Date().toISOString(),
@@ -5380,35 +5381,33 @@ ONLY use IDs from the list. Never invent IDs.`
       const { products } = await import('@shared/schema');
       const { sql, ilike, or } = await import('drizzle-orm');
       
-      // STEP 1: INTENT DETECTION + CATEGORY MAPPING
+      // STEP 1: INTENT DETECTION
       const queryLower = query.toLowerCase().trim();
       const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
       const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema', 'at the movies'];
       const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
                              cinemaIntentPhrases.some(p => queryLower.includes(p));
       
-      // Category mapping for fallback detection
-      const categoryMap: Record<string, string[]> = {
-        'barbie': ['doll', 'toy', 'girls', 'mattel', 'fashion doll'],
-        'lego': ['toy', 'building', 'bricks', 'construction'],
-        'paw patrol': ['toy', 'kids', 'nickelodeon', 'preschool'],
-        'nike': ['shoes', 'trainers', 'footwear', 'sports', 'sneakers'],
-        'clarks': ['shoes', 'footwear', 'kids shoes'],
-        'playmobil': ['toy', 'figures', 'playsets'],
-      };
-      
       const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
-      const relatedCategories = categoryMap[queryLower] || 
-                                queryWords.flatMap(w => categoryMap[w] || []);
       
       result.diagnosis.intent = {
         detected: isCinemaIntent ? 'cinema' : 'product',
         queryWords: queryWords,
-        isCinemaQuery: isCinemaIntent,
-        relatedCategories: relatedCategories
+        isCinemaQuery: isCinemaIntent
       };
       
-      // STEP 2: DATABASE CHECK - EXACT MATCHES
+      // Handle cinema intent
+      if (isCinemaIntent) {
+        result.verdict = 'CINEMA_INTENT';
+        result.fixAction = 'Routes to TMDB movies.';
+        result.diagnosis.search = { returnedCount: 0, searchTimeMs: Date.now() - startTime };
+        result.diagnosis.database = { exactMatches: 0, productsExist: false };
+        result.diagnosis.relevance = { exactMatchCount: 0, relevancePercent: 0 };
+        result.diagnosis.images = { withImages: 0, imagePercent: 0 };
+        return res.json(result);
+      }
+      
+      // STEP 2: DATABASE COUNT - How many products EXIST for this query?
       const dbCheckStart = Date.now();
       const searchPattern = `%${queryLower}%`;
       
@@ -5422,152 +5421,134 @@ ONLY use IDs from the list. Never invent IDs.`
         WHERE 
           LOWER(name) LIKE ${searchPattern}
           OR LOWER(brand) LIKE ${searchPattern}
+          OR LOWER(merchant) LIKE ${searchPattern}
       `);
       
       const dbRow = dbCheckResult[0] as any;
-      const exactMatches = parseInt(dbRow?.total_matches || '0');
+      const dbProductCount = parseInt(dbRow?.total_matches || '0');
       
       result.diagnosis.database = {
-        exactMatches: exactMatches,
-        productsExist: exactMatches > 0,
+        exactMatches: dbProductCount,
+        productsExist: dbProductCount > 0,
         withImages: parseInt(dbRow?.with_images || '0'),
         awinProducts: parseInt(dbRow?.awin_count || '0'),
         cjProducts: parseInt(dbRow?.cj_count || '0'),
         checkTimeMs: Date.now() - dbCheckStart
       };
       
-      // STEP 3: SEARCH EXECUTION - WHAT DID SEARCH RETURN?
+      // STEP 3: CALL THE REAL SHOP SEARCH API (same logic users see)
       const searchStart = Date.now();
       
-      const searchResults = await db.select({
-        id: products.id,
-        name: products.name,
-        merchant: products.merchant,
-        brand: products.brand,
-        category: products.category,
-        price: products.price,
-        imageUrl: products.imageUrl,
-        source: products.source
-      }).from(products)
-        .where(or(
-          ilike(products.name, searchPattern),
-          ilike(products.brand, searchPattern)
-        ))
-        .limit(20);
+      let searchResults: any[] = [];
+      let searchApiResponse: any = null;
+      
+      try {
+        const response = await fetch(`http://localhost:5000/api/shop/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, limit: Math.min(limit, 20) })
+        });
+        searchApiResponse = await response.json();
+        searchResults = searchApiResponse?.products || [];
+      } catch (fetchError: any) {
+        console.error('[Diagnostic] Failed to call shop search:', fetchError.message);
+      }
       
       const searchTime = Date.now() - searchStart;
       
       result.diagnosis.search = {
         returnedCount: searchResults.length,
         searchTimeMs: searchTime,
-        topResults: searchResults.slice(0, 5).map(p => ({
+        apiSuccess: searchApiResponse?.success ?? false,
+        interpretation: searchApiResponse?.interpretation,
+        totalFromApi: searchApiResponse?.total || searchResults.length,
+        topResults: searchResults.slice(0, 5).map((p: any) => ({
           name: (p.name || '').substring(0, 50),
           merchant: p.merchant,
           category: p.category,
           price: p.price,
-          hasImage: !!(p.imageUrl && p.imageUrl.trim() !== ''),
-          source: p.source
+          hasImage: !!(p.imageUrl && p.imageUrl.trim() !== '')
         }))
       };
       
-      // STEP 4: RELEVANCE CHECK - ARE RESULTS CORRECT OR GOOD FALLBACKS?
+      // STEP 4: RELEVANCE CHECK
       let exactMatchCount = 0;
-      let relevantFallbackCount = 0;
-      let irrelevantCount = 0;
+      let relevantCount = 0;
       
       for (const product of searchResults.slice(0, 10)) {
         const nameLower = (product.name || '').toLowerCase();
-        const categoryLower = (product.category || '').toLowerCase();
         const brandLower = (product.brand || '').toLowerCase();
+        const merchantLower = (product.merchant || '').toLowerCase();
         
-        // Check for exact match (query words in product name/brand)
         const matchedWords = queryWords.filter((w: string) => 
-          nameLower.includes(w) || brandLower.includes(w)
+          nameLower.includes(w) || brandLower.includes(w) || merchantLower.includes(w)
         );
         
         if (matchedWords.length >= Math.ceil(queryWords.length / 2)) {
           exactMatchCount++;
-        } else if (relatedCategories.length > 0) {
-          // Check if it's a relevant fallback (category match)
-          const isRelevantFallback = relatedCategories.some(cat => 
-            nameLower.includes(cat) || categoryLower.includes(cat)
-          );
-          if (isRelevantFallback) {
-            relevantFallbackCount++;
-          } else {
-            irrelevantCount++;
-          }
-        } else {
-          irrelevantCount++;
+          relevantCount++;
+        } else if (matchedWords.length > 0) {
+          relevantCount++;
         }
       }
       
       const totalResults = Math.min(10, searchResults.length);
       const relevancePercent = totalResults > 0 
-        ? ((exactMatchCount + relevantFallbackCount) / totalResults) * 100 
+        ? (relevantCount / totalResults) * 100 
         : 0;
       
       result.diagnosis.relevance = {
-        exactMatchCount: exactMatchCount,
-        relevantFallbackCount: relevantFallbackCount,
-        irrelevantCount: irrelevantCount,
+        exactMatchCount,
+        relevantCount,
         relevancePercent: Math.round(relevancePercent),
-        queryWords: queryWords
+        queryWords
       };
       
       // STEP 5: IMAGE CHECK
-      const withImages = searchResults.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
+      const withImages = searchResults.filter((p: any) => p.imageUrl && p.imageUrl.trim() !== '').length;
       const imagePercent = searchResults.length > 0 
         ? (withImages / searchResults.length) * 100 
         : 0;
       
       result.diagnosis.images = {
-        withImages: withImages,
+        withImages,
         withoutImages: searchResults.length - withImages,
         imagePercent: Math.round(imagePercent)
       };
       
-      // STEP 6: SMART VERDICT LOGIC (understands fallbacks)
-      if (isCinemaIntent) {
-        result.verdict = 'CINEMA_INTENT';
-        result.fixAction = 'This query routes to TMDB movies.';
-      }
-      else if (exactMatches === 0 && searchResults.length === 0) {
-        // No exact match AND search returned nothing
+      // STEP 6: VERDICT - Compare DB count vs API results
+      const totalTimeMs = Date.now() - startTime;
+      
+      if (dbProductCount === 0 && searchResults.length === 0) {
         result.verdict = 'INVENTORY_GAP';
-        result.fixAction = 'No exact or related products exist. Add to Awin/CJ feed.';
+        result.fixAction = 'No products exist in catalog. Add to Awin/CJ feed.';
       }
-      else if (exactMatches === 0 && searchResults.length > 0 && relevancePercent >= 50) {
-        // No exact match but found RELEVANT fallbacks - this is GOOD!
-        result.verdict = 'PASS_WITH_FALLBACK';
-        result.fixAction = `No exact match but found ${relevantFallbackCount} related products. Consider adding exact products.`;
-      }
-      else if (exactMatches === 0 && searchResults.length > 0 && relevancePercent < 50) {
-        // No exact match and fallbacks are BAD (TV cabinets instead of dolls)
-        result.verdict = 'RANKING_BUG';
-        result.fixAction = `No exact match and found ${irrelevantCount} irrelevant results. Fix category fallback logic.`;
-      }
-      else if (exactMatches > 0 && searchResults.length === 0) {
-        // Products exist but search failed - BUG
+      else if (dbProductCount > 0 && searchResults.length === 0) {
         result.verdict = 'SEARCH_BUG';
-        result.fixAction = `${exactMatches} exact matches exist but search returned 0. Fix search algorithm.`;
+        result.fixAction = `${dbProductCount} products exist but search returned 0. Check search algorithm.`;
       }
-      else if (relevancePercent < 50) {
+      else if (searchResults.length > 0 && relevancePercent < 50) {
         result.verdict = 'RANKING_BUG';
-        result.fixAction = 'Products exist and were found, but wrong ones ranked top. Fix scoring.';
+        result.fixAction = `Found ${searchResults.length} results but only ${relevantCount} relevant. Fix ranking.`;
       }
-      else if (imagePercent < 50) {
+      else if (searchResults.length > 0 && imagePercent < 50) {
         result.verdict = 'IMAGE_BUG';
-        result.fixAction = `Search works but ${searchResults.length - withImages} products missing images.`;
+        result.fixAction = `Found products but ${searchResults.length - withImages} missing images.`;
       }
-      else if (searchTime > 5000) {
+      else if (totalTimeMs > 5000) {
         result.verdict = 'SPEED_BUG';
-        result.fixAction = `Search took ${searchTime}ms. Optimize queries.`;
+        result.fixAction = `Search took ${totalTimeMs}ms. Optimize for <2s target.`;
+      }
+      else if (searchResults.length > 0 && relevancePercent >= 50) {
+        result.verdict = 'PASS';
+        result.fixAction = 'All checks passed.';
       }
       else {
-        result.verdict = 'PASS';
-        result.fixAction = 'All checks passed - found exact matches.';
+        result.verdict = 'UNKNOWN';
+        result.fixAction = 'Unexpected state - review manually.';
       }
+      
+      result.totalTimeMs = totalTimeMs;
       
       res.json(result);
     } catch (error: any) {
@@ -5578,125 +5559,134 @@ ONLY use IDs from the list. Never invent IDs.`
   
   app.post('/api/diagnostic/batch', async (req, res) => {
     try {
-      const { queries } = req.body;
+      const { queries, limit = 20 } = req.body;
       
       if (!queries || !Array.isArray(queries)) {
         return res.status(400).json({ error: 'queries array is required' });
       }
       
+      const { db } = await import('./db');
+      const { products } = await import('@shared/schema');
+      const { sql, ilike, or } = await import('drizzle-orm');
+      
       const results: any[] = [];
       
-      for (const query of queries.slice(0, 20)) { // Limit to 20 queries
+      for (const query of queries.slice(0, 20)) {
         try {
-          // Make internal request to single diagnostic endpoint
-          const singleResult = await new Promise((resolve) => {
-            const mockReq = { body: { query } };
-            const mockRes = {
-              json: (data: any) => resolve(data),
-              status: () => ({ json: (data: any) => resolve({ error: data }) })
-            };
-            // Inline the logic instead of calling the endpoint
-            (async () => {
-              const { db } = await import('./db');
-              const { products } = await import('@shared/schema');
-              const { sql, ilike, or } = await import('drizzle-orm');
-              
-              const queryLower = (query || '').toLowerCase().trim();
-              const searchPattern = `%${queryLower}%`;
-              
-              // Check intent
-              const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
-              const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema'];
-              const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
-                                     cinemaIntentPhrases.some(p => queryLower.includes(p));
-              
-              // DB check
-              const dbCheck = await db.execute(sql`
-                SELECT COUNT(*) as total FROM products 
-                WHERE LOWER(name) LIKE ${searchPattern} OR LOWER(brand) LIKE ${searchPattern}
-              `);
-              const dbCount = parseInt((dbCheck[0] as any)?.total || '0');
-              
-              // Search check
-              const searchStart = Date.now();
-              const searchResults = await db.select({
-                id: products.id,
-                name: products.name,
-                imageUrl: products.imageUrl
-              }).from(products)
-                .where(or(ilike(products.name, searchPattern), ilike(products.brand, searchPattern)))
-                .limit(20);
-              const searchTime = Date.now() - searchStart;
-              
-              // Relevance check
-              const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
-              let relevantCount = 0;
-              for (const p of searchResults.slice(0, 10)) {
-                const nameLower = (p.name || '').toLowerCase();
-                if (queryWords.filter((w: string) => nameLower.includes(w)).length >= Math.ceil(queryWords.length / 2)) {
-                  relevantCount++;
-                }
-              }
-              const relevance = searchResults.length > 0 ? (relevantCount / Math.min(10, searchResults.length)) * 100 : 0;
-              
-              // Image check
-              const withImages = searchResults.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
-              const imagePercent = searchResults.length > 0 ? (withImages / searchResults.length) * 100 : 0;
-              
-              // Verdict - smart logic that understands fallbacks
-              let verdict = 'PASS';
-              let fixAction = 'All checks passed.';
-              
-              if (isCinemaIntent) {
-                verdict = 'CINEMA_INTENT';
-                fixAction = 'Routes to TMDB movies.';
-              } else if (dbCount === 0 && searchResults.length === 0) {
-                verdict = 'INVENTORY_GAP';
-                fixAction = 'No exact or related products. Add to feed.';
-              } else if (dbCount === 0 && searchResults.length > 0 && relevance >= 50) {
-                verdict = 'PASS_WITH_FALLBACK';
-                fixAction = 'No exact match but found related products.';
-              } else if (dbCount === 0 && searchResults.length > 0 && relevance < 50) {
-                verdict = 'RANKING_BUG';
-                fixAction = 'Found irrelevant fallbacks. Fix category logic.';
-              } else if (dbCount > 0 && searchResults.length === 0) {
-                verdict = 'SEARCH_BUG';
-                fixAction = 'Products exist but search failed.';
-              } else if (relevance < 50) {
-                verdict = 'RANKING_BUG';
-                fixAction = 'Wrong products ranked top. Fix scoring.';
-              } else if (imagePercent < 50) {
-                verdict = 'IMAGE_BUG';
-                fixAction = 'Products missing images.';
-              } else if (searchTime > 5000) {
-                verdict = 'SPEED_BUG';
-                fixAction = 'Optimize queries.';
-              }
-              
-              resolve({
-                query,
-                verdict,
-                fixAction,
-                dbCount,
-                searchCount: searchResults.length,
-                relevance: Math.round(relevance),
-                imagePercent: Math.round(imagePercent),
-                timeMs: searchTime
-              });
-            })();
+          const startTime = Date.now();
+          const queryLower = (query || '').toLowerCase().trim();
+          const searchPattern = `%${queryLower}%`;
+          const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
+          
+          // Check cinema intent
+          const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
+          const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema'];
+          const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
+                                 cinemaIntentPhrases.some(p => queryLower.includes(p));
+          
+          if (isCinemaIntent) {
+            results.push({
+              query,
+              verdict: 'CINEMA_INTENT',
+              fixAction: 'Routes to TMDB movies.',
+              dbCount: 0,
+              searchCount: 0,
+              relevance: 0,
+              imagePercent: 0,
+              timeMs: Date.now() - startTime
+            });
+            continue;
+          }
+          
+          // DB count for this query
+          const dbCheck = await db.execute(sql`
+            SELECT COUNT(*) as total FROM products 
+            WHERE LOWER(name) LIKE ${searchPattern} 
+               OR LOWER(brand) LIKE ${searchPattern}
+               OR LOWER(merchant) LIKE ${searchPattern}
+          `);
+          const dbCount = parseInt((dbCheck[0] as any)?.total || '0');
+          
+          // Call actual shop search API
+          let searchResults: any[] = [];
+          let searchApiResponse: any = null;
+          
+          try {
+            const response = await fetch(`http://localhost:5000/api/shop/search`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query, limit: Math.min(limit, 20) })
+            });
+            searchApiResponse = await response.json();
+            searchResults = searchApiResponse?.products || [];
+          } catch (fetchError: any) {
+            console.error(`[Diagnostic Batch] Failed to call shop search for "${query}":`, fetchError.message);
+          }
+          
+          const searchTime = Date.now() - startTime;
+          
+          // Relevance check
+          let relevantCount = 0;
+          for (const p of searchResults.slice(0, 10)) {
+            const nameLower = (p.name || '').toLowerCase();
+            const brandLower = (p.brand || '').toLowerCase();
+            const merchantLower = (p.merchant || '').toLowerCase();
+            const matchedWords = queryWords.filter((w: string) => 
+              nameLower.includes(w) || brandLower.includes(w) || merchantLower.includes(w)
+            );
+            if (matchedWords.length >= Math.ceil(queryWords.length / 2)) {
+              relevantCount++;
+            }
+          }
+          const relevance = searchResults.length > 0 
+            ? (relevantCount / Math.min(10, searchResults.length)) * 100 
+            : 0;
+          
+          // Image check
+          const withImages = searchResults.filter((p: any) => p.imageUrl && p.imageUrl.trim() !== '').length;
+          const imagePercent = searchResults.length > 0 ? (withImages / searchResults.length) * 100 : 0;
+          
+          // Determine verdict
+          let verdict = 'PASS';
+          let fixAction = 'All checks passed.';
+          
+          if (dbCount === 0 && searchResults.length === 0) {
+            verdict = 'INVENTORY_GAP';
+            fixAction = 'No products in catalog. Add to feed.';
+          } else if (dbCount > 0 && searchResults.length === 0) {
+            verdict = 'SEARCH_BUG';
+            fixAction = `${dbCount} products exist but search returned 0.`;
+          } else if (searchResults.length > 0 && relevance < 50) {
+            verdict = 'RANKING_BUG';
+            fixAction = `Only ${relevantCount} of ${searchResults.length} results relevant.`;
+          } else if (searchResults.length > 0 && imagePercent < 50) {
+            verdict = 'IMAGE_BUG';
+            fixAction = `${searchResults.length - withImages} products missing images.`;
+          } else if (searchTime > 5000) {
+            verdict = 'SPEED_BUG';
+            fixAction = `Took ${searchTime}ms. Target <2s.`;
+          }
+          
+          results.push({
+            query,
+            verdict,
+            fixAction,
+            dbCount,
+            searchCount: searchResults.length,
+            relevance: Math.round(relevance),
+            imagePercent: Math.round(imagePercent),
+            timeMs: searchTime
           });
           
-          results.push(singleResult);
         } catch (err) {
           results.push({ query, verdict: 'ERROR', fixAction: 'Test failed', error: (err as Error).message });
         }
       }
       
-      // Summary - includes PASS_WITH_FALLBACK
+      // Summary
       const summary = {
         total: results.length,
         passed: results.filter(r => r.verdict === 'PASS').length,
-        passWithFallback: results.filter(r => r.verdict === 'PASS_WITH_FALLBACK').length,
         cinemaIntents: results.filter(r => r.verdict === 'CINEMA_INTENT').length,
         inventoryGaps: results.filter(r => r.verdict === 'INVENTORY_GAP').length,
         searchBugs: results.filter(r => r.verdict === 'SEARCH_BUG').length,
