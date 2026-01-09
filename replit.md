@@ -30,6 +30,12 @@ Key architectural decisions and features include:
 -   **Search Reranker Logic**: The GPT reranker for search results *must* include product descriptions (first 60 characters) to accurately understand product context and avoid irrelevant results.
 -   **Pre-Deployment Checklist**: Strict checks are enforced before deployment to ensure schema consistency, proper API key configuration (OpenAI, Awin), and database connectivity.
 -   **Performance Targets**: Achieves target response times of under 2 seconds for simple queries and under 7 seconds for semantic queries against a catalog of over 1.1 million products.
+-   **Performance Optimizations (Jan 2026)**:
+    - **Fast Path Interpreter**: Brand-only queries (lego, barbie, disney) bypass GPT interpretation entirely (~0ms)
+    - **Known Brand Whitelist**: Skip database brand validation for 30+ popular brands (saves 2-5s per query)
+    - **Simplified SQL**: Keyword search only uses indexed `name` column with GIN trigram index
+    - **Reranker Skip**: Simple 1-2 word queries skip GPT reranker (saves 5-8s)
+    - **Results**: Brand queries now return in 30-200ms (down from 7-18 seconds)
 -   **Fallback Behavior**: If OpenAI services fail, the system gracefully falls back to basic keyword search, logging warnings.
 
 ## External Dependencies

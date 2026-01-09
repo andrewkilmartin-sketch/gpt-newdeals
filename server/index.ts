@@ -6,6 +6,7 @@ import { createServer } from "http";
 import { verifyDatabaseIntegrity } from "./boot/dataIntegrity";
 import { ensureSearchIndexes } from "./db";
 import { checkAndBootstrapProducts } from "./boot/productBootstrap";
+import { getAllActivePromotions } from "./services/awin";
 // CJ import disabled by user request
 // import { startCJImportWorker } from "./boot/cjImportWorker";
 
@@ -131,6 +132,13 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Preload Awin promotions in background to warm cache for first search
+      getAllActivePromotions().then(promos => {
+        log(`Preloaded ${promos.size} merchant promotions for fast first search`);
+      }).catch(err => {
+        console.error('[STARTUP] Promotion preload failed:', err);
+      });
     },
   );
 })();

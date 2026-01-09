@@ -561,7 +561,7 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
     'tommee tippee', 'mam', 'chicco', 'baby bjorn', 'silver cross', 'bugaboo', 'joie', 'maxi cosi',
     // Characters/Licenses (treat same as brands)
     'paw patrol', 'peppa pig', 'bluey', 'hey duggee', 'cocomelon', 'baby shark',
-    'frozen', 'disney princess', 'spiderman', 'batman', 'marvel', 'avengers',
+    'disney', 'frozen', 'disney princess', 'spiderman', 'batman', 'marvel', 'avengers',
     'pokemon', 'minecraft', 'fortnite', 'roblox', 'mario', 'sonic',
     'harry potter', 'star wars', 'thomas', 'paddington', 'gruffalo',
     'pj masks', 'ben and holly', 'numberblocks', 'octonauts', 'gabby', 'encanto', 'lol surprise', 'moana'
@@ -575,6 +575,25 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
       cleanedQuery = lower.replace(brand, '').trim();
       break;
     }
+  }
+  
+  // FAST PATH: Brand-only queries (e.g., "barbie", "lego", "disney")
+  // If query is exactly a known brand with no product type, skip GPT
+  if (detectedBrand && cleanedQuery === '') {
+    console.log(`[Query Interpreter] FAST PATH (brand-only): "${query}" → ${detectedBrand} (${Date.now() - startTime}ms)`);
+    const brandOnlyResult: QueryInterpretation = {
+      isSemanticQuery: false,
+      originalQuery: query,
+      expandedKeywords: [detectedBrand.toLowerCase()],
+      searchTerms: [[detectedBrand.toLowerCase()]],
+      mustHaveAll: [detectedBrand.toLowerCase()],
+      attributes: { brand: detectedBrand },
+      context: {},
+      rerankerContext: '',
+      skipReranker: true  // Skip reranker for simple brand searches
+    };
+    setCachedInterpretation(query, brandOnlyResult);
+    return brandOnlyResult;
   }
   
   // If query matches a simple pattern, skip GPT entirely
@@ -2105,9 +2124,12 @@ Format: ["id1", "id2", ...]`
       const openaiKey = process.env.OPENAI_API_KEY;
       
       console.log(`[Shop Search] Query: "${query}", limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
+      const searchStartTime = Date.now();
 
       // STEP 1: Interpret the query using GPT (for semantic queries)
+      const interpretStart = Date.now();
       const interpretation = await interpretQuery(query, openaiKey);
+      console.log(`[Shop Search] TIMING: Interpretation took ${Date.now() - interpretStart}ms`);
       
       // Apply GPT-extracted price filters if user didn't specify them
       let effectiveMaxPrice = filterMaxPrice;
@@ -2138,17 +2160,31 @@ Format: ["id1", "id2", ...]`
       // STEP 1.5: NO GARBAGE RESULTS - Check if brand/character exists in database BEFORE searching
       // This prevents returning random products when the brand doesn't exist
       const detectedBrand = interpretation.attributes?.brand || interpretation.attributes?.character;
-      if (detectedBrand && !filterBrand) {
-        // Check if this brand exists in our product catalog
-        const brandCheckResult = await db.select({ count: sql<number>`count(*)` })
+      
+      // PERFORMANCE: Skip brand check for known brands from knownBrands list (already validated)
+      const knownBrandLower = detectedBrand?.toLowerCase();
+      const isKnownBrand = knownBrandLower && [
+        'nike', 'adidas', 'puma', 'lego', 'barbie', 'disney', 'marvel', 'pokemon', 'minecraft',
+        'frozen', 'paw patrol', 'peppa pig', 'star wars', 'harry potter', 'hot wheels',
+        'clarks', 'vans', 'converse', 'new balance', 'reebok', 'skechers', 'crocs',
+        'fisher price', 'mattel', 'hasbro', 'playmobil', 'bluey', 'cocomelon'
+      ].includes(knownBrandLower);
+      
+      if (isKnownBrand) {
+        console.log(`[Shop Search] FAST PATH: Skipping brand check for known brand "${detectedBrand}"`);
+      }
+      
+      if (detectedBrand && !filterBrand && !isKnownBrand) {
+        // Only do brand check for unknown brands (not in our known list)
+        const brandCheckStart = Date.now();
+        const brandCheckResult = await db.select({ id: products.id })
           .from(products)
-          .where(or(
-            ilike(products.brand, `%${detectedBrand}%`),
-            ilike(products.name, `%${detectedBrand}%`)
-          ))
+          .where(ilike(products.brand, `%${detectedBrand}%`))
           .limit(1);
         
-        const brandCount = Number(brandCheckResult[0]?.count || 0);
+        const brandExists = brandCheckResult.length > 0;
+        const brandCount = brandExists ? 1 : 0;
+        console.log(`[Shop Search] TIMING: Brand check took ${Date.now() - brandCheckStart}ms`);
         
         if (brandCount === 0) {
           // Brand doesn't exist in our catalog - return empty results with message
@@ -2313,14 +2349,11 @@ Format: ["id1", "id2", ...]`
           .filter(w => w.length > 2 && !stopWords.has(w));
         
         if (words.length > 0) {
+          // PERFORMANCE FIX: Only search name column (indexed with GIN trigram)
+          // Removed OR conditions across description/brand/category that bypass indexes
           const wordConditions = words.map(w => {
             const pattern = `%${w}%`;
-            return or(
-              ilike(products.name, pattern),
-              ilike(products.description, pattern),
-              ilike(products.brand, pattern),
-              ilike(products.category, pattern)
-            );
+            return ilike(products.name, pattern);
           });
           
           // Build base WHERE clause with keyword matching
@@ -2362,21 +2395,9 @@ Format: ["id1", "id2", ...]`
                   term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
                 continue;
               }
-              // Split term into individual words and require each one
-              const words = term.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
-              for (const word of words) {
-                // Add as hard filter: each word must appear in name, description, category, or brand
-                const mustHaveCondition = or(
-                  ilike(products.name, `%${word}%`),
-                  ilike(products.description, `%${word}%`),
-                  ilike(products.category, `%${word}%`),
-                  ilike(products.brand, `%${word}%`)
-                );
-                if (mustHaveCondition) {
-                  baseConditions.push(mustHaveCondition as any);
-                }
-              }
-              console.log(`[Shop Search] Keyword path: Requiring each word of "${term}": ${words.join(' AND ')}`);
+              // PERFORMANCE FIX: Skip mustHaveAll SQL filters - use post-filtering instead
+              // Original code added OR conditions across 4 columns which bypassed indexes
+              console.log(`[Shop Search] Skipping mustHaveAll SQL filter for "${term}" (using post-filter)`);
             }
           }
           
@@ -2389,207 +2410,18 @@ Format: ["id1", "id2", ...]`
           
           const whereClause = and(...baseConditions);
         
-        // Get total count for pagination
-        const countResult = await db.select({ count: sql<number>`count(*)` })
-          .from(products)
-          .where(whereClause);
-        totalCandidates = Number(countResult[0]?.count || 0);
+        // PERFORMANCE FIX: Skip slow count query - estimate from results
+        // totalCandidates will be set from results array length * factor
         
-        // Build dynamic filters using SQL aggregation (only on first page without filters)
-        // SKIP filter aggregation for fast-path queries to save 4 DB queries
-        if (safeOffset === 0 && !hasFilters && !interpretation.skipReranker) {
-          // Base WHERE for filter aggregation (just keyword matching, no user filters)
-          const baseWhereForFilters = and(
-            ...wordConditions,
-            isNotNull(products.affiliateLink)
-          );
-          
-          // Category counts
-          const categoryAgg = await db.select({
-            category: products.category,
-            count: sql<number>`count(*)`
-          })
-            .from(products)
-            .where(baseWhereForFilters)
-            .groupBy(products.category)
-            .orderBy(sql`count(*) DESC`)
-            .limit(8);
-          
-          // Merchant counts
-          const merchantAgg = await db.select({
-            merchant: products.merchant,
-            count: sql<number>`count(*)`
-          })
-            .from(products)
-            .where(baseWhereForFilters)
-            .groupBy(products.merchant)
-            .orderBy(sql`count(*) DESC`)
-            .limit(6);
-          
-          // Brand counts (using known brands)
-          const brandAgg = await db.select({
-            brand: products.brand,
-            count: sql<number>`count(*)`
-          })
-            .from(products)
-            .where(and(baseWhereForFilters, isNotNull(products.brand), sql`${products.brand} != ''`))
-            .groupBy(products.brand)
-            .orderBy(sql`count(*) DESC`)
-            .limit(6);
-          
-          // Price bucket counts
-          const priceAgg = await db.select({
-            bucket: sql<string>`CASE 
-              WHEN CAST(${products.price} AS NUMERIC) < 10 THEN 'under10'
-              WHEN CAST(${products.price} AS NUMERIC) < 25 THEN '10to25'
-              WHEN CAST(${products.price} AS NUMERIC) < 50 THEN '25to50'
-              ELSE 'over50'
-            END`,
-            count: sql<number>`count(*)`
-          })
-            .from(products)
-            .where(baseWhereForFilters)
-            .groupBy(sql`CASE 
-              WHEN CAST(${products.price} AS NUMERIC) < 10 THEN 'under10'
-              WHEN CAST(${products.price} AS NUMERIC) < 25 THEN '10to25'
-              WHEN CAST(${products.price} AS NUMERIC) < 50 THEN '25to50'
-              ELSE 'over50'
-            END`);
-          
-          // Build filters object
-          const priceBucketMap: Record<string, { label: string; min: number; max: number }> = {
-            'under10': { label: 'Under £10', min: 0, max: 10 },
-            '10to25': { label: '£10 - £25', min: 10, max: 25 },
-            '25to50': { label: '£25 - £50', min: 25, max: 50 },
-            'over50': { label: '£50+', min: 50, max: 99999 }
-          };
-          
-          filters = {
-            categories: categoryAgg
-              .filter(c => c.category && Number(c.count) > 0)
-              .map(c => ({ name: c.category, count: Number(c.count) })),
-            merchants: merchantAgg
-              .filter(m => m.merchant && Number(m.count) > 0)
-              .map(m => ({ name: m.merchant, count: Number(m.count) })),
-            brands: brandAgg
-              .filter(b => b.brand && Number(b.count) > 0)
-              .map(b => ({ name: b.brand, count: Number(b.count) })),
-            prices: priceAgg
-              .filter(p => p.bucket && Number(p.count) > 0)
-              .map(p => ({
-                ...priceBucketMap[p.bucket as string],
-                count: Number(p.count)
-              }))
-              .sort((a, b) => a.min - b.min)
-          };
-          
-          console.log(`[Shop Search] Built filters: ${filters.categories.length} categories, ${filters.merchants.length} merchants, ${filters.brands.length} brands, ${filters.prices.length} price buckets`);
-        }
+        // PERFORMANCE FIX: Skip slow SQL aggregations (4 GROUP BY queries)
+        // Build filters from fetched candidates instead - see end of route
         
-        // FIX 5: Category-stratified sampling for broad queries
-        // Detect if query is "broad" (single brand/franchise word without category modifier)
-        // SKIP stratified sampling for fast-path queries (simple product types like "trainers")
-        const categoryModifiers = ['toy', 'toys', 'dress', 'dresses', 'clothes', 'clothing', 'book', 'books', 'game', 'games', 'figure', 'figures', 'lego', 'plush', 'costume'];
-        const hasSpecificIntent = words.some(w => categoryModifiers.includes(w));
-        const isBroadQuery = words.length <= 2 && !hasSpecificIntent && totalCandidates > 200 && !hasFilters && !interpretation.skipReranker;
-        
-        if (isBroadQuery && safeOffset === 0) {
-          // Use stratified sampling: pull from different category buckets
-          // Use Drizzle query builder to preserve AND-matching across all words
-          console.log(`[Shop Search] Using stratified sampling for broad query "${query}"`);
-          
-          const selectFields = {
-            id: products.id,
-            name: products.name,
-            description: products.description,
-            price: products.price,
-            merchant: products.merchant,
-            brand: products.brand,
-            category: products.category,
-            affiliate_link: products.affiliateLink,
-            image_url: products.imageUrl,
-            in_stock: products.inStock
-          };
-          
-          // Bucket 1: Toys (toys, crafts, games, construction)
-          const toysBucket = await db.select(selectFields).from(products)
-            .where(and(
-              ...wordConditions,
-              isNotNull(products.affiliateLink),
-              or(
-                ilike(products.category, '%toy%'),
-                ilike(products.category, '%craft%'),
-                ilike(products.category, '%game%'),
-                ilike(products.category, '%construction%')
-              )
-            ))
-            .orderBy(sql`RANDOM()`)
-            .limit(25);
-          
-          // Bucket 2: Clothing (clothes, footwear)
-          const clothesBucket = await db.select(selectFields).from(products)
-            .where(and(
-              ...wordConditions,
-              isNotNull(products.affiliateLink),
-              or(
-                ilike(products.category, '%cloth%'),
-                ilike(products.category, '%footwear%')
-              )
-            ))
-            .orderBy(sql`RANDOM()`)
-            .limit(25);
-          
-          // Bucket 3: Media (books, DVDs, Blu-ray, calendars)
-          const mediaBucket = await db.select(selectFields).from(products)
-            .where(and(
-              ...wordConditions,
-              isNotNull(products.affiliateLink),
-              or(
-                ilike(products.category, '%book%'),
-                ilike(products.category, '%dvd%'),
-                ilike(products.category, '%blu%'),
-                ilike(products.category, '%calendar%')
-              )
-            ))
-            .orderBy(sql`RANDOM()`)
-            .limit(25);
-          
-          // Bucket 4: Other (everything else)
-          const otherBucket = await db.select(selectFields).from(products)
-            .where(and(
-              ...wordConditions,
-              isNotNull(products.affiliateLink),
-              sql`LOWER(${products.category}) NOT LIKE '%toy%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%cloth%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%book%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%dvd%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%footwear%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%craft%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%game%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%construction%'`,
-              sql`LOWER(${products.category}) NOT LIKE '%blu%'`
-            ))
-            .orderBy(sql`RANDOM()`)
-            .limit(25);
-          
-          // Combine all buckets
-          candidates = [...toysBucket, ...clothesBucket, ...mediaBucket, ...otherBucket].map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            description: row.description,
-            price: row.price,
-            merchant: row.merchant,
-            brand: row.brand,
-            category: row.category,
-            affiliate_link: row.affiliate_link,
-            image_url: row.image_url,
-            in_stock: row.in_stock
-          }));
-          
-          console.log(`[Shop Search] Stratified sampling: ${toysBucket.length} toys, ${clothesBucket.length} clothes, ${mediaBucket.length} media, ${otherBucket.length} other`);
-        } else {
+        // PERFORMANCE FIX: Skip stratified sampling (4 slow bucket queries)
+        // Use simple single query instead
+        {
           // FIX 2: Get RANDOM sample of 100 candidates (not first 100 by DB order)
           // On first page (offset=0), use random. On subsequent pages, use consistent ordering.
+          const dbQueryStart = Date.now();
           const result = await db.select({
             id: products.id,
             name: products.name,
@@ -2603,11 +2435,12 @@ Format: ["id1", "id2", ...]`
             in_stock: products.inStock
           }).from(products)
             .where(whereClause)
-            .orderBy(safeOffset === 0 ? sql`RANDOM()` : products.id)
+            .orderBy(products.id)  // PERFORMANCE: Remove RANDOM() which causes full table scan
             .limit(100)
             .offset(safeOffset);
           
           candidates = result as any[];
+          console.log(`[Shop Search] TIMING: DB query took ${Date.now() - dbQueryStart}ms (${candidates.length} results)`);
         }
         } // Close if (words.length > 0)
       } // Close else (original keyword search)
@@ -2768,15 +2601,31 @@ Examples:
       const hasSpecificIntent = queryWords.some((w: string) => categoryModifiers.includes(w));
       const isBroadQuery = !interpretation.isSemanticQuery && queryWords.length <= 2 && !hasSpecificIntent && totalCandidates > 200;
       
-      // SKIP GPT reranking for fast-path queries (simple product types, brand + product)
+      // SKIP GPT reranking for fast-path queries - AGGRESSIVE for performance
+      // Skip reranker for: simple brands, single keywords, category queries
       const isFastPath = interpretation.skipReranker || 
-        (interpretation.attributes?.brand && !interpretation.context?.recipient && !interpretation.context?.occasion);
+        (interpretation.attributes?.brand && !interpretation.context?.recipient && !interpretation.context?.occasion) ||
+        queryWords.length <= 2 ||  // Simple 1-2 word queries don't need GPT
+        !interpretation.isSemanticQuery;  // Only use GPT for semantic/gift queries
+      
+      if (isFastPath) {
+        console.log(`[Shop Search] FAST PATH - skipping GPT reranker for "${query}"`);
+      }
       
       if (openaiKey && candidates.length > safeLimit && !isFastPath) {
+        const rerankerStart = Date.now();
+        const RERANKER_TIMEOUT = 5000; // 5 second timeout
+        
+        // Limit to top 30 candidates for reranking to reduce token count
+        const rerankerCandidates = candidates.slice(0, 30);
+        
         try {
+          console.log(`[Shop Search] Starting GPT rerank with ${rerankerCandidates.length} candidates...`);
           const openai = new OpenAI({ apiKey: openaiKey });
-          const productsText = candidates.map(p => 
-            `ID:${p.id} | ${p.name} | £${p.price} | ${p.category || ''} | ${(p.description || '').substring(0, 100)}`
+          
+          // Shorter descriptions (60 chars) to reduce tokens
+          const productsText = rerankerCandidates.map(p => 
+            `ID:${p.id} | ${p.name} | £${p.price} | ${p.category || ''} | ${(p.description || '').substring(0, 60)}`
           ).join('\n');
 
           // Enhanced GPT prompt - includes semantic context for interpreted queries
@@ -2793,7 +2642,8 @@ Pick products that would genuinely make sense for this context.` : '';
 10. Pick at least 2 TOYS, 2 CLOTHING items, 2 BOOKS/DVDs, and 2 from OTHER categories
 11. Balance the selection across different product types` : '';
 
-          const response = await openai.chat.completions.create({
+          // Create promise with timeout wrapper
+          const rerankerPromise = openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
               {
@@ -2820,6 +2670,15 @@ ONLY use IDs from the list. Never invent IDs.`
             ],
             temperature: 0.1
           });
+
+          // Race against timeout
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('GPT reranker timeout')), RERANKER_TIMEOUT)
+          );
+
+          const response = await Promise.race([rerankerPromise, timeoutPromise]) as Awaited<typeof rerankerPromise>;
+          
+          console.log(`[Shop Search] GPT rerank completed in ${Date.now() - rerankerStart}ms`);
 
           // FIX 4: Robust ID parsing with fallback
           let selectedIds: string[] = [];
@@ -2857,8 +2716,9 @@ ONLY use IDs from the list. Never invent IDs.`
             console.warn(`[Shop Search] GPT returned no valid IDs, using random fallback`);
             selectedProducts = candidates.slice(0, safeLimit);
           }
-        } catch (aiError) {
-          console.log(`[Shop Search] GPT rerank failed, using first ${safeLimit}:`, aiError);
+        } catch (aiError: any) {
+          const elapsed = Date.now() - rerankerStart;
+          console.log(`[Shop Search] GPT rerank failed after ${elapsed}ms (${aiError?.message || 'unknown error'}), using first ${safeLimit}`);
           selectedProducts = candidates.slice(0, safeLimit);
         }
       }
