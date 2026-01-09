@@ -38,6 +38,14 @@ Key architectural decisions and features include:
     - **Results**: Brand queries now return in 30-200ms (down from 7-18 seconds)
 -   **Fallback Behavior**: If OpenAI services fail, the system gracefully falls back to basic keyword search, logging warnings.
 
+-   **Brand-Based Promotions (Jan 2026)**:
+    - Promotions are now matched by brand/franchise keywords (Disney, LEGO, Marvel, etc.) in addition to merchant name
+    - Extracts 40+ known brand keywords from promotion titles/descriptions at cache build time
+    - Products with Disney/LEGO/Marvel etc. in name/brand now receive relevant brand promotions even when merchant doesn't match
+    - Priority: Merchant match > Brand match (merchant promotions preferred if available)
+    - Performance: No per-request overhead - brand index built during 30-minute cache refresh
+    - Services: `getAllBrandPromotions()` in both `awin.ts` and `cj.ts` (unified Awin + CJ)
+
 -   **TMDB Integration (Jan 2026)**:
     - Movie data from The Movie Database (TMDB) API for cinema listings and upcoming films
     - Tables: `movies` (TMDB movie cache), `upsell_mappings` (genre-to-product keywords), `upsell_clicks` (tracking)
