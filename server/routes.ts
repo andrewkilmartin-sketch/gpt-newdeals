@@ -2169,15 +2169,49 @@ ONLY use IDs from the list. Never invent IDs.`
           .replace(/[^a-z0-9]/g, '');
       };
       
-      // Attach promotions to products - EXACT MATCH ONLY to prevent wrong associations
+      // Categories that are mutually exclusive (don't show book promos on toys, etc.)
+      const CATEGORY_CONFLICTS: Record<string, string[]> = {
+        'book': ['toy', 'toys', 'lego', 'game', 'games', 'figure', 'figures', 'doll', 'dolls', 'plush'],
+        'toys': ['book', 'books', 'novel', 'reading'],
+        'clothing': ['book', 'books', 'toy', 'toys'],
+        'fashion': ['toy', 'toys', 'lego'],
+      };
+      
+      // Check if promotion is relevant to the search/product
+      const isPromotionRelevant = (promoTitle: string, searchQuery: string, productCategory: string): boolean => {
+        const promoLower = promoTitle.toLowerCase();
+        const queryLower = searchQuery.toLowerCase();
+        const categoryLower = productCategory.toLowerCase();
+        
+        // Check for category conflicts
+        for (const [promoCategory, conflictTerms] of Object.entries(CATEGORY_CONFLICTS)) {
+          if (promoLower.includes(promoCategory)) {
+            // Promo is about this category - check if query/product conflicts
+            if (conflictTerms.some(term => queryLower.includes(term) || categoryLower.includes(term))) {
+              console.log(`[Promo Filter] Excluded "${promoTitle}" - conflicts with "${queryLower}"`);
+              return false;
+            }
+          }
+        }
+        
+        return true;
+      };
+      
+      // Attach promotions to products - with category relevance filtering
       const productsWithPromotions = selectedProducts.map((p: any) => {
         const normalizedMerchant = normalizeMerchant(p.merchant || '');
         let promotion: ProductPromotion | undefined;
         
-        // Try exact match only - partial matches caused wrong promotions (e.g., books for LEGO)
+        // Try exact match only
         const promos = activePromotions.get(normalizedMerchant);
         if (promos && promos.length > 0) {
-          promotion = promos[0]; // Use first/best promotion
+          // Filter to only relevant promotions
+          const relevantPromo = promos.find(promo => 
+            isPromotionRelevant(promo.promotionTitle, query, p.category || '')
+          );
+          if (relevantPromo) {
+            promotion = relevantPromo;
+          }
         }
         
         return {
