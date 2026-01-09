@@ -1,0 +1,50 @@
+Yes! But we need to add a way to import more queries into that dashboard.
+
+Tell Replit:
+"Add a query import feature to the audit dashboard. I have 2,229 queries to add.
+Add this to the dashboard HTML:
+html<!-- Add below the existing buttons -->
+<div style="margin: 20px 0;">
+  <h3>Import Custom Queries</h3>
+  <textarea id="importQueries" rows="8" style="width: 100%; background: #2a2a4e; color: white; border: 1px solid #444; padding: 10px; font-family: monospace;" placeholder="Paste queries here, one per line..."></textarea>
+  <br><br>
+  <button onclick="importQueries()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Import Queries</button>
+  <button onclick="clearAllQueries()" style="background: #f44336; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Clear All</button>
+  <span id="queryCount" style="margin-left: 20px;">355 queries loaded</span>
+</div>
+
+<script>
+function importQueries() {
+  const textarea = document.getElementById('importQueries');
+  const newQueries = textarea.value
+    .split('\n')
+    .map(q => q.trim())
+    .filter(q => q.length > 0 && !q.startsWith('#')); // Skip empty and comments
+  
+  // Add to existing queries (remove duplicates)
+  const combined = [...new Set([...testQueries, ...newQueries])];
+  testQueries = combined;
+  
+  document.getElementById('queryCount').textContent = testQueries.length + ' queries loaded';
+  textarea.value = ''; // Clear input
+  alert('Imported ' + newQueries.length + ' queries. Total: ' + testQueries.length);
+}
+
+function clearAllQueries() {
+  if (confirm('Clear all queries?')) {
+    testQueries = [];
+    document.getElementById('queryCount').textContent = '0 queries loaded';
+  }
+}
+</script>
+```
+
+Update the title to show current query count:
+```
+Testing search relevance across ${testQueries.length} real-world queries
+This lets me:
+
+Paste 2,229 queries from a file
+Import them into the dashboard
+Run the full audit
+Download CSV results"

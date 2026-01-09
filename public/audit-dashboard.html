@@ -12,10 +12,14 @@
         }
         .container { max-width: 1400px; margin: 0 auto; }
         h1 { color: #f8fafc; margin-bottom: 10px; font-size: 28px; }
-        .subtitle { color: #94a3b8; margin-bottom: 30px; }
+        .subtitle { color: #94a3b8; margin-bottom: 20px; }
+        
+        .section { 
+            background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px;
+        }
+        .section h3 { margin-bottom: 15px; color: #f8fafc; font-size: 16px; }
         
         .controls { 
-            background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px;
             display: flex; gap: 15px; flex-wrap: wrap; align-items: center;
         }
         button { 
@@ -27,33 +31,64 @@
         button:disabled { background: #475569; cursor: not-allowed; }
         button.secondary { background: #475569; }
         button.secondary:hover { background: #64748b; }
+        button.success { background: #22c55e; }
+        button.success:hover { background: #16a34a; }
+        button.warning { background: #eab308; color: #0f172a; }
+        button.warning:hover { background: #ca8a04; }
+        button.danger { background: #ef4444; }
+        button.danger:hover { background: #dc2626; }
+        button.small { padding: 8px 16px; font-size: 12px; }
         
         select, input { 
             background: #334155; border: 1px solid #475569; color: #e2e8f0;
             padding: 10px 15px; border-radius: 8px; font-size: 14px;
         }
+        textarea {
+            background: #0f172a; border: 1px solid #475569; color: #e2e8f0;
+            padding: 12px; border-radius: 8px; font-size: 13px; font-family: monospace;
+            width: 100%; resize: vertical;
+        }
+        
+        .query-editor { margin-bottom: 15px; }
+        .query-editor textarea { min-height: 120px; }
+        .query-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+        .query-count { color: #94a3b8; font-size: 14px; margin-left: auto; }
         
         .summary { 
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             gap: 15px; margin-bottom: 20px;
         }
         .stat-card { 
-            background: #1e293b; border-radius: 12px; padding: 20px; text-align: center;
+            background: #1e293b; border-radius: 12px; padding: 15px; text-align: center;
         }
-        .stat-value { font-size: 36px; font-weight: bold; }
-        .stat-label { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+        .stat-value { font-size: 32px; font-weight: bold; }
+        .stat-label { color: #94a3b8; font-size: 13px; margin-top: 5px; }
         .pass .stat-value { color: #22c55e; }
         .partial .stat-value { color: #eab308; }
         .fail .stat-value { color: #ef4444; }
         .total .stat-value { color: #3b82f6; }
+        .speed .stat-value { color: #a855f7; }
+        .inventory .stat-value { color: #f97316; }
+        
+        .progress-section { margin: 20px 0; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .progress-text { font-size: 14px; color: #94a3b8; }
+        .eta-text { font-size: 14px; color: #3b82f6; font-weight: 600; }
         
         .progress-bar { 
-            background: #334155; border-radius: 8px; height: 12px; margin: 20px 0;
+            background: #334155; border-radius: 8px; height: 12px;
             overflow: hidden; display: flex;
         }
         .progress-pass { background: #22c55e; transition: width 0.3s; }
         .progress-partial { background: #eab308; transition: width 0.3s; }
         .progress-fail { background: #ef4444; transition: width 0.3s; }
+        
+        progress { 
+            width: 100%; height: 8px; border-radius: 4px; margin-top: 8px;
+            appearance: none; background: #334155;
+        }
+        progress::-webkit-progress-bar { background: #334155; border-radius: 4px; }
+        progress::-webkit-progress-value { background: #3b82f6; border-radius: 4px; }
         
         .results { background: #1e293b; border-radius: 12px; padding: 20px; }
         .results h2 { margin-bottom: 15px; font-size: 20px; }
@@ -65,10 +100,14 @@
         .result-item.pass { border-left-color: #22c55e; }
         .result-item.partial { border-left-color: #eab308; }
         .result-item.fail { border-left-color: #ef4444; }
+        .result-item.inventory_gap { border-left-color: #f97316; }
+        .result-item.speed_bug { border-left-color: #a855f7; }
+        .result-item.ranking_bug { border-left-color: #ec4899; }
+        .result-item.search_bug { border-left-color: #ef4444; }
         
         .result-header { 
             display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 10px; flex-wrap: wrap; gap: 10px;
         }
         .query-text { font-weight: 600; font-size: 16px; }
         .status-badge { 
@@ -77,9 +116,14 @@
         .status-badge.pass { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
         .status-badge.partial { background: rgba(234, 179, 8, 0.2); color: #eab308; }
         .status-badge.fail { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .status-badge.inventory_gap { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+        .status-badge.speed_bug { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+        .status-badge.ranking_bug { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+        .status-badge.search_bug { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
         
         .result-meta { 
             display: flex; gap: 20px; font-size: 13px; color: #94a3b8; margin-bottom: 10px;
+            flex-wrap: wrap;
         }
         .result-products { font-size: 13px; }
         .product-tag { 
@@ -115,65 +159,123 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .tab { 
+            padding: 8px 16px; background: #334155; border-radius: 6px; 
+            cursor: pointer; font-size: 13px; transition: background 0.2s;
+        }
+        .tab:hover { background: #475569; }
+        .tab.active { background: #3b82f6; }
+        
+        .file-input { display: none; }
+        
+        .badge { 
+            display: inline-block; background: #334155; padding: 2px 8px;
+            border-radius: 4px; font-size: 11px; margin-left: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Sunny Search Quality Audit</h1>
-        <p class="subtitle">Testing search relevance across 355 real-world queries</p>
+        <p class="subtitle">Test search relevance across your query library</p>
         
-        <div class="controls">
-            <button id="runAudit" data-testid="button-run-audit">Run Full Audit</button>
-            <button id="runSample" class="secondary" data-testid="button-run-sample">Run Sample (20)</button>
-            
-            <div class="filter-row">
-                <label>Filter:</label>
-                <select id="categoryFilter" data-testid="select-category">
-                    <option value="">All Categories</option>
-                    <option value="brand_shoe">Brand + Shoe</option>
-                    <option value="brand_clothing">Brand + Clothing</option>
-                    <option value="character_toy">Character + Toy</option>
-                    <option value="character_product">Character + Product</option>
-                    <option value="age_interest_budget">Age + Interest + Budget</option>
-                    <option value="brand_budget">Brand + Budget</option>
-                    <option value="product_feature">Product + Feature</option>
-                </select>
+        <div class="section">
+            <h3>Query Editor <span class="badge" id="queryCount">0 queries</span></h3>
+            <div class="query-editor">
+                <textarea id="customQueries" rows="6" placeholder="Paste queries here, one per line...
+Example:
+nike trainers
+barbie dolls under £30
+paw patrol toys for 3 year old" data-testid="textarea-queries"></textarea>
             </div>
-            
-            <div class="filter-row">
-                <label>Show:</label>
-                <select id="statusFilter" data-testid="select-status">
-                    <option value="">All Results</option>
-                    <option value="fail">Failures Only</option>
-                    <option value="partial">Partial Only</option>
-                    <option value="pass">Passes Only</option>
-                </select>
+            <div class="query-actions">
+                <button onclick="addQueries()" class="success small" data-testid="button-add-queries">Add Queries</button>
+                <button onclick="clearQueries()" class="danger small" data-testid="button-clear-queries">Clear All</button>
+                <button onclick="loadDefaultQueries()" class="secondary small" data-testid="button-load-defaults">Load Defaults</button>
+                <button onclick="exportQueryList()" class="secondary small" data-testid="button-export-queries">Export List</button>
+                <button onclick="document.getElementById('importFile').click()" class="secondary small" data-testid="button-import-queries">Import List</button>
+                <input type="file" id="importFile" class="file-input" accept=".txt,.json" onchange="importQueryList(event)">
+                <span class="query-count" id="queryCountText">0 queries loaded</span>
             </div>
-            
-            <button id="downloadResults" class="secondary" data-testid="button-download">Download CSV</button>
+        </div>
+        
+        <div class="section">
+            <div class="controls">
+                <button id="runAudit" data-testid="button-run-audit">Run Full Audit</button>
+                <button id="runSample" class="secondary" data-testid="button-run-sample">Run Sample (20)</button>
+                <button id="pauseResume" class="warning hidden" data-testid="button-pause">Pause</button>
+                
+                <div class="filter-row">
+                    <label>Filter:</label>
+                    <select id="categoryFilter" data-testid="select-category">
+                        <option value="">All Categories</option>
+                        <option value="brand">Brand</option>
+                        <option value="character">Character</option>
+                        <option value="product">Product Type</option>
+                        <option value="age">Age Specific</option>
+                        <option value="budget">Budget</option>
+                        <option value="cinema">Cinema/Movies</option>
+                        <option value="attraction">Attractions</option>
+                    </select>
+                </div>
+                
+                <div class="filter-row">
+                    <label>Show:</label>
+                    <select id="statusFilter" data-testid="select-status">
+                        <option value="">All Results</option>
+                        <option value="pass">Pass Only</option>
+                        <option value="partial">Partial Only</option>
+                        <option value="fail">Failures Only</option>
+                        <option value="inventory_gap">Inventory Gaps</option>
+                        <option value="speed_bug">Speed Bugs</option>
+                        <option value="search_bug">Search Bugs</option>
+                        <option value="ranking_bug">Ranking Bugs</option>
+                    </select>
+                </div>
+                
+                <button id="downloadResults" class="secondary" data-testid="button-download">Download CSV</button>
+            </div>
         </div>
         
         <div class="summary">
             <div class="stat-card total">
                 <div class="stat-value" id="totalCount">0</div>
-                <div class="stat-label">Total Queries</div>
+                <div class="stat-label">Total</div>
             </div>
             <div class="stat-card pass">
                 <div class="stat-value" id="passCount">0</div>
-                <div class="stat-label">Pass (80%+)</div>
+                <div class="stat-label">Pass</div>
             </div>
             <div class="stat-card partial">
                 <div class="stat-value" id="partialCount">0</div>
-                <div class="stat-label">Partial (50-79%)</div>
+                <div class="stat-label">Partial</div>
+            </div>
+            <div class="stat-card inventory">
+                <div class="stat-value" id="inventoryCount">0</div>
+                <div class="stat-label">Inventory Gap</div>
+            </div>
+            <div class="stat-card speed">
+                <div class="stat-value" id="speedCount">0</div>
+                <div class="stat-label">Speed Bug</div>
             </div>
             <div class="stat-card fail">
                 <div class="stat-value" id="failCount">0</div>
-                <div class="stat-label">Fail (&lt;50%)</div>
+                <div class="stat-label">Other Fails</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="passRate">-</div>
                 <div class="stat-label">Pass Rate</div>
             </div>
+        </div>
+        
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-text" id="progressText">0 / 0 queries</span>
+                <span class="eta-text" id="etaText">ETA: --</span>
+            </div>
+            <progress id="progressBar" value="0" max="100"></progress>
         </div>
         
         <div class="progress-bar">
@@ -183,7 +285,7 @@
         </div>
         
         <div class="log" id="log">
-            <div class="log-entry info">Ready to run audit. Click "Run Full Audit" to start.</div>
+            <div class="log-entry info">Ready to run audit. Add queries and click "Run Full Audit" to start.</div>
         </div>
         
         <div class="results" id="results">
@@ -193,8 +295,17 @@
     </div>
     
     <script>
+        let testQueries = [];
         let allResults = [];
-        let allQueries = [];
+        let isRunning = false;
+        let isPaused = false;
+        let currentIndex = 0;
+        let startTime = null;
+        let pausedQueries = [];
+        
+        const STORAGE_KEY = 'sunnyAuditQueries';
+        const RESULTS_KEY = 'sunnyAuditResults';
+        const PROGRESS_KEY = 'sunnyAuditProgress';
         
         function log(message, type = 'info') {
             const logDiv = document.getElementById('log');
@@ -205,54 +316,257 @@
             logDiv.scrollTop = logDiv.scrollHeight;
         }
         
-        function updateStats(summary) {
-            document.getElementById('totalCount').textContent = summary.total;
-            document.getElementById('passCount').textContent = summary.pass;
-            document.getElementById('partialCount').textContent = summary.partial;
-            document.getElementById('failCount').textContent = summary.fail;
-            document.getElementById('passRate').textContent = summary.pass_rate;
+        function saveQueries() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(testQueries));
+            updateQueryCount();
+        }
+        
+        function loadSavedQueries() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    testQueries = JSON.parse(saved);
+                    log(`Loaded ${testQueries.length} queries from local storage`, 'success');
+                } catch (e) {
+                    testQueries = [];
+                }
+            }
+            updateQueryCount();
+        }
+        
+        let runQueries = [];
+        
+        function saveProgress() {
+            const elapsed = startTime ? Date.now() - startTime : 0;
+            localStorage.setItem(PROGRESS_KEY, JSON.stringify({
+                currentIndex,
+                allResults,
+                queries: runQueries,
+                elapsed,
+                timestamp: Date.now()
+            }));
+        }
+        
+        function loadProgress() {
+            const saved = localStorage.getItem(PROGRESS_KEY);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+                        return data;
+                    }
+                } catch (e) {}
+            }
+            return null;
+        }
+        
+        function clearProgress() {
+            localStorage.removeItem(PROGRESS_KEY);
+        }
+        
+        function updateQueryCount() {
+            document.getElementById('queryCount').textContent = `${testQueries.length} queries`;
+            document.getElementById('queryCountText').textContent = `${testQueries.length} queries loaded`;
+        }
+        
+        function addQueries() {
+            const textarea = document.getElementById('customQueries');
+            const newQueries = textarea.value
+                .split('\n')
+                .map(q => q.trim())
+                .filter(q => q.length > 0 && !q.startsWith('#'));
             
-            const total = summary.total || 1;
-            document.getElementById('progressPass').style.width = (summary.pass / total * 100) + '%';
-            document.getElementById('progressPartial').style.width = (summary.partial / total * 100) + '%';
-            document.getElementById('progressFail').style.width = (summary.fail / total * 100) + '%';
+            if (newQueries.length === 0) {
+                log('No valid queries to add', 'warning');
+                return;
+            }
+            
+            const before = testQueries.length;
+            testQueries = [...new Set([...testQueries, ...newQueries])];
+            const added = testQueries.length - before;
+            
+            saveQueries();
+            textarea.value = '';
+            log(`Added ${added} new queries (${newQueries.length - added} duplicates skipped)`, 'success');
+        }
+        
+        function clearQueries() {
+            if (confirm('Clear all queries? This cannot be undone.')) {
+                testQueries = [];
+                saveQueries();
+                log('All queries cleared', 'warning');
+            }
+        }
+        
+        async function loadDefaultQueries() {
+            try {
+                const res = await fetch('/api/audit/queries');
+                const data = await res.json();
+                const serverQueries = data.queries || [];
+                
+                const before = testQueries.length;
+                testQueries = [...new Set([...testQueries, ...serverQueries])];
+                saveQueries();
+                log(`Loaded ${testQueries.length - before} default queries`, 'success');
+            } catch (e) {
+                log(`Failed to load defaults: ${e.message}`, 'error');
+            }
+        }
+        
+        function exportQueryList() {
+            if (testQueries.length === 0) {
+                alert('No queries to export.');
+                return;
+            }
+            const content = testQueries.join('\n');
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-queries-${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            log(`Exported ${testQueries.length} queries`, 'success');
+        }
+        
+        function importQueryList(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                let queries = [];
+                
+                if (file.name.endsWith('.json')) {
+                    try {
+                        queries = JSON.parse(content);
+                        if (!Array.isArray(queries)) queries = [];
+                    } catch (err) {
+                        log('Invalid JSON file', 'error');
+                        return;
+                    }
+                } else {
+                    queries = content.split('\n').map(q => q.trim()).filter(q => q.length > 0);
+                }
+                
+                const before = testQueries.length;
+                testQueries = [...new Set([...testQueries, ...queries])];
+                saveQueries();
+                log(`Imported ${testQueries.length - before} queries from ${file.name}`, 'success');
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+        
+        function categorizeVerdict(result) {
+            const timeMs = result.search_result?.time_ms || 0;
+            const dbCount = result.database_check?.count || 0;
+            const searchCount = result.search_result?.count || 0;
+            const relevance = result.analysis?.relevance_score || 0;
+            const hasImages = result.analysis?.image_percent || 0;
+            
+            if (timeMs > 10000) return 'SPEED_BUG';
+            if (dbCount === 0) return 'INVENTORY_GAP';
+            if (dbCount > 0 && searchCount === 0) return 'SEARCH_BUG';
+            if (relevance >= 0.8) return 'PASS';
+            if (relevance >= 0.5) return 'PARTIAL';
+            if (relevance < 0.3 && searchCount > 0) return 'RANKING_BUG';
+            return 'FAIL';
+        }
+        
+        function getFixAction(verdict, result) {
+            switch (verdict) {
+                case 'SPEED_BUG': return 'Add fast-path pattern or optimize query';
+                case 'INVENTORY_GAP': return 'Import products for this brand/category';
+                case 'SEARCH_BUG': return 'Debug search algorithm - DB has products but none returned';
+                case 'RANKING_BUG': return 'Improve relevance scoring/reranker';
+                case 'PARTIAL': return 'Review search term expansion';
+                default: return '';
+            }
+        }
+        
+        function updateStats() {
+            const stats = { pass: 0, partial: 0, fail: 0, inventory: 0, speed: 0, ranking: 0, search: 0 };
+            
+            for (const r of allResults) {
+                const verdict = r.verdict || categorizeVerdict(r);
+                switch (verdict) {
+                    case 'PASS': stats.pass++; break;
+                    case 'PARTIAL': stats.partial++; break;
+                    case 'INVENTORY_GAP': stats.inventory++; break;
+                    case 'SPEED_BUG': stats.speed++; break;
+                    case 'RANKING_BUG': stats.ranking++; break;
+                    case 'SEARCH_BUG': stats.search++; break;
+                    default: stats.fail++;
+                }
+            }
+            
+            const total = allResults.length || 1;
+            document.getElementById('totalCount').textContent = allResults.length;
+            document.getElementById('passCount').textContent = stats.pass;
+            document.getElementById('partialCount').textContent = stats.partial;
+            document.getElementById('inventoryCount').textContent = stats.inventory;
+            document.getElementById('speedCount').textContent = stats.speed;
+            document.getElementById('failCount').textContent = stats.fail + stats.ranking + stats.search;
+            document.getElementById('passRate').textContent = Math.round(stats.pass / total * 100) + '%';
+            
+            document.getElementById('progressPass').style.width = (stats.pass / total * 100) + '%';
+            document.getElementById('progressPartial').style.width = (stats.partial / total * 100) + '%';
+            document.getElementById('progressFail').style.width = ((stats.fail + stats.inventory + stats.speed + stats.ranking + stats.search) / total * 100) + '%';
+        }
+        
+        function updateProgress(current, total) {
+            document.getElementById('progressText').textContent = `${current} / ${total} queries`;
+            document.getElementById('progressBar').value = current;
+            document.getElementById('progressBar').max = total;
+            
+            if (startTime && current > 0) {
+                const elapsed = Date.now() - startTime;
+                const avgTime = elapsed / current;
+                const remaining = (total - current) * avgTime;
+                const etaMinutes = Math.ceil(remaining / 60000);
+                document.getElementById('etaText').textContent = `ETA: ${etaMinutes} min`;
+            }
         }
         
         function renderResult(result) {
-            const status = result.analysis.status.toLowerCase();
-            const products = result.search_result.products || [];
+            const verdict = result.verdict || categorizeVerdict(result);
+            const statusSlug = verdict.toLowerCase();
+            const products = result.search_result?.products || [];
             
             return `
-                <div class="result-item ${status}" data-category="${result.category || ''}" data-status="${status}">
+                <div class="result-item ${statusSlug}" data-category="${result.category || ''}" data-status="${statusSlug}">
                     <div class="result-header">
                         <span class="query-text">${result.query}</span>
-                        <span class="status-badge ${status}">${result.analysis.status}</span>
+                        <span class="status-badge ${statusSlug}">${verdict}</span>
                     </div>
                     <div class="result-meta">
-                        <span>DB: ${result.database_check.exists ? result.database_check.count + ' products' : 'None found'}</span>
-                        <span>Returned: ${result.search_result.count}</span>
-                        <span>Relevant: ${result.analysis.relevant_count}/${result.analysis.total_returned} (${Math.round(result.analysis.relevance_score * 100)}%)</span>
-                        <span>Time: ${result.search_result.time_ms}ms</span>
+                        <span>DB: ${result.database_check?.count || 0} products</span>
+                        <span>Returned: ${result.search_result?.count || 0}</span>
+                        <span>Relevant: ${Math.round((result.analysis?.relevance_score || 0) * 100)}%</span>
+                        <span>Images: ${Math.round((result.analysis?.image_percent || 0) * 100)}%</span>
+                        <span>Time: ${result.search_result?.time_ms || 0}ms</span>
                     </div>
                     <div class="result-products">
-                        ${products.map(p => `
+                        ${products.slice(0, 5).map(p => `
                             <span class="product-tag ${p.relevant ? 'relevant' : 'irrelevant'}">
-                                ${p.name?.substring(0, 50)}${p.name?.length > 50 ? '...' : ''} - £${p.price?.toFixed(2) || '?'}
-                                ${p.issues ? ' [' + p.issues.join(', ') + ']' : ''}
+                                ${(p.name || '').substring(0, 40)}${(p.name || '').length > 40 ? '...' : ''} - £${Number(p.price || 0).toFixed(2)}
                             </span>
                         `).join('')}
+                        ${products.length > 5 ? `<span class="product-tag">+${products.length - 5} more</span>` : ''}
                     </div>
                 </div>
             `;
         }
         
-        function renderResults(results) {
+        function renderResults() {
             const category = document.getElementById('categoryFilter').value;
             const status = document.getElementById('statusFilter').value;
             
-            const filtered = results.filter(r => {
-                if (category && r.category !== category) return false;
-                if (status && r.analysis.status.toLowerCase() !== status) return false;
+            const filtered = allResults.filter(r => {
+                const verdict = (r.verdict || categorizeVerdict(r)).toLowerCase();
+                if (category && !(r.category || '').includes(category)) return false;
+                if (status && verdict !== status) return false;
                 return true;
             });
             
@@ -260,35 +574,44 @@
             document.getElementById('resultsList').innerHTML = filtered.map(renderResult).join('');
         }
         
-        async function loadQueries() {
-            try {
-                const res = await fetch('/api/audit/queries');
-                const data = await res.json();
-                allQueries = data.queries || [];
-                log(`Loaded ${allQueries.length} test queries`, 'success');
-                return allQueries;
-            } catch (e) {
-                log(`Failed to load queries: ${e.message}`, 'error');
-                return [];
+        async function runAudit(queries, resumeFrom = 0) {
+            if (queries.length === 0) {
+                log('No queries to run. Add some queries first.', 'warning');
+                return;
             }
-        }
-        
-        async function runAudit(queries) {
+            
             const btn = document.getElementById('runAudit');
             const sampleBtn = document.getElementById('runSample');
+            const pauseBtn = document.getElementById('pauseResume');
+            
+            isRunning = true;
+            isPaused = false;
             btn.disabled = true;
             sampleBtn.disabled = true;
+            pauseBtn.classList.remove('hidden');
+            pauseBtn.textContent = 'Pause';
+            pauseBtn.className = 'warning';
             btn.innerHTML = '<span class="loading"><span class="spinner"></span> Running...</span>';
             
-            log(`Starting audit with ${queries.length} queries...`);
-            allResults = [];
+            if (resumeFrom === 0) {
+                startTime = Date.now();
+            }
             
-            const batchSize = 10;
-            let pass = 0, partial = 0, fail = 0;
+            log(`Starting audit with ${queries.length} queries from index ${resumeFrom}...`);
             
-            for (let i = 0; i < queries.length; i += batchSize) {
-                const batch = queries.slice(i, i + batchSize);
-                log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(queries.length/batchSize)}...`);
+            const batchSize = 5;
+            
+            for (let i = resumeFrom; i < queries.length && isRunning; i += batchSize) {
+                while (isPaused && isRunning) {
+                    currentIndex = i;
+                    saveProgress();
+                    await new Promise(r => setTimeout(r, 250));
+                }
+                
+                if (!isRunning) break;
+                
+                const batch = queries.slice(i, Math.min(i + batchSize, queries.length));
+                updateProgress(i, queries.length);
                 
                 try {
                     const res = await fetch('/api/audit/run', {
@@ -299,30 +622,71 @@
                     const data = await res.json();
                     
                     if (data.results) {
-                        allResults.push(...data.results);
-                        pass += data.summary.pass;
-                        partial += data.summary.partial;
-                        fail += data.summary.fail;
-                        
-                        updateStats({ total: allResults.length, pass, partial, fail, pass_rate: Math.round(pass/allResults.length*100) + '%' });
-                        renderResults(allResults);
-                        
                         for (const r of data.results) {
-                            const s = r.analysis.status;
-                            log(`${r.query}: ${s} (${r.search_result.count} results, ${Math.round(r.analysis.relevance_score*100)}% relevant)`, 
-                                s === 'PASS' ? 'success' : s === 'PARTIAL' ? 'warning' : 'error');
+                            r.verdict = categorizeVerdict(r);
+                            allResults.push(r);
+                            
+                            const logType = r.verdict === 'PASS' ? 'success' : 
+                                           r.verdict === 'PARTIAL' ? 'warning' : 'error';
+                            log(`${r.query}: ${r.verdict} (${r.search_result?.count || 0} results, ${r.search_result?.time_ms || 0}ms)`, logType);
                         }
+                        
+                        currentIndex = Math.min(i + batchSize, queries.length);
+                        saveProgress();
+                        updateStats();
+                        renderResults();
                     }
                 } catch (e) {
                     log(`Batch failed: ${e.message}`, 'error');
                 }
             }
             
-            log(`Audit complete! Pass: ${pass}, Partial: ${partial}, Fail: ${fail}`, 'success');
+            updateProgress(queries.length, queries.length);
+            clearProgress();
             
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            log(`Audit complete in ${elapsed}s! Total: ${allResults.length}`, 'success');
+            
+            isRunning = false;
             btn.disabled = false;
             sampleBtn.disabled = false;
+            pauseBtn.classList.add('hidden');
             btn.textContent = 'Run Full Audit';
+        }
+        
+        function resumeFromProgress() {
+            const progress = loadProgress();
+            if (progress && typeof progress.currentIndex === 'number' && progress.allResults && progress.queries) {
+                currentIndex = progress.currentIndex;
+                allResults = progress.allResults;
+                runQueries = progress.queries;
+                startTime = Date.now() - (progress.elapsed || 0);
+                updateStats();
+                renderResults();
+                log(`Resuming from query ${currentIndex}/${runQueries.length}...`, 'info');
+                runAudit(runQueries, currentIndex);
+            }
+        }
+        
+        function togglePause() {
+            const pauseBtn = document.getElementById('pauseResume');
+            
+            if (!isRunning) {
+                resumeFromProgress();
+                return;
+            }
+            
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.className = 'success';
+                log(`Paused at query ${currentIndex}/${runQueries.length}. Click Resume to continue.`, 'warning');
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.className = 'warning';
+                log(`Resuming...`, 'info');
+            }
         }
         
         function downloadCSV() {
@@ -331,18 +695,27 @@
                 return;
             }
             
-            const headers = ['Query', 'Category', 'Status', 'DB Exists', 'DB Count', 'Search Count', 'Relevant', 'Relevance %', 'Time (ms)'];
-            const rows = allResults.map(r => [
-                `"${r.query}"`,
-                r.category || '',
-                r.analysis.status,
-                r.database_check.exists ? 'Yes' : 'No',
-                r.database_check.count,
-                r.search_result.count,
-                r.analysis.relevant_count,
-                Math.round(r.analysis.relevance_score * 100),
-                r.search_result.time_ms
-            ]);
+            const headers = [
+                'query', 'verdict', 'dbCount', 'searchCount', 'relevancePercent', 
+                'imagePercent', 'timeMs', 'firstResult', 'category', 'fixAction'
+            ];
+            
+            const rows = allResults.map(r => {
+                const verdict = r.verdict || categorizeVerdict(r);
+                const firstProduct = r.search_result?.products?.[0];
+                return [
+                    `"${(r.query || '').replace(/"/g, '""')}"`,
+                    verdict,
+                    r.database_check?.count || 0,
+                    r.search_result?.count || 0,
+                    Math.round((r.analysis?.relevance_score || 0) * 100),
+                    Math.round((r.analysis?.image_percent || 0) * 100),
+                    r.search_result?.time_ms || 0,
+                    `"${(firstProduct?.name || '').replace(/"/g, '""').substring(0, 50)}"`,
+                    r.category || '',
+                    `"${getFixAction(verdict, r)}"`
+                ];
+            });
             
             const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -351,24 +724,62 @@
             a.href = url;
             a.download = `audit-results-${new Date().toISOString().slice(0,10)}.csv`;
             a.click();
+            log(`Downloaded ${allResults.length} results as CSV`, 'success');
         }
         
-        document.getElementById('runAudit').addEventListener('click', async () => {
-            if (allQueries.length === 0) await loadQueries();
-            runAudit(allQueries);
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+        
+        document.getElementById('runAudit').addEventListener('click', () => {
+            if (testQueries.length === 0) {
+                log('No queries loaded. Add queries or load defaults first.', 'warning');
+                return;
+            }
+            clearProgress();
+            allResults = [];
+            runQueries = [...testQueries];
+            currentIndex = 0;
+            runAudit(runQueries, 0);
         });
         
-        document.getElementById('runSample').addEventListener('click', async () => {
-            if (allQueries.length === 0) await loadQueries();
-            const sample = allQueries.sort(() => Math.random() - 0.5).slice(0, 20);
-            runAudit(sample);
+        document.getElementById('runSample').addEventListener('click', () => {
+            if (testQueries.length === 0) {
+                log('No queries loaded. Add queries or load defaults first.', 'warning');
+                return;
+            }
+            clearProgress();
+            allResults = [];
+            runQueries = shuffleArray(testQueries).slice(0, 20);
+            currentIndex = 0;
+            runAudit(runQueries, 0);
         });
         
-        document.getElementById('categoryFilter').addEventListener('change', () => renderResults(allResults));
-        document.getElementById('statusFilter').addEventListener('change', () => renderResults(allResults));
+        document.getElementById('pauseResume').addEventListener('click', togglePause);
+        document.getElementById('categoryFilter').addEventListener('change', renderResults);
+        document.getElementById('statusFilter').addEventListener('change', renderResults);
         document.getElementById('downloadResults').addEventListener('click', downloadCSV);
         
-        loadQueries();
+        loadSavedQueries();
+        
+        const savedProgress = loadProgress();
+        if (savedProgress && savedProgress.allResults && savedProgress.allResults.length > 0 && savedProgress.queries) {
+            allResults = savedProgress.allResults;
+            runQueries = savedProgress.queries;
+            currentIndex = savedProgress.currentIndex || 0;
+            startTime = Date.now() - (savedProgress.elapsed || 0);
+            updateStats();
+            renderResults();
+            log(`PAUSED RUN FOUND: ${currentIndex}/${runQueries.length} queries completed. Click Resume to continue.`, 'warning');
+            document.getElementById('pauseResume').classList.remove('hidden');
+            document.getElementById('pauseResume').textContent = 'Resume Previous Run';
+            document.getElementById('pauseResume').className = 'success';
+        }
     </script>
 </body>
 </html>

@@ -1,0 +1,74 @@
+Tell Replit:
+"Upgrade the audit dashboard at /audit-dashboard.html:
+1. ADD QUERY EDITOR
+html<textarea id="customQueries" rows="10" placeholder="Paste queries here, one per line..."></textarea>
+<button onclick="addQueries()">Add These Queries</button>
+<button onclick="clearQueries()">Clear All</button>
+<span id="queryCount">355 queries loaded</span>
+2. SAVE QUERIES TO LOCAL STORAGE
+javascript// Save queries so they persist between sessions
+function saveQueries() {
+  localStorage.setItem('auditQueries', JSON.stringify(testQueries));
+}
+
+function loadQueries() {
+  const saved = localStorage.getItem('auditQueries');
+  if (saved) testQueries = JSON.parse(saved);
+  updateQueryCount();
+}
+
+function addQueries() {
+  const newQueries = document.getElementById('customQueries').value
+    .split('\n')
+    .map(q => q.trim())
+    .filter(q => q.length > 0);
+  
+  testQueries = [...new Set([...testQueries, ...newQueries])]; // Remove duplicates
+  saveQueries();
+  updateQueryCount();
+  document.getElementById('customQueries').value = '';
+}
+3. BETTER CSV EXPORT
+Include these columns:
+
+query
+verdict (PASS, INVENTORY_GAP, SEARCH_BUG, RANKING_BUG, SPEED_BUG)
+dbCount (how many in database)
+searchCount (how many returned)
+relevancePercent
+imagePercent
+timeMs
+firstResult
+category
+fixAction
+
+4. ADD PROGRESS INDICATOR
+html<div id="progress">
+  <span id="progressText">0 / 355</span>
+  <progress id="progressBar" value="0" max="355"></progress>
+  <span id="eta">ETA: calculating...</span>
+</div>
+5. ALLOW PAUSE/RESUME
+So I can stop it, come back later, continue where I left off.
+6. IMPORT/EXPORT QUERY LISTS
+html<button onclick="exportQueryList()">Export Query List</button>
+<button onclick="importQueryList()">Import Query List</button>
+This way I can:
+
+Build a huge query list (5000+)
+Save it
+Run audits whenever I want
+Download CSV results
+Not need Replit open"
+
+
+Then I'll Give You:
+A massive list of 5000 real-world queries covering:
+
+Every brand (500+)
+Every category (200+)
+Natural language queries (1000+)
+Age/size specific (500+)
+Price queries (200+)
+Cinema/restaurant/attraction intents (500+)
+Edge cases (500+)
