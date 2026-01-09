@@ -1879,6 +1879,65 @@ export async function registerRoutes(
     }
   });
 
+  // Chunked import - RESUMABLE! Call repeatedly until done (~50s per call)
+  app.post("/api/cj/import-chunk", async (req, res) => {
+    try {
+      const { importCJChunk } = await import('./services/cj');
+      const { maxCalls = 20 } = req.body || {};
+      
+      const result = await importCJChunk(maxCalls);
+      
+      res.json({
+        success: true,
+        ...result,
+        message: result.done 
+          ? `Import complete! ${result.totalImported} total products`
+          : `Chunk imported: +${result.imported}, total: ${result.totalImported}, next: ${result.keyword}@${result.offset}`
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Get import status
+  app.get("/api/cj/import-status", async (req, res) => {
+    try {
+      const { getCJImportStatus } = await import('./services/cj');
+      const status = await getCJImportStatus();
+      
+      res.json({
+        success: true,
+        status: status || { keyword: 'not started', offset: 0, totalImported: 0 }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Reset import to start fresh
+  app.post("/api/cj/import-reset", async (req, res) => {
+    try {
+      const { resetCJImportState } = await import('./services/cj');
+      await resetCJImportState();
+      
+      res.json({
+        success: true,
+        message: 'Import state reset. Ready to start fresh.'
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // ============================================================
   // SIMPLE SEARCH - CTO's approach: keyword SQL + GPT reranker
   // One simple endpoint. 115k products. OpenAI picks the best.

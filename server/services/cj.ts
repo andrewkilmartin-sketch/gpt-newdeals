@@ -27,6 +27,7 @@ function generateCJAffiliateLink(merchantUrl: string, advertiserId: string): str
 
 export interface CJProduct {
   id: string;
+  catalogId: string;
   title: string;
   description: string;
   price: { amount: number; currency: string };
@@ -885,10 +886,12 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
   let imported = 0;
   let callsMade = 0;
   const pageSize = 100;
+  const startTime = Date.now();
+  const maxDurationMs = 45000; // 45 second max to stay under Railway 60s limit
   
   console.log(`[CJ Chunk] Starting from keyword="${keyword}", offset=${offset}, total=${totalImported}`);
   
-  while (callsMade < maxCalls) {
+  while (callsMade < maxCalls && (Date.now() - startTime) < maxDurationMs) {
     const result = await searchCJProducts(keyword, pageSize, offset);
     callsMade++;
     
@@ -913,18 +916,25 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
     }
     
     // Import products
+    let skipped = 0;
+    let errors = 0;
     for (const product of result.products) {
       try {
-        const linkHash = Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
-        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 8);
-        const productId = `cj_${advertiserHash}_${linkHash}`;
+        // Use catalogId for unique ID, fallback to link hash if missing
+        const catalogId = product.catalogId || 
+          Buffer.from(product.link).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(10, 30);
+        const advertiserHash = product.advertiserName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 10);
+        const productId = `cj_${advertiserHash}_${catalogId}`;
         
         const existing = await db.select({ id: products.id })
           .from(products)
           .where(eq(products.id, productId))
           .limit(1);
         
-        if (existing.length > 0) continue;
+        if (existing.length > 0) {
+          skipped++;
+          continue;
+        }
         
         const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
         
@@ -946,7 +956,7 @@ export async function importCJChunk(maxCalls: number = 20): Promise<{
         imported++;
         totalImported++;
       } catch (error) {
-        // Skip duplicates silently
+        errors++;
       }
     }
     
