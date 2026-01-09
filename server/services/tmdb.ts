@@ -2,9 +2,12 @@ import { db } from "../db";
 import { movies, type InsertMovie } from "../../shared/schema";
 import { eq, sql } from "drizzle-orm";
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+function getTMDBApiKey(): string | undefined {
+  return process.env.TMDB_API_KEY;
+}
 
 interface TMDBMovie {
   id: number;
@@ -73,12 +76,13 @@ export function getBackdropUrl(path: string | null, size: "w300" | "w780" | "w12
 }
 
 async function fetchTMDB<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-  if (!TMDB_API_KEY) {
+  const apiKey = getTMDBApiKey();
+  if (!apiKey) {
     throw new Error("TMDB_API_KEY not configured");
   }
   
   const queryParams = new URLSearchParams({
-    api_key: TMDB_API_KEY,
+    api_key: apiKey,
     ...params,
   });
   
