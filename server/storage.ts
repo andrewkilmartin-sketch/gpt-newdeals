@@ -883,6 +883,36 @@ export class DatabaseStorage implements IStorage {
       productMap.set(id, entry);
     }
     
+    // CRITICAL FIX: Apply product type token boost to SEMANTIC results too
+    // This ensures "Frozen costume" ranks above "Frozen swimsuit" even in semantic results
+    // ALSO: Override hardFail for products that match product type tokens!
+    const phraseTokensForSemantic = matchedPhrase ? new Set(matchedPhrase.split(/\s+/)) : new Set<string>();
+    const mustMatchTokensForSemantic = mustMatchTerm ? new Set(mustMatchTerm.toLowerCase().split(/\s+/)) : new Set<string>();
+    const productTypeTokensForSemantic = tokens.filter(t => !phraseTokensForSemantic.has(t) && !mustMatchTokensForSemantic.has(t));
+    
+    if (productTypeTokensForSemantic.length > 0) {
+      for (const [id, entry] of productMap) {
+        const nameLower = entry.product.name.toLowerCase();
+        const categoryLower = (entry.product.category || '').toLowerCase();
+        
+        for (const typeToken of productTypeTokensForSemantic) {
+          if (nameLower.includes(typeToken)) {
+            // CRITICAL: If product matches product type token, override hardFail and boost
+            if (hardFailIds.has(id)) {
+              hardFailIds.delete(id); // Remove from hardFail set
+              entry.score = Math.max(0, entry.score) + 500; // Reset negative score and boost
+              console.log(`[Scoring] OVERRIDE hardFail + boost for "${typeToken}" in "${entry.product.name.substring(0, 40)}..."`);
+            } else {
+              entry.score += 500; // MASSIVE boost for semantic results with product type match
+            }
+          } else if (categoryLower.includes(typeToken)) {
+            entry.score += 250;
+          }
+        }
+        productMap.set(id, entry);
+      }
+    }
+    
     // Add/boost keyword results - apply taxonomy only to NEW products
     for (const product of keywordResults) {
       const existing = productMap.get(product.id);
@@ -919,6 +949,21 @@ export class DatabaseStorage implements IStorage {
         if (queryLower.includes(phrase)) {
           if (nameLower.includes(phrase)) score += 100;
           else if (brandLower.includes(phrase)) score += 75;
+        }
+      }
+      
+      // CRITICAL FIX: MASSIVE boost for product type tokens (costume, tower, playset, dreamhouse)
+      // These are the words that distinguish "frozen elsa costume" from "frozen elsa swimsuit"
+      const phraseTokensSet = matchedPhrase ? new Set(matchedPhrase.split(/\s+/)) : new Set<string>();
+      const mustMatchTokensSet = mustMatchTerm ? new Set(mustMatchTerm.toLowerCase().split(/\s+/)) : new Set<string>();
+      const productTypeTokensForScoring = tokens.filter(t => !phraseTokensSet.has(t) && !mustMatchTokensSet.has(t));
+      
+      for (const typeToken of productTypeTokensForScoring) {
+        if (nameLower.includes(typeToken)) {
+          score += 500; // MASSIVE boost - ensures "costume" products rank above "swimsuit"
+          console.log(`[Scoring] +500 boost for product type match: "${typeToken}" in "${product.name.substring(0, 40)}..."`);
+        } else if (categoryLower.includes(typeToken)) {
+          score += 250; // Category match is also good
         }
       }
       
