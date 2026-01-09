@@ -1,0 +1,137 @@
+Based on my research, here's what I found. Give this to Replit:
+
+Tell Replit - CJ Product Feed API Instructions:
+"The CJ Product Search API uses GraphQL. Here's the exact setup:
+API Endpoint:
+https://productcatalog.api.cj.com/query
+Authentication:
+Authorization: Bearer YOUR_CJ_PERSONAL_ACCESS_TOKEN
+Content-Type: application/json
+GraphQL Query to Get Products:
+javascriptconst query = `{
+  shoppingProducts(
+    companyId: "YOUR_PUBLISHER_CID"
+    partnerStatus: JOINED
+    limit: 1000
+    offset: 0
+  ) {
+    totalCount
+    count
+    resultList {
+      id
+      title
+      description
+      link
+      imageLink
+      price {
+        amount
+        currency
+      }
+      salePrice {
+        amount
+        currency  
+      }
+      brand
+      advertiserName
+      advertiserCountry
+      availability
+      category
+      gtin
+    }
+  }
+}`;
+
+const response = await fetch('https://productcatalog.api.cj.com/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${CJ_API_TOKEN}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ query })
+});
+To search by keyword:
+javascriptconst query = `{
+  shoppingProducts(
+    companyId: "YOUR_PUBLISHER_CID"
+    partnerStatus: JOINED
+    keywords: "barbie dreamhouse"
+    limit: 500
+  ) {
+    totalCount
+    resultList {
+      title
+      description
+      link
+      imageLink
+      price { amount currency }
+      brand
+      advertiserName
+    }
+  }
+}`;
+To get ALL products from joined advertisers (bulk import):
+javascript// Loop through with offset pagination
+let offset = 0;
+const limit = 1000;
+let allProducts = [];
+
+while (true) {
+  const query = `{
+    shoppingProducts(
+      companyId: "${CJ_PUBLISHER_ID}"
+      partnerStatus: JOINED
+      limit: ${limit}
+      offset: ${offset}
+    ) {
+      totalCount
+      count
+      resultList {
+        id
+        title
+        description
+        link
+        imageLink
+        price { amount currency }
+        brand
+        advertiserName
+        category
+      }
+    }
+  }`;
+  
+  const response = await fetch('https://productcatalog.api.cj.com/query', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${CJ_API_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query })
+  });
+  
+  const data = await response.json();
+  const products = data.data.shoppingProducts.resultList;
+  
+  if (products.length === 0) break;
+  
+  allProducts.push(...products);
+  offset += limit;
+  
+  console.log(`Imported ${allProducts.length} / ${data.data.shoppingProducts.totalCount}`);
+  
+  // Rate limit: 25 calls per minute
+  await new Promise(r => setTimeout(r, 2500));
+}
+Key Parameters:
+
+companyId = Your CJ Publisher ID (CID)
+partnerStatus: JOINED = Only advertisers you're partnered with
+limit = Max 1000 per request
+offset = For pagination
+keywords = Search filter
+
+Rate Limits:
+
+25 API calls per minute
+Use 2.5 second delays between calls
+
+Can you set up a bulk import script using this?"
