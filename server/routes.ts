@@ -893,6 +893,20 @@ function expandQueryFallback(query: string): QueryInterpretation {
   };
 }
 
+// Get deals for a merchant even when no products exist (deals-only experience)
+// Only matches full merchant names to avoid false positives
+async function getDealsForMerchant(query: string): Promise<ProductPromotion[]> {
+  try {
+    // Only try exact merchant match (no word splitting to avoid false matches)
+    // e.g., "boots" matches Boots, but "star wars lego" does NOT match "Star Travel"
+    const deals = await getPromotionsForMerchant(query);
+    return deals;
+  } catch (error) {
+    console.error('[getDealsForMerchant] Error:', error);
+    return [];
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2066,13 +2080,19 @@ Examples:
                   inStock: p.in_stock
                 }));
                 
+                // Get actual count for fallback term
+                const [{ count: altCount }] = await db.select({ count: sql<number>`count(*)` })
+                  .from(products)
+                  .where(and(...altConditions, isNotNull(products.affiliateLink)));
+                
                 return res.json({
                   success: true,
                   query,
                   count: fallbackProducts.length,
-                  totalCount: 0,
-                  hasMore: false,
+                  totalCount: Number(altCount) || fallbackProducts.length,
+                  hasMore: Number(altCount) > fallbackProducts.length,
                   products: fallbackProducts,
+                  isFallback: true,
                   fallback: {
                     reason: `No exact matches for "${query}"`,
                     showingAlternative: altTerm,
@@ -2087,11 +2107,42 @@ Examples:
           console.error('[Shop Search] Fallback suggestion failed:', fallbackError);
         }
         
-        // If fallback also fails, return empty
+        // If fallback also fails, check for deals-only (promotions without products)
+        const dealsOnly = await getDealsForMerchant(query);
+        if (dealsOnly.length > 0) {
+          console.log(`[Shop Search] No products but found ${dealsOnly.length} deals for "${query}"`);
+          return res.json({ 
+            success: true, 
+            query, 
+            count: 0, 
+            totalCount: 0, 
+            hasMore: false, 
+            products: [], 
+            dealsOnly: dealsOnly,
+            message: `No products found, but we have ${dealsOnly.length} deal${dealsOnly.length > 1 ? 's' : ''} from ${query}!`,
+            interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined 
+          });
+        }
         return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
       }
       
       if (candidates.length === 0) {
+        // Check for deals-only before returning empty
+        const dealsOnly = await getDealsForMerchant(query);
+        if (dealsOnly.length > 0) {
+          console.log(`[Shop Search] No products but found ${dealsOnly.length} deals for "${query}"`);
+          return res.json({ 
+            success: true, 
+            query, 
+            count: 0, 
+            totalCount: 0, 
+            hasMore: false, 
+            products: [], 
+            dealsOnly: dealsOnly,
+            message: `No products found, but we have ${dealsOnly.length} deal${dealsOnly.length > 1 ? 's' : ''} from ${query}!`,
+            interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined 
+          });
+        }
         return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
       }
 

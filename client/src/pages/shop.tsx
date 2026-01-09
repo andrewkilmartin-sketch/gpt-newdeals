@@ -54,6 +54,15 @@ interface ActiveFilters {
   maxPrice?: number;
 }
 
+interface DealOnly {
+  title: string;
+  voucherCode?: string;
+  expiresAt?: string;
+  merchantName?: string;
+  description?: string;
+  deepLink?: string;
+}
+
 interface SearchResponse {
   success: boolean;
   query: string;
@@ -62,6 +71,8 @@ interface SearchResponse {
   hasMore: boolean;
   products: Product[];
   filters?: Filters;
+  dealsOnly?: DealOnly[];
+  message?: string;
 }
 
 const SUGGESTIONS = [
@@ -88,6 +99,8 @@ export default function ShopSearch() {
   const [filters, setFilters] = useState<Filters | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
   const [searchTime, setSearchTime] = useState<number | null>(null);
+  const [dealsOnly, setDealsOnly] = useState<DealOnly[]>([]);
+  const [dealsMessage, setDealsMessage] = useState<string | null>(null);
 
   const performSearch = async (searchText: string, appliedFilters: ActiveFilters = {}, offset = 0) => {
     if (!searchText.trim()) return;
@@ -136,6 +149,14 @@ export default function ShopSearch() {
           setProducts(data.products);
           setSearchQuery(data.query);
           if (data.filters) setFilters(data.filters);
+          // Only show deals-only when no products, otherwise clear
+          if (data.products.length === 0 && data.dealsOnly && data.dealsOnly.length > 0) {
+            setDealsOnly(data.dealsOnly);
+            setDealsMessage(data.message || null);
+          } else {
+            setDealsOnly([]);
+            setDealsMessage(null);
+          }
         } else {
           setProducts(prev => [...prev, ...data.products]);
         }
@@ -428,19 +449,31 @@ export default function ShopSearch() {
                       </Badge>
                     </div>
                   )}
-                  <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center">
+                  <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center relative">
                     {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="max-w-full max-h-full object-contain"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
+                      <>
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="max-w-full max-h-full object-contain relative z-10"
+                          loading="lazy"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const fallback = target.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                        <div className="absolute inset-0 items-center justify-center hidden flex-col text-gray-400">
+                          <Sparkles className="w-12 h-12 mb-2" />
+                          <span className="text-xs">Image unavailable</span>
+                        </div>
+                      </>
                     ) : (
-                      <Sparkles className="w-16 h-16 text-gray-300" />
+                      <div className="flex flex-col items-center text-gray-400">
+                        <Sparkles className="w-12 h-12 mb-2" />
+                        <span className="text-xs">No image</span>
+                      </div>
                     )}
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
@@ -519,7 +552,41 @@ export default function ShopSearch() {
 
         {products.length === 0 && !isLoading && searchQuery && (
           <div className="text-center text-white/80 py-8" data-testid="text-no-results">
-            <p>No products found. Try a different search term.</p>
+            {dealsOnly.length > 0 ? (
+              <div className="max-w-2xl mx-auto" data-testid="container-deals-only">
+                <p className="text-lg mb-4" data-testid="text-deals-message">{dealsMessage || `No products, but we have deals for "${searchQuery}"!`}</p>
+                <div className="grid gap-4">
+                  {dealsOnly.map((deal, idx) => (
+                    <Card key={idx} className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200 p-4" data-testid={`card-deal-${idx}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold flex-shrink-0" data-testid={`badge-voucher-${idx}`}>
+                          <Tag className="w-4 h-4 inline mr-1" />
+                          {deal.voucherCode || 'DEAL'}
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="font-semibold text-gray-900" data-testid={`text-deal-title-${idx}`}>{deal.title}</p>
+                          {deal.merchantName && (
+                            <p className="text-sm text-gray-600" data-testid={`text-deal-merchant-${idx}`}>{deal.merchantName}</p>
+                          )}
+                          {deal.expiresAt && (
+                            <p className="text-xs text-gray-500" data-testid={`text-deal-expires-${idx}`}>Expires: {deal.expiresAt}</p>
+                          )}
+                        </div>
+                        {deal.deepLink && (
+                          <a href={deal.deepLink} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" className="bg-red-500 hover:bg-red-600" data-testid={`button-get-deal-${idx}`}>
+                              Get Deal <ExternalLink className="w-3 h-3 ml-1" />
+                            </Button>
+                          </a>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p>No products found. Try a different search term.</p>
+            )}
           </div>
         )}
 
