@@ -1094,7 +1094,7 @@ export async function registerRoutes(
     }
   });
 
-  // Debug endpoint to analyze promotions vs products
+  // Debug endpoint to analyze promotions vs products (UNIFIED: Awin + CJ)
   app.get("/api/debug/promotions-stats", async (req, res) => {
     try {
       const activePromotions = await getAllActivePromotions();
@@ -1122,15 +1122,64 @@ export async function registerRoutes(
         }
       }
       
+      // Count by source
+      const allPromos = Array.from(activePromotions.values()).flat();
+      const awinCount = allPromos.filter(p => p.source === 'awin' || !p.source).length;
+      const cjCount = allPromos.filter(p => p.source === 'cj').length;
+      
       res.json({
         success: true,
-        totalPromotions: Array.from(activePromotions.values()).flat().length,
+        totalPromotions: allPromos.length,
+        bySource: {
+          awin: awinCount,
+          cj: cjCount
+        },
         uniqueMerchantsWithPromos: promoMerchants.length,
         uniqueMerchantsInProducts: uniqueMerchantCount,
         matchingMerchants: matchingMerchants.length,
         estimatedProductsWithPromos: productsWithPromos,
         samplePromoMerchants: promoMerchants.slice(0, 15),
         sampleMatchingMerchants: matchingMerchants.slice(0, 10)
+      });
+    } catch (error) {
+      const err = error as Error;
+      res.json({ success: false, error: err.message, stack: err.stack?.split('\n').slice(0,3) });
+    }
+  });
+  
+  // Debug endpoint to test CJ promotions specifically
+  app.get("/api/debug/cj-promotions", async (req, res) => {
+    try {
+      const { fetchCJPromotions, getAllCJActivePromotions, isCJPromotionsConfigured } = await import('./services/cj');
+      
+      if (!isCJPromotionsConfigured()) {
+        return res.json({
+          success: false,
+          error: 'CJ Promotions API not configured - requires CJ_API_TOKEN and CJ_WEBSITE_ID secrets',
+          note: 'CJ_WEBSITE_ID is different from CJ_PUBLISHER_ID. Find it in CJ Account Manager under your website settings.'
+        });
+      }
+      
+      // Force fetch fresh promotions
+      const promotions = await fetchCJPromotions();
+      const allActive = await getAllCJActivePromotions();
+      
+      // Sample promotions with voucher codes
+      const withVouchers = promotions.filter(p => p.couponCode);
+      
+      res.json({
+        success: true,
+        totalPromotions: promotions.length,
+        withVoucherCodes: withVouchers.length,
+        uniqueMerchants: allActive.size,
+        samplePromotions: promotions.slice(0, 10).map(p => ({
+          advertiser: p.advertiserName,
+          title: p.linkName,
+          type: p.promotionType,
+          code: p.couponCode,
+          endDate: p.endDate
+        })),
+        sampleMerchants: Array.from(allActive.keys()).slice(0, 15)
       });
     } catch (error) {
       const err = error as Error;

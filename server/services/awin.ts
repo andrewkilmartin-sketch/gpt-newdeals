@@ -123,9 +123,10 @@ export interface ProductPromotion {
   expiresAt?: string;
   promotionType: string;
   advertiserId: number;
+  source?: 'awin' | 'cj';
 }
 
-// Get active promotions for a merchant name
+// Get active promotions for a merchant name (UNIFIED: Awin + CJ)
 export async function getPromotionsForMerchant(merchantName: string): Promise<ProductPromotion[]> {
   await buildPromotionsIndex();
   
@@ -147,22 +148,34 @@ export async function getPromotionsForMerchant(merchantName: string): Promise<Pr
     return endDate > now && p.status === 'active';
   });
   
-  return activePromos.map(p => ({
+  const awinResults: ProductPromotion[] = activePromos.map(p => ({
     promotionTitle: p.title,
     voucherCode: p.voucher?.code,
     expiresAt: p.endDate?.split('T')[0],
     promotionType: p.type,
-    advertiserId: p.advertiser.id
+    advertiserId: p.advertiser.id,
+    source: 'awin' as const
   }));
+  
+  // Also fetch CJ promotions for the same merchant
+  try {
+    const { getCJPromotionsForMerchant } = await import('./cj');
+    const cjPromos = await getCJPromotionsForMerchant(merchantName);
+    return [...awinResults, ...cjPromos.map(p => ({ ...p, source: 'cj' as const }))];
+  } catch (err) {
+    // CJ promotions not available, return Awin only
+    return awinResults;
+  }
 }
 
-// Get all active promotions indexed by normalized merchant name (for bulk operations)
+// Get all active promotions indexed by normalized merchant name (UNIFIED: Awin + CJ)
 export async function getAllActivePromotions(): Promise<Map<string, ProductPromotion[]>> {
   await buildPromotionsIndex();
   
   const result = new Map<string, ProductPromotion[]>();
   const now = new Date();
   
+  // Add Awin promotions
   for (const [merchantName, promos] of promotionsByMerchant) {
     const activePromos = promos
       .filter(p => new Date(p.endDate) > now && p.status === 'active')
@@ -171,12 +184,26 @@ export async function getAllActivePromotions(): Promise<Map<string, ProductPromo
         voucherCode: p.voucher?.code,
         expiresAt: p.endDate?.split('T')[0],
         promotionType: p.type,
-        advertiserId: p.advertiser.id
+        advertiserId: p.advertiser.id,
+        source: 'awin' as const
       }));
     
     if (activePromos.length > 0) {
       result.set(merchantName, activePromos);
     }
+  }
+  
+  // Merge CJ promotions
+  try {
+    const { getAllCJActivePromotions } = await import('./cj');
+    const cjPromos = await getAllCJActivePromotions();
+    
+    for (const [merchantName, promos] of cjPromos) {
+      const existing = result.get(merchantName) || [];
+      result.set(merchantName, [...existing, ...promos.map(p => ({ ...p, source: 'cj' as const }))]);
+    }
+  } catch (err) {
+    // CJ promotions not available
   }
   
   return result;

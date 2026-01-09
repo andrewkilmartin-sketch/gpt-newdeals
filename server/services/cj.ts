@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 
 const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
 const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
+const CJ_WEBSITE_ID = process.env.CJ_WEBSITE_ID; // Required for Link-Search promotions API
 
 // CJ Product Search API endpoint
 // See: https://developers.cj.com/graphql/reference/Product%20Search
@@ -48,6 +49,11 @@ export interface CJSearchResult {
 
 export function isCJConfigured(): boolean {
   return !!(CJ_API_TOKEN && CJ_PUBLISHER_ID);
+}
+
+// CJ Promotions requires website-id which is different from publisher-id
+export function isCJPromotionsConfigured(): boolean {
+  return !!(CJ_API_TOKEN && CJ_WEBSITE_ID);
 }
 
 // Fast search without per-call delay - for high throughput imports
@@ -1097,4 +1103,223 @@ export async function getCJImportStatus(): Promise<{
   const state = await db.select().from(cjImportState).where(eq(cjImportState.id, 'current')).limit(1);
   if (state.length === 0) return null;
   return state[0];
+}
+
+// ============================================
+// CJ PROMOTIONS / LINK-SEARCH API
+// ============================================
+// CJ Link-Search REST API for promotions/vouchers/coupons
+// See: https://developers.cj.com/docs/rest-apis/link-search
+
+const CJ_LINK_SEARCH_ENDPOINT = 'https://link-search.api.cj.com/v2/link-search';
+
+export interface CJPromotion {
+  linkId: number;
+  advertiserId: number;
+  advertiserName: string;
+  linkName: string;
+  description: string;
+  linkType: string;
+  promotionType?: string;
+  couponCode?: string;
+  startDate?: string;
+  endDate?: string;
+  clickUrl: string;
+  category?: string;
+}
+
+// Cache for CJ promotions
+let cjPromotionsCache: CJPromotion[] | null = null;
+let cjPromotionsCacheTime: number = 0;
+const CJ_PROMOTIONS_CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
+
+// CJ promotions indexed by normalized advertiser name
+let cjPromotionsByMerchant: Map<string, CJPromotion[]> = new Map();
+let cjPromotionsIndexTime: number = 0;
+
+// Normalize merchant name for matching
+function normalizeMerchantName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s*(uk|eu|europe|usa|us|gb|direct|plc|ltd|limited|com|co\.uk)\s*$/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/and/g, '')
+    .trim();
+}
+
+// Fetch CJ promotions using Link-Search API
+export async function fetchCJPromotions(): Promise<CJPromotion[]> {
+  if (!isCJPromotionsConfigured()) {
+    console.log('[CJ Promotions] Not configured - need CJ_API_TOKEN and CJ_WEBSITE_ID');
+    return [];
+  }
+
+  if (cjPromotionsCache && Date.now() - cjPromotionsCacheTime < CJ_PROMOTIONS_CACHE_DURATION) {
+    return cjPromotionsCache;
+  }
+
+  try {
+    console.log('[CJ Promotions] Fetching promotions from Link-Search API...');
+    const allPromotions: CJPromotion[] = [];
+    
+    // Fetch different promotion types
+    const promotionTypes = ['coupon', 'sale'];
+    
+    for (const promoType of promotionTypes) {
+      const params = new URLSearchParams({
+        'website-id': CJ_WEBSITE_ID!,
+        'link-type': 'Text Link',
+        'promotion-type': promoType,
+        'records-per-page': '100'
+      });
+      
+      const url = `${CJ_LINK_SEARCH_ENDPOINT}?${params.toString()}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${CJ_API_TOKEN}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`[CJ Promotions] API error for ${promoType}: ${response.status} - ${errorText.substring(0, 200)}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      const links = data?.links || [];
+      
+      console.log(`[CJ Promotions] Found ${links.length} ${promoType} promotions`);
+      
+      for (const link of links) {
+        allPromotions.push({
+          linkId: link.linkId,
+          advertiserId: link.advertiserId,
+          advertiserName: link.advertiserName || '',
+          linkName: link.linkName || '',
+          description: link.description || '',
+          linkType: link.linkType || '',
+          promotionType: link.promotionType || promoType,
+          couponCode: link.couponCode || undefined,
+          startDate: link.promotionStartDate,
+          endDate: link.promotionEndDate,
+          clickUrl: link.clickUrl || link.linkCodeJavascript || '',
+          category: link.category || undefined
+        });
+      }
+      
+      // Rate limit between calls
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    cjPromotionsCache = allPromotions;
+    cjPromotionsCacheTime = Date.now();
+    console.log(`[CJ Promotions] Cached ${allPromotions.length} total promotions`);
+    
+    return allPromotions;
+  } catch (error) {
+    console.error('[CJ Promotions] Fetch error:', error);
+    return cjPromotionsCache || [];
+  }
+}
+
+// Build index of CJ promotions by merchant name
+export async function buildCJPromotionsIndex(): Promise<void> {
+  const promotions = await fetchCJPromotions();
+  const now = Date.now();
+  
+  if (cjPromotionsIndexTime > 0 && now - cjPromotionsIndexTime < CJ_PROMOTIONS_CACHE_DURATION) {
+    return;
+  }
+  
+  cjPromotionsByMerchant.clear();
+  
+  for (const promo of promotions) {
+    if (!promo.advertiserName) continue;
+    
+    const normalizedName = normalizeMerchantName(promo.advertiserName);
+    if (!cjPromotionsByMerchant.has(normalizedName)) {
+      cjPromotionsByMerchant.set(normalizedName, []);
+    }
+    cjPromotionsByMerchant.get(normalizedName)!.push(promo);
+  }
+  
+  cjPromotionsIndexTime = now;
+  console.log(`[CJ Promotions] Built index with ${cjPromotionsByMerchant.size} merchants, ${promotions.length} total promotions`);
+}
+
+// CJ promotion metadata (matching Awin's ProductPromotion interface)
+export interface CJProductPromotion {
+  promotionTitle: string;
+  voucherCode?: string;
+  expiresAt?: string;
+  promotionType: string;
+  advertiserId: number;
+  source: 'cj';
+}
+
+// Get active CJ promotions for a merchant name
+export async function getCJPromotionsForMerchant(merchantName: string): Promise<CJProductPromotion[]> {
+  await buildCJPromotionsIndex();
+  
+  const normalizedName = normalizeMerchantName(merchantName);
+  const promos = cjPromotionsByMerchant.get(normalizedName) || [];
+  
+  // Also try partial matches
+  const allMatches: CJPromotion[] = [...promos];
+  for (const [key, values] of cjPromotionsByMerchant) {
+    if (key !== normalizedName && (key.includes(normalizedName) || normalizedName.includes(key))) {
+      allMatches.push(...values);
+    }
+  }
+  
+  // Filter to active promotions only
+  const now = new Date();
+  const activePromos = allMatches.filter(p => {
+    if (!p.endDate) return true; // No end date = always active
+    const endDate = new Date(p.endDate);
+    return endDate > now;
+  });
+  
+  return activePromos.map(p => ({
+    promotionTitle: p.linkName || p.description,
+    voucherCode: p.couponCode,
+    expiresAt: p.endDate?.split('T')[0],
+    promotionType: p.promotionType || 'promotion',
+    advertiserId: p.advertiserId,
+    source: 'cj' as const
+  }));
+}
+
+// Get all active CJ promotions indexed by merchant name
+export async function getAllCJActivePromotions(): Promise<Map<string, CJProductPromotion[]>> {
+  await buildCJPromotionsIndex();
+  
+  const result = new Map<string, CJProductPromotion[]>();
+  const now = new Date();
+  
+  for (const [merchantName, promos] of cjPromotionsByMerchant) {
+    const activePromos = promos
+      .filter(p => !p.endDate || new Date(p.endDate) > now)
+      .map(p => ({
+        promotionTitle: p.linkName || p.description,
+        voucherCode: p.couponCode,
+        expiresAt: p.endDate?.split('T')[0],
+        promotionType: p.promotionType || 'promotion',
+        advertiserId: p.advertiserId,
+        source: 'cj' as const
+      }));
+    
+    if (activePromos.length > 0) {
+      result.set(merchantName, activePromos);
+    }
+  }
+  
+  return result;
+}
+
+// Get CJ promotions count for status reporting
+export function getCJPromotionsCount(): number {
+  return cjPromotionsCache?.length || 0;
 }
