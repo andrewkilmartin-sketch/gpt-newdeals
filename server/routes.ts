@@ -22,6 +22,20 @@ import {
   getRandomTransition,
   getRandomError 
 } from "./services/voice";
+import { 
+  syncMovies, 
+  getMoviesByType, 
+  searchMovies, 
+  getPosterUrl, 
+  getBackdropUrl,
+  getGenreNames,
+  TMDB_GENRES
+} from "./services/tmdb";
+import { 
+  getUpsellProducts, 
+  trackUpsellClick, 
+  seedDefaultMappings 
+} from "./services/upsell";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
@@ -5006,6 +5020,239 @@ ONLY use IDs from the list. Never invent IDs.`
     const type = (req.query.type as string) || 'not_understood';
     const message = getRandomError(type);
     res.json({ message, type });
+  });
+
+  // ============================================================
+  // TMDB MOVIES ENDPOINTS
+  // ============================================================
+
+  app.post('/api/movies/sync', async (req, res) => {
+    try {
+      console.log('[TMDB] Manual sync triggered');
+      const result = await syncMovies();
+      res.json({ 
+        success: true, 
+        message: 'Movies synced successfully',
+        ...result 
+      });
+    } catch (error: any) {
+      console.error('[TMDB] Sync error:', error);
+      res.status(500).json({ error: 'Movie sync failed', details: error.message });
+    }
+  });
+
+  app.get('/api/movies/cinema', async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+      const dbMovies = await getMoviesByType('cinema', limit);
+      
+      const movies = dbMovies.map(m => ({
+        id: m.id,
+        title: m.title,
+        overview: m.overview,
+        poster: getPosterUrl(m.posterPath, 'w342'),
+        backdrop: getBackdropUrl(m.backdropPath),
+        releaseDate: m.releaseDate,
+        rating: m.voteAverage,
+        genres: m.genreIds ? getGenreNames(m.genreIds) : [],
+        certification: m.ukCertification,
+        runtime: m.runtime,
+      }));
+      
+      res.json({ 
+        movies, 
+        count: movies.length,
+        attribution: 'This product uses the TMDB API but is not endorsed or certified by TMDB.'
+      });
+    } catch (error: any) {
+      console.error('[TMDB] Cinema fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch cinema movies', details: error.message });
+    }
+  });
+
+  app.get('/api/movies/coming-soon', async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+      const dbMovies = await getMoviesByType('coming_soon', limit);
+      
+      const movies = dbMovies.map(m => ({
+        id: m.id,
+        title: m.title,
+        overview: m.overview,
+        poster: getPosterUrl(m.posterPath, 'w342'),
+        backdrop: getBackdropUrl(m.backdropPath),
+        releaseDate: m.releaseDate,
+        rating: m.voteAverage,
+        genres: m.genreIds ? getGenreNames(m.genreIds) : [],
+        certification: m.ukCertification,
+      }));
+      
+      res.json({ 
+        movies, 
+        count: movies.length,
+        attribution: 'This product uses the TMDB API but is not endorsed or certified by TMDB.'
+      });
+    } catch (error: any) {
+      console.error('[TMDB] Coming soon fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch upcoming movies', details: error.message });
+    }
+  });
+
+  app.get('/api/movies/search', async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter "q" is required' });
+      }
+      
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+      const dbMovies = await searchMovies(query, limit);
+      
+      const movies = dbMovies.map(m => ({
+        id: m.id,
+        title: m.title,
+        overview: m.overview,
+        poster: getPosterUrl(m.posterPath, 'w342'),
+        backdrop: getBackdropUrl(m.backdropPath),
+        releaseDate: m.releaseDate,
+        rating: m.voteAverage,
+        genres: m.genreIds ? getGenreNames(m.genreIds) : [],
+        certification: m.ukCertification,
+        contentType: m.contentType,
+      }));
+      
+      res.json({ 
+        query,
+        movies, 
+        count: movies.length,
+        attribution: 'This product uses the TMDB API but is not endorsed or certified by TMDB.'
+      });
+    } catch (error: any) {
+      console.error('[TMDB] Search error:', error);
+      res.status(500).json({ error: 'Movie search failed', details: error.message });
+    }
+  });
+
+  app.get('/api/movies/genres', (req, res) => {
+    res.json({ genres: TMDB_GENRES });
+  });
+
+  // ============================================================
+  // UPSELL SYSTEM ENDPOINTS
+  // ============================================================
+
+  app.post('/api/upsells/seed', async (req, res) => {
+    try {
+      const count = await seedDefaultMappings();
+      res.json({ success: true, seeded: count });
+    } catch (error: any) {
+      console.error('[Upsell] Seed error:', error);
+      res.status(500).json({ error: 'Failed to seed mappings', details: error.message });
+    }
+  });
+
+  app.post('/api/upsells/get', async (req, res) => {
+    try {
+      const { contentId, contentType, genreIds, title, category, limit = 2 } = req.body;
+      
+      if (!contentId || !contentType) {
+        return res.status(400).json({ error: 'contentId and contentType are required' });
+      }
+      
+      const products = await getUpsellProducts({
+        contentId: String(contentId),
+        contentType,
+        genreIds,
+        title,
+        category,
+      }, Math.min(limit, 5));
+      
+      res.json({ 
+        products, 
+        count: products.length,
+        contentId,
+        contentType,
+      });
+    } catch (error: any) {
+      console.error('[Upsell] Get error:', error);
+      res.status(500).json({ error: 'Failed to get upsell products', details: error.message });
+    }
+  });
+
+  app.post('/api/upsells/click', async (req, res) => {
+    try {
+      const { contentId, contentType, productId, intentCategory, sessionId } = req.body;
+      
+      if (!contentId || !contentType || !productId) {
+        return res.status(400).json({ error: 'contentId, contentType, and productId are required' });
+      }
+      
+      await trackUpsellClick(contentId, contentType, productId, intentCategory, sessionId);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Upsell] Click tracking error:', error);
+      res.status(500).json({ error: 'Failed to track click', details: error.message });
+    }
+  });
+
+  // ============================================================
+  // MIXED RESULTS API - 6 content tiles + 2 upsell tiles
+  // ============================================================
+
+  app.post('/api/mixed/movies', async (req, res) => {
+    try {
+      const { contentType = 'cinema', limit = 6 } = req.body;
+      const contentLimit = Math.min(limit, 10);
+      
+      const dbMovies = await getMoviesByType(contentType, contentLimit);
+      
+      const contentItems = dbMovies.map(m => ({
+        type: 'movie' as const,
+        id: m.id,
+        title: m.title,
+        overview: m.overview,
+        poster: getPosterUrl(m.posterPath, 'w342'),
+        backdrop: getBackdropUrl(m.backdropPath),
+        releaseDate: m.releaseDate,
+        rating: m.voteAverage,
+        genres: m.genreIds ? getGenreNames(m.genreIds) : [],
+        certification: m.ukCertification,
+        contentType: m.contentType,
+      }));
+      
+      let upsellProducts: any[] = [];
+      if (contentItems.length > 0) {
+        const firstMovie = dbMovies[0];
+        upsellProducts = await getUpsellProducts({
+          contentId: String(firstMovie.id),
+          contentType: 'movie',
+          genreIds: firstMovie.genreIds || undefined,
+          title: firstMovie.title,
+        }, 2);
+      }
+      
+      const upsellItems = upsellProducts.map(p => ({
+        type: 'upsell' as const,
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        imageUrl: p.imageUrl,
+        affiliateLink: p.affiliateLink,
+        merchant: p.merchant,
+        upsellReason: p.upsellReason,
+      }));
+      
+      res.json({
+        content: contentItems,
+        upsells: upsellItems,
+        totalItems: contentItems.length + upsellItems.length,
+        attribution: 'This product uses the TMDB API but is not endorsed or certified by TMDB.',
+      });
+    } catch (error: any) {
+      console.error('[Mixed] Movies error:', error);
+      res.status(500).json({ error: 'Failed to fetch mixed results', details: error.message });
+    }
   });
 
   return httpServer;
