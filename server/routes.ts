@@ -540,14 +540,21 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
     // Electronics
     'headphones': { category: 'Headphones', keywords: ['headphones', 'earphones', 'audio'] },
     'earbuds': { category: 'Headphones', keywords: ['earbuds', 'wireless earphones', 'headphones'] },
-    // Toys
+    // Toys - include singular and plural variations
     'toys': { category: 'Toys', keywords: ['toys', 'games', 'playset'] },
     'toy': { category: 'Toys', keywords: ['toy', 'toys', 'playset'] },
+    'dolls': { category: 'Toys', keywords: ['dolls', 'doll', 'toys', 'figure'] },
+    'doll': { category: 'Toys', keywords: ['doll', 'dolls', 'toy', 'figure'] },
     'lego': { category: 'Toys', keywords: ['lego', 'building blocks'] },
     'figure': { category: 'Toys', keywords: ['figure', 'action figure', 'toy'] },
     'figures': { category: 'Toys', keywords: ['figures', 'action figures', 'toys'] },
     'playset': { category: 'Toys', keywords: ['playset', 'play set', 'toys'] },
+    'playsets': { category: 'Toys', keywords: ['playsets', 'play sets', 'toys'] },
     'plush': { category: 'Toys', keywords: ['plush', 'soft toy', 'stuffed animal'] },
+    'game': { category: 'Toys', keywords: ['game', 'games', 'toy'] },
+    'games': { category: 'Toys', keywords: ['games', 'game', 'toys'] },
+    'puzzle': { category: 'Toys', keywords: ['puzzle', 'puzzles', 'jigsaw'] },
+    'puzzles': { category: 'Toys', keywords: ['puzzles', 'puzzle', 'jigsaws'] },
     // Accessories/Clothing
     'backpack': { category: 'Toys', keywords: ['backpack', 'bag', 'rucksack'] },
     'bag': { category: 'Toys', keywords: ['bag', 'backpack', 'rucksack'] },
@@ -2466,7 +2473,11 @@ Format: ["id1", "id2", ...]`
         const stopWords = new Set(['the', 'and', 'for', 'with', 'set', 'pack', 'from']);
         // Generic product type words that should NOT be required in product names
         // when a brand/character is detected (e.g., "paw patrol toys" shouldn't require "toys" in name)
-        const genericProductWords = new Set(['toys', 'toy', 'gifts', 'gift', 'stuff', 'things', 'items', 'products', 'merchandise', 'merch']);
+        const genericProductWords = new Set([
+          'toys', 'toy', 'gifts', 'gift', 'stuff', 'things', 'items', 'products', 'merchandise', 'merch',
+          'dolls', 'doll', 'figures', 'figure', 'playsets', 'playset', 'games', 'game', 
+          'clothes', 'clothing', 'accessories', 'accessory', 'sets', 'set', 'collection'
+        ]);
         const detectedCharacter = interpretation.attributes?.brand?.toLowerCase();
         
         let words = query.toLowerCase()
@@ -2475,12 +2486,22 @@ Format: ["id1", "id2", ...]`
           .split(/\s+/)
           .filter(w => w.length > 2 && !stopWords.has(w));
         
-        // If we detected a character/license (like "paw patrol"), remove generic product words
-        // User says "paw patrol toys" meaning "toys FROM paw patrol", not "products with 'toys' in name"
+        // If we detected a MULTI-WORD character/license (like "paw patrol"), remove generic product words
+        // For multi-word brands, user says "paw patrol toys" meaning "toys FROM paw patrol", not "products with 'toys' in name"
+        // But for single-word brands (barbie, lego), KEEP the product word to maintain relevance
         if (detectedCharacter) {
           const characterWords = detectedCharacter.split(' ');
-          words = words.filter(w => !genericProductWords.has(w) || characterWords.includes(w));
-          console.log(`[Shop Search] Character detected "${detectedCharacter}" - filtered words: [${words.join(', ')}]`);
+          const isMultiWordBrand = characterWords.length > 1;
+          
+          if (isMultiWordBrand) {
+            // Only filter generic words for multi-word brands like "paw patrol", "peppa pig"
+            words = words.filter(w => !genericProductWords.has(w) || characterWords.includes(w));
+            console.log(`[Shop Search] Multi-word character "${detectedCharacter}" - filtered words: [${words.join(', ')}]`);
+          } else {
+            // For single-word brands, keep ALL words to maintain relevance
+            // "barbie dolls" should find products with BOTH "barbie" AND "dolls" in name
+            console.log(`[Shop Search] Single-word brand "${detectedCharacter}" - keeping all words: [${words.join(', ')}]`);
+          }
         }
         
         if (words.length > 0) {
@@ -2582,6 +2603,42 @@ Format: ["id1", "id2", ...]`
         }
         } // Close if (words.length > 0)
       } // Close else (original keyword search)
+      
+      // FAST FALLBACK: For single-word brands, search just the brand before calling GPT
+      if (candidates.length === 0 && interpretation.attributes?.brand) {
+        const brand = interpretation.attributes.brand.toLowerCase();
+        const brandWords = brand.split(' ');
+        
+        if (brandWords.length === 1) {
+          console.log(`[Shop Search] Fast fallback: Searching just for brand "${brand}"`);
+          
+          const brandResults = await db.select({
+            id: products.id,
+            name: products.name,
+            description: products.description,
+            price: products.price,
+            merchant: products.merchant,
+            brand: products.brand,
+            category: products.category,
+            affiliate_link: products.affiliateLink,
+            image_url: products.imageUrl,
+            in_stock: products.inStock
+          }).from(products)
+            .where(and(
+              ilike(products.name, `%${brand}%`),
+              isNotNull(products.affiliateLink),
+              sql`${products.imageUrl} NOT ILIKE '%noimage%'`
+            ))
+            .orderBy(products.id)
+            .limit(100);
+          
+          if (brandResults.length > 0) {
+            candidates = brandResults as any[];
+            totalCandidates = candidates.length;
+            console.log(`[Shop Search] Fast fallback found ${candidates.length} ${brand} products`);
+          }
+        }
+      }
       
       // FALLBACK: If 0 results, suggest alternatives based on product category
       if (candidates.length === 0 && openaiKey) {
