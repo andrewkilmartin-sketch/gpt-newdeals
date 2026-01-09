@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, CheckCircle, XCircle, AlertTriangle, Package, Image, Clock, Film, Search } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertTriangle, Package, Image, Clock, Film, Search, ArrowRight } from "lucide-react";
 
 interface DiagnosticResult {
   query: string;
@@ -19,6 +19,7 @@ interface BatchResponse {
   summary: {
     total: number;
     passed: number;
+    passWithFallback: number;
     cinemaIntents: number;
     inventoryGaps: number;
     searchBugs: number;
@@ -51,6 +52,8 @@ function getVerdictIcon(verdict: string) {
   switch (verdict) {
     case 'PASS':
       return <CheckCircle className="w-5 h-5 text-green-500" />;
+    case 'PASS_WITH_FALLBACK':
+      return <ArrowRight className="w-5 h-5 text-emerald-500" />;
     case 'CINEMA_INTENT':
       return <Film className="w-5 h-5 text-blue-500" />;
     case 'INVENTORY_GAP':
@@ -71,6 +74,7 @@ function getVerdictIcon(verdict: string) {
 function getVerdictLabel(verdict: string) {
   switch (verdict) {
     case 'PASS': return 'PASS';
+    case 'PASS_WITH_FALLBACK': return 'FALLBACK';
     case 'CINEMA_INTENT': return 'CINEMA';
     case 'INVENTORY_GAP': return 'INV GAP';
     case 'SEARCH_BUG': return 'SEARCH';
@@ -159,27 +163,31 @@ export default function TestDashboard() {
             <Card className="p-4 mb-6">
               <h2 className="font-semibold mb-3">Summary</h2>
               <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900 rounded-md" data-testid="summary-pass">
                   <CheckCircle className="w-5 h-5 text-green-600" />
                   <span className="font-medium">PASS: {results.summary.passed}</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-100 dark:bg-emerald-900 rounded-md" data-testid="summary-fallback">
+                  <ArrowRight className="w-5 h-5 text-emerald-600" />
+                  <span className="font-medium">FALLBACK: {results.summary.passWithFallback || 0}</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900 rounded-md" data-testid="summary-cinema">
                   <Film className="w-5 h-5 text-blue-600" />
                   <span className="font-medium">CINEMA: {results.summary.cinemaIntents}</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-orange-100 dark:bg-orange-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-orange-100 dark:bg-orange-900 rounded-md" data-testid="summary-inventory">
                   <Package className="w-5 h-5 text-orange-600" />
                   <span className="font-medium">INV GAP: {results.summary.inventoryGaps}</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-red-100 dark:bg-red-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-100 dark:bg-red-900 rounded-md" data-testid="summary-search">
                   <XCircle className="w-5 h-5 text-red-600" />
                   <span className="font-medium">SEARCH: {results.summary.searchBugs}</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-100 dark:bg-yellow-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-100 dark:bg-yellow-900 rounded-md" data-testid="summary-ranking">
                   <AlertTriangle className="w-5 h-5 text-yellow-600" />
                   <span className="font-medium">RANKING: {results.summary.rankingBugs}</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-purple-100 dark:bg-purple-900 rounded-md">
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-100 dark:bg-purple-900 rounded-md" data-testid="summary-images">
                   <Image className="w-5 h-5 text-purple-600" />
                   <span className="font-medium">IMAGES: {results.summary.imageBugs}</span>
                 </div>

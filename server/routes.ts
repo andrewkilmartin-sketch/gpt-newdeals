@@ -5380,20 +5380,35 @@ ONLY use IDs from the list. Never invent IDs.`
       const { products } = await import('@shared/schema');
       const { sql, ilike, or } = await import('drizzle-orm');
       
-      // STEP 1: INTENT DETECTION
+      // STEP 1: INTENT DETECTION + CATEGORY MAPPING
       const queryLower = query.toLowerCase().trim();
       const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
       const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema', 'at the movies'];
       const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
                              cinemaIntentPhrases.some(p => queryLower.includes(p));
       
-      result.diagnosis.intent = {
-        detected: isCinemaIntent ? 'cinema' : 'product',
-        queryWords: queryLower.split(' ').filter((w: string) => w.length > 2),
-        isCinemaQuery: isCinemaIntent
+      // Category mapping for fallback detection
+      const categoryMap: Record<string, string[]> = {
+        'barbie': ['doll', 'toy', 'girls', 'mattel', 'fashion doll'],
+        'lego': ['toy', 'building', 'bricks', 'construction'],
+        'paw patrol': ['toy', 'kids', 'nickelodeon', 'preschool'],
+        'nike': ['shoes', 'trainers', 'footwear', 'sports', 'sneakers'],
+        'clarks': ['shoes', 'footwear', 'kids shoes'],
+        'playmobil': ['toy', 'figures', 'playsets'],
       };
       
-      // STEP 2: DATABASE CHECK - DO PRODUCTS EXIST?
+      const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
+      const relatedCategories = categoryMap[queryLower] || 
+                                queryWords.flatMap(w => categoryMap[w] || []);
+      
+      result.diagnosis.intent = {
+        detected: isCinemaIntent ? 'cinema' : 'product',
+        queryWords: queryWords,
+        isCinemaQuery: isCinemaIntent,
+        relatedCategories: relatedCategories
+      };
+      
+      // STEP 2: DATABASE CHECK - EXACT MATCHES
       const dbCheckStart = Date.now();
       const searchPattern = `%${queryLower}%`;
       
@@ -5410,9 +5425,11 @@ ONLY use IDs from the list. Never invent IDs.`
       `);
       
       const dbRow = dbCheckResult[0] as any;
+      const exactMatches = parseInt(dbRow?.total_matches || '0');
+      
       result.diagnosis.database = {
-        productsExist: parseInt(dbRow?.total_matches || '0') > 0,
-        totalInDB: parseInt(dbRow?.total_matches || '0'),
+        exactMatches: exactMatches,
+        productsExist: exactMatches > 0,
         withImages: parseInt(dbRow?.with_images || '0'),
         awinProducts: parseInt(dbRow?.awin_count || '0'),
         cjProducts: parseInt(dbRow?.cj_count || '0'),
@@ -5427,6 +5444,7 @@ ONLY use IDs from the list. Never invent IDs.`
         name: products.name,
         merchant: products.merchant,
         brand: products.brand,
+        category: products.category,
         price: products.price,
         imageUrl: products.imageUrl,
         source: products.source
@@ -5445,30 +5463,54 @@ ONLY use IDs from the list. Never invent IDs.`
         topResults: searchResults.slice(0, 5).map(p => ({
           name: (p.name || '').substring(0, 50),
           merchant: p.merchant,
+          category: p.category,
           price: p.price,
           hasImage: !!(p.imageUrl && p.imageUrl.trim() !== ''),
           source: p.source
         }))
       };
       
-      // STEP 4: RELEVANCE CHECK - ARE RESULTS CORRECT?
-      const queryWords = queryLower.split(' ').filter((w: string) => w.length > 2);
-      let relevantCount = 0;
+      // STEP 4: RELEVANCE CHECK - ARE RESULTS CORRECT OR GOOD FALLBACKS?
+      let exactMatchCount = 0;
+      let relevantFallbackCount = 0;
+      let irrelevantCount = 0;
       
       for (const product of searchResults.slice(0, 10)) {
         const nameLower = (product.name || '').toLowerCase();
-        const matchedWords = queryWords.filter((w: string) => nameLower.includes(w));
+        const categoryLower = (product.category || '').toLowerCase();
+        const brandLower = (product.brand || '').toLowerCase();
+        
+        // Check for exact match (query words in product name/brand)
+        const matchedWords = queryWords.filter((w: string) => 
+          nameLower.includes(w) || brandLower.includes(w)
+        );
+        
         if (matchedWords.length >= Math.ceil(queryWords.length / 2)) {
-          relevantCount++;
+          exactMatchCount++;
+        } else if (relatedCategories.length > 0) {
+          // Check if it's a relevant fallback (category match)
+          const isRelevantFallback = relatedCategories.some(cat => 
+            nameLower.includes(cat) || categoryLower.includes(cat)
+          );
+          if (isRelevantFallback) {
+            relevantFallbackCount++;
+          } else {
+            irrelevantCount++;
+          }
+        } else {
+          irrelevantCount++;
         }
       }
       
-      const relevancePercent = searchResults.length > 0 
-        ? (relevantCount / Math.min(10, searchResults.length)) * 100 
+      const totalResults = Math.min(10, searchResults.length);
+      const relevancePercent = totalResults > 0 
+        ? ((exactMatchCount + relevantFallbackCount) / totalResults) * 100 
         : 0;
       
       result.diagnosis.relevance = {
-        relevantInTop10: relevantCount,
+        exactMatchCount: exactMatchCount,
+        relevantFallbackCount: relevantFallbackCount,
+        irrelevantCount: irrelevantCount,
         relevancePercent: Math.round(relevancePercent),
         queryWords: queryWords
       };
@@ -5485,34 +5527,46 @@ ONLY use IDs from the list. Never invent IDs.`
         imagePercent: Math.round(imagePercent)
       };
       
-      // STEP 6: VERDICT & FIX ACTION
+      // STEP 6: SMART VERDICT LOGIC (understands fallbacks)
       if (isCinemaIntent) {
         result.verdict = 'CINEMA_INTENT';
-        result.fixAction = 'This query should route to TMDB movies, not product search.';
+        result.fixAction = 'This query routes to TMDB movies.';
       }
-      else if (result.diagnosis.database.totalInDB === 0) {
+      else if (exactMatches === 0 && searchResults.length === 0) {
+        // No exact match AND search returned nothing
         result.verdict = 'INVENTORY_GAP';
-        result.fixAction = 'Products do not exist in database. Add to Awin/CJ feed.';
+        result.fixAction = 'No exact or related products exist. Add to Awin/CJ feed.';
       }
-      else if (result.diagnosis.search.returnedCount === 0) {
+      else if (exactMatches === 0 && searchResults.length > 0 && relevancePercent >= 50) {
+        // No exact match but found RELEVANT fallbacks - this is GOOD!
+        result.verdict = 'PASS_WITH_FALLBACK';
+        result.fixAction = `No exact match but found ${relevantFallbackCount} related products. Consider adding exact products.`;
+      }
+      else if (exactMatches === 0 && searchResults.length > 0 && relevancePercent < 50) {
+        // No exact match and fallbacks are BAD (TV cabinets instead of dolls)
+        result.verdict = 'RANKING_BUG';
+        result.fixAction = `No exact match and found ${irrelevantCount} irrelevant results. Fix category fallback logic.`;
+      }
+      else if (exactMatches > 0 && searchResults.length === 0) {
+        // Products exist but search failed - BUG
         result.verdict = 'SEARCH_BUG';
-        result.fixAction = `${result.diagnosis.database.totalInDB} products exist but search returned 0. Fix search algorithm.`;
+        result.fixAction = `${exactMatches} exact matches exist but search returned 0. Fix search algorithm.`;
       }
-      else if (result.diagnosis.relevance.relevancePercent < 50) {
+      else if (relevancePercent < 50) {
         result.verdict = 'RANKING_BUG';
         result.fixAction = 'Products exist and were found, but wrong ones ranked top. Fix scoring.';
       }
-      else if (result.diagnosis.images.imagePercent < 50) {
+      else if (imagePercent < 50) {
         result.verdict = 'IMAGE_BUG';
-        result.fixAction = `Search works but ${result.diagnosis.images.withoutImages} products missing images.`;
+        result.fixAction = `Search works but ${searchResults.length - withImages} products missing images.`;
       }
-      else if (result.diagnosis.search.searchTimeMs > 5000) {
+      else if (searchTime > 5000) {
         result.verdict = 'SPEED_BUG';
-        result.fixAction = `Search took ${result.diagnosis.search.searchTimeMs}ms. Optimize queries.`;
+        result.fixAction = `Search took ${searchTime}ms. Optimize queries.`;
       }
       else {
         result.verdict = 'PASS';
-        result.fixAction = 'All checks passed.';
+        result.fixAction = 'All checks passed - found exact matches.';
       }
       
       res.json(result);
@@ -5589,25 +5643,31 @@ ONLY use IDs from the list. Never invent IDs.`
               const withImages = searchResults.filter(p => p.imageUrl && p.imageUrl.trim() !== '').length;
               const imagePercent = searchResults.length > 0 ? (withImages / searchResults.length) * 100 : 0;
               
-              // Verdict
+              // Verdict - smart logic that understands fallbacks
               let verdict = 'PASS';
               let fixAction = 'All checks passed.';
               
               if (isCinemaIntent) {
                 verdict = 'CINEMA_INTENT';
                 fixAction = 'Routes to TMDB movies.';
-              } else if (dbCount === 0) {
+              } else if (dbCount === 0 && searchResults.length === 0) {
                 verdict = 'INVENTORY_GAP';
-                fixAction = 'Add products to feed.';
-              } else if (searchResults.length === 0) {
+                fixAction = 'No exact or related products. Add to feed.';
+              } else if (dbCount === 0 && searchResults.length > 0 && relevance >= 50) {
+                verdict = 'PASS_WITH_FALLBACK';
+                fixAction = 'No exact match but found related products.';
+              } else if (dbCount === 0 && searchResults.length > 0 && relevance < 50) {
+                verdict = 'RANKING_BUG';
+                fixAction = 'Found irrelevant fallbacks. Fix category logic.';
+              } else if (dbCount > 0 && searchResults.length === 0) {
                 verdict = 'SEARCH_BUG';
-                fixAction = 'Fix search algorithm.';
+                fixAction = 'Products exist but search failed.';
               } else if (relevance < 50) {
                 verdict = 'RANKING_BUG';
-                fixAction = 'Fix scoring.';
+                fixAction = 'Wrong products ranked top. Fix scoring.';
               } else if (imagePercent < 50) {
                 verdict = 'IMAGE_BUG';
-                fixAction = 'Fix images.';
+                fixAction = 'Products missing images.';
               } else if (searchTime > 5000) {
                 verdict = 'SPEED_BUG';
                 fixAction = 'Optimize queries.';
@@ -5632,10 +5692,11 @@ ONLY use IDs from the list. Never invent IDs.`
         }
       }
       
-      // Summary
+      // Summary - includes PASS_WITH_FALLBACK
       const summary = {
         total: results.length,
         passed: results.filter(r => r.verdict === 'PASS').length,
+        passWithFallback: results.filter(r => r.verdict === 'PASS_WITH_FALLBACK').length,
         cinemaIntents: results.filter(r => r.verdict === 'CINEMA_INTENT').length,
         inventoryGaps: results.filter(r => r.verdict === 'INVENTORY_GAP').length,
         searchBugs: results.filter(r => r.verdict === 'SEARCH_BUG').length,
