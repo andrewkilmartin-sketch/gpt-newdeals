@@ -1,0 +1,239 @@
+import { db } from "../db";
+import { products } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+const CJ_API_TOKEN = process.env.CJ_API_TOKEN;
+const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
+
+const CJ_GRAPHQL_ENDPOINT = 'https://productcatalog.api.cj.com/graphql';
+
+export interface CJProduct {
+  id: string;
+  title: string;
+  description: string;
+  price: { amount: number; currency: string };
+  link: string;
+  imageLink: string;
+  advertiserName: string;
+  advertiserCountry: string;
+  brand?: string;
+  category?: string;
+  inStock?: boolean;
+}
+
+export interface CJSearchResult {
+  totalCount: number;
+  products: CJProduct[];
+}
+
+export function isCJConfigured(): boolean {
+  return !!(CJ_API_TOKEN && CJ_PUBLISHER_ID);
+}
+
+export async function searchCJProducts(
+  keywords: string,
+  limit: number = 20
+): Promise<CJSearchResult> {
+  if (!isCJConfigured()) {
+    console.log('[CJ] API not configured - missing CJ_API_TOKEN or CJ_PUBLISHER_ID');
+    return { totalCount: 0, products: [] };
+  }
+
+  const query = `
+    query ProductSearch($companyId: String!, $keywords: String!, $limit: Int) {
+      products(companyId: $companyId, keywords: $keywords, limit: $limit) {
+        totalCount
+        records {
+          catalogId
+          title
+          description
+          price { amount currency }
+          link
+          imageLink
+          advertiserName
+          advertiserCountry
+          brand
+          inStock
+        }
+      }
+    }
+  `;
+
+  try {
+    console.log(`[CJ] Searching for "${keywords}" (limit: ${limit})`);
+    
+    const response = await fetch(CJ_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CJ_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          companyId: CJ_PUBLISHER_ID,
+          keywords,
+          limit,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[CJ] API error ${response.status}: ${errorText}`);
+      return { totalCount: 0, products: [] };
+    }
+
+    const data = await response.json();
+
+    if (data.errors) {
+      console.error('[CJ] GraphQL errors:', data.errors);
+      return { totalCount: 0, products: [] };
+    }
+
+    const records = data.data?.products?.records || [];
+    const totalCount = data.data?.products?.totalCount || 0;
+
+    console.log(`[CJ] Found ${records.length} products (total: ${totalCount})`);
+
+    const products: CJProduct[] = records.map((r: any) => ({
+      id: r.catalogId || `cj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      title: r.title || '',
+      description: r.description || '',
+      price: {
+        amount: parseFloat(r.price?.amount) || 0,
+        currency: r.price?.currency || 'GBP',
+      },
+      link: r.link || '',
+      imageLink: r.imageLink || '',
+      advertiserName: r.advertiserName || '',
+      advertiserCountry: r.advertiserCountry || 'UK',
+      brand: r.brand || '',
+      inStock: r.inStock !== false,
+    }));
+
+    return { totalCount, products };
+  } catch (error) {
+    console.error('[CJ] Search error:', error);
+    return { totalCount: 0, products: [] };
+  }
+}
+
+export async function importCJProductsToDatabase(
+  keywords: string,
+  limit: number = 100
+): Promise<{ imported: number; skipped: number; errors: number }> {
+  const result = await searchCJProducts(keywords, limit);
+  
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const product of result.products) {
+    try {
+      const productId = `cj_${product.id}`;
+      
+      const existing = await db.select({ id: products.id })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        skipped++;
+        continue;
+      }
+
+      await db.insert(products).values({
+        id: productId,
+        name: product.title,
+        description: product.description,
+        price: product.price.amount,
+        merchant: product.advertiserName,
+        brand: product.brand || null,
+        category: product.category || null,
+        imageUrl: product.imageLink,
+        affiliateLink: product.link,
+        inStock: product.inStock ?? true,
+      });
+      
+      imported++;
+    } catch (error) {
+      console.error(`[CJ] Failed to import product ${product.id}:`, error);
+      errors++;
+    }
+  }
+
+  console.log(`[CJ] Import complete: ${imported} imported, ${skipped} skipped, ${errors} errors`);
+  return { imported, skipped, errors };
+}
+
+export async function testCJConnection(): Promise<{
+  success: boolean;
+  message: string;
+  sampleProducts?: CJProduct[];
+}> {
+  if (!isCJConfigured()) {
+    return {
+      success: false,
+      message: 'CJ API not configured. Please set CJ_API_TOKEN and CJ_PUBLISHER_ID secrets.',
+    };
+  }
+
+  try {
+    const result = await searchCJProducts('toy', 3);
+    
+    if (result.totalCount > 0) {
+      return {
+        success: true,
+        message: `CJ API connected! Found ${result.totalCount} products for "toy".`,
+        sampleProducts: result.products,
+      };
+    } else {
+      return {
+        success: false,
+        message: 'CJ API connected but returned no results. Check your publisher ID.',
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: `CJ API connection failed: ${error}`,
+    };
+  }
+}
+
+export const PRIORITY_BRANDS = [
+  'Barbie',
+  'Playmobil',
+  'Sylvanian Families',
+  'Dr Martens',
+  'Geox',
+  'Start Rite',
+  'Timberland',
+  'Pokemon',
+  'Cocomelon',
+  'Baby Shark',
+  'Thomas the Tank Engine',
+  'Paddington',
+  'Bluey',
+  'Paw Patrol',
+  'Peppa Pig',
+];
+
+export async function importPriorityBrands(): Promise<{
+  total: number;
+  byBrand: Record<string, number>;
+}> {
+  const byBrand: Record<string, number> = {};
+  let total = 0;
+
+  for (const brand of PRIORITY_BRANDS) {
+    console.log(`[CJ] Importing brand: ${brand}`);
+    const result = await importCJProductsToDatabase(brand, 100);
+    byBrand[brand] = result.imported;
+    total += result.imported;
+  }
+
+  console.log(`[CJ] Priority brands import complete: ${total} total products`);
+  return { total, byBrand };
+}

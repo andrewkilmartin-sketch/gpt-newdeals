@@ -1328,6 +1328,151 @@ export async function registerRoutes(
   });
 
   // ============================================================
+  // CJ (Commission Junction) Integration Endpoints
+  // ============================================================
+  
+  // Test CJ API connection
+  app.get("/api/cj/test", async (req, res) => {
+    try {
+      const { testCJConnection, isCJConfigured } = await import('./services/cj');
+      
+      if (!isCJConfigured()) {
+        return res.json({
+          success: false,
+          configured: false,
+          message: "CJ API not configured. Please set CJ_API_TOKEN and CJ_PUBLISHER_ID secrets."
+        });
+      }
+      
+      const result = await testCJConnection();
+      res.json({
+        ...result,
+        configured: true
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Search CJ products (without importing)
+  app.post("/api/cj/search", async (req, res) => {
+    try {
+      const { searchCJProducts, isCJConfigured } = await import('./services/cj');
+      const { keywords, limit = 20 } = req.body;
+      
+      if (!keywords) {
+        return res.status(400).json({ error: "keywords parameter required" });
+      }
+      
+      if (!isCJConfigured()) {
+        return res.status(400).json({
+          success: false,
+          error: "CJ API not configured"
+        });
+      }
+      
+      const result = await searchCJProducts(keywords, Math.min(limit, 100));
+      res.json({
+        success: true,
+        query: keywords,
+        totalCount: result.totalCount,
+        count: result.products.length,
+        products: result.products
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Import CJ products to database
+  app.post("/api/cj/import", async (req, res) => {
+    try {
+      const { importCJProductsToDatabase, isCJConfigured } = await import('./services/cj');
+      const { keywords, limit = 100 } = req.body;
+      
+      if (!keywords) {
+        return res.status(400).json({ error: "keywords parameter required" });
+      }
+      
+      if (!isCJConfigured()) {
+        return res.status(400).json({
+          success: false,
+          error: "CJ API not configured"
+        });
+      }
+      
+      console.log(`[CJ Import] Starting import for "${keywords}" (limit: ${limit})`);
+      const result = await importCJProductsToDatabase(keywords, Math.min(limit, 500));
+      
+      res.json({
+        success: true,
+        query: keywords,
+        ...result,
+        message: `Imported ${result.imported} products from CJ for "${keywords}"`
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Import priority brands from CJ
+  app.post("/api/cj/import-priority-brands", async (req, res) => {
+    try {
+      const { importPriorityBrands, isCJConfigured, PRIORITY_BRANDS } = await import('./services/cj');
+      
+      if (!isCJConfigured()) {
+        return res.status(400).json({
+          success: false,
+          error: "CJ API not configured"
+        });
+      }
+      
+      console.log(`[CJ Import] Starting priority brands import...`);
+      const result = await importPriorityBrands();
+      
+      res.json({
+        success: true,
+        message: `Imported ${result.total} products from ${PRIORITY_BRANDS.length} priority brands`,
+        ...result,
+        brands: PRIORITY_BRANDS
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Get CJ product count in database
+  app.get("/api/cj/stats", async (req, res) => {
+    try {
+      const result = await db.execute(sql`SELECT COUNT(*) as count FROM products WHERE id LIKE 'cj_%'`);
+      const count = (result as any).rows?.[0]?.count || (result as any)[0]?.count || 0;
+      
+      res.json({
+        success: true,
+        cjProductCount: parseInt(count),
+        message: `${count} CJ products in database`
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // ============================================================
   // SIMPLE SEARCH - CTO's approach: keyword SQL + GPT reranker
   // One simple endpoint. 115k products. OpenAI picks the best.
   // ============================================================
