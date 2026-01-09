@@ -76,6 +76,8 @@ export async function ensureMovieTables(): Promise<void> {
           backdrop_path TEXT,
           release_date TEXT,
           vote_average REAL,
+          vote_count INTEGER,
+          popularity REAL,
           genre_ids JSONB,
           uk_certification TEXT,
           content_type TEXT DEFAULT 'cinema',
@@ -84,6 +86,14 @@ export async function ensureMovieTables(): Promise<void> {
         )
       `;
       console.log('[DB] Movies table created');
+    } else {
+      // Ensure vote_count column exists (migration for existing tables)
+      try {
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS vote_count INTEGER`;
+        await client`ALTER TABLE movies ADD COLUMN IF NOT EXISTS popularity REAL`;
+      } catch (e) {
+        // Ignore if column already exists
+      }
     }
     
     const upsellMappingsExists = await client`SELECT to_regclass('upsell_mappings') as exists`;
