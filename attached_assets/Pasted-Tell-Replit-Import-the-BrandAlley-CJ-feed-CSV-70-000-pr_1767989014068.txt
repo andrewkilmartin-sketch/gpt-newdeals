@@ -1,0 +1,59 @@
+Tell Replit:
+
+"Import the BrandAlley CJ feed CSV (70,000 products). Here's the spec:
+1. IMPORT REQUIREMENTS
+javascript// Map CJ CSV fields to our products table
+const mapCJProduct = (row) => ({
+  id: `cj_${row.id || row.product_id}`,  // Prefix with cj_ to avoid Awin conflicts
+  name: row.title || row.product_name,
+  description: row.description,
+  affiliateLink: row.link || row.deep_link,
+  imageUrl: row.image_link || row.image_url,
+  price: parseFloat((row.price || '0').toString().replace(/[^0-9.]/g, '')),
+  brand: row.brand || 'BrandAlley',
+  merchant: 'BrandAlley UK',
+  merchantId: 'cj_brandalley',
+  category: row.google_product_category || row.product_type || row.category,
+  inStock: row.availability === 'in_stock' || row.availability === 'in stock' || true,
+  source: 'cj'  // CRITICAL: Mark as CJ product
+});
+2. VALIDATION
+
+Skip rows with no title/name
+Skip rows with no price or price = 0
+Skip rows with no affiliate link
+Log how many skipped vs imported
+
+3. INSERT TO NEON
+
+Use batch inserts (500-1000 at a time for speed)
+Use ON CONFLICT (id) DO UPDATE to handle duplicates
+Insert into the SAME products table as Awin products
+
+4. AFTER IMPORT, VERIFY
+sql-- Check counts by source
+SELECT source, COUNT(*) as count FROM products GROUP BY source;
+
+-- Check BrandAlley specifically
+SELECT COUNT(*) FROM products WHERE merchant = 'BrandAlley UK';
+
+-- Sample some products
+SELECT name, price, brand, source FROM products WHERE source = 'cj' LIMIT 10;
+```
+
+### 5. TEST SEARCH WORKS
+
+Search should now return both Awin AND CJ products:
+```
+GET /api/shopping/search?q=hugo+boss
+GET /api/shopping/search?q=sunglasses
+Both should return BrandAlley CJ products mixed with Awin products.
+6. ENSURE RAILWAY USES SAME DATABASE
+Confirm the Neon DATABASE_URL in Railway matches Replit - both must point to the same database so Railway sees the new CJ products.
+
+Start the import and show me:
+
+How many products imported successfully
+How many skipped (and why)
+The SQL count by source
+A test search for 'hugo boss'"
