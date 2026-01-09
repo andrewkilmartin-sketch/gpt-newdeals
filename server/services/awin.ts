@@ -763,8 +763,8 @@ function isBlockedDomain(url: string | undefined): boolean {
   return blocked.some(domain => url.includes(domain));
 }
 
-// Known brand/merchant names that should return promotions, not products
-const KNOWN_BRANDS = [
+// Known retailer/merchant names that should return promotions, not products
+const KNOWN_RETAILER_BRANDS = [
   'hamleys', 'boots', 'nike', 'adidas', 'puma', 'jd sports', 'schuh', 
   'argos', 'currys', 'john lewis', 'marks and spencer', 'm&s', 'next',
   'asos', 'amazon', 'debenhams', 'sports direct', 'superdrug', 'very',
@@ -782,7 +782,7 @@ const BLOCKED_MERCHANTS = [
 function isBrandQuery(query: string | undefined): boolean {
   if (!query) return false;
   const q = query.toLowerCase().trim();
-  return KNOWN_BRANDS.some(brand => 
+  return KNOWN_RETAILER_BRANDS.some(brand => 
     q === brand || q.includes(brand) || brand.includes(q)
   );
 }

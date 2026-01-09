@@ -3009,12 +3009,37 @@ ONLY use IDs from the list. Never invent IDs.`
         return true;
       };
       
-      // Attach promotions to products - with category relevance filtering
+      // Get brand-based promotions for matching product names/brands
+      const { getAllBrandPromotions } = await import('./services/awin');
+      const brandPromotions = await getAllBrandPromotions();
+      
+      // List of known brand keywords to check in product names
+      const BRAND_KEYWORDS = [
+        'disney', 'marvel', 'starwars', 'frozen', 'pixar', 'princess',
+        'lego', 'duplo', 'technic',
+        'barbie', 'hotwheels', 'fisherprice', 'mattel',
+        'pawpatrol', 'peppapig', 'bluey', 'cocomelon',
+        'pokemon', 'pikachu', 'nintendo', 'mario', 'zelda', 'switch',
+        'playstation', 'xbox', 'gaming',
+        'harrypotter', 'hogwarts',
+        'transformers', 'nerf', 'hasbro', 'monopoly',
+        'playmobil', 'sylvanian', 'schleich',
+        'nike', 'adidas', 'puma', 'reebok', 'converse', 'vans', 'jordan',
+        'jdsports', 'sportsdirect'
+      ];
+      
+      // Extract brand keywords from product name/brand
+      const extractBrandKeywords = (name: string, brand: string): string[] => {
+        const text = `${name} ${brand}`.toLowerCase().replace(/\s+/g, '');
+        return BRAND_KEYWORDS.filter(bk => text.includes(bk));
+      };
+      
+      // Attach promotions to products - with category relevance filtering + brand-based matching
       const productsWithPromotions = selectedProducts.map((p: any) => {
         const normalizedMerchant = normalizeMerchant(p.merchant || '');
         let promotion: ProductPromotion | undefined;
         
-        // Try exact match only
+        // 1. Try merchant match first (highest priority)
         const promos = activePromotions.get(normalizedMerchant);
         if (promos && promos.length > 0) {
           // Filter to only relevant promotions
@@ -3023,6 +3048,23 @@ ONLY use IDs from the list. Never invent IDs.`
           );
           if (relevantPromo) {
             promotion = relevantPromo;
+          }
+        }
+        
+        // 2. If no merchant promotion, try brand-based matching
+        if (!promotion) {
+          const productBrands = extractBrandKeywords(p.name || '', p.brand || '');
+          for (const brandKeyword of productBrands) {
+            const brandPromos = brandPromotions.get(brandKeyword);
+            if (brandPromos && brandPromos.length > 0) {
+              const relevantBrandPromo = brandPromos.find(promo =>
+                isPromotionRelevant(promo.promotionTitle, query, p.category || '')
+              );
+              if (relevantBrandPromo) {
+                promotion = relevantBrandPromo;
+                break; // Use first matching brand promotion
+              }
+            }
           }
         }
         
