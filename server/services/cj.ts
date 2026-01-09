@@ -8,6 +8,19 @@ const CJ_PUBLISHER_ID = process.env.CJ_PUBLISHER_ID;
 // CJ Product Feed API endpoint (from docs: https://ads.api.cj.com/query)
 const CJ_GRAPHQL_ENDPOINT = 'https://ads.api.cj.com/query';
 
+// Generate proper CJ affiliate tracking link
+// CJ uses deep linking via their tracking domains
+function generateCJAffiliateLink(merchantUrl: string, advertiserId: string): string {
+  if (!CJ_PUBLISHER_ID || !merchantUrl) {
+    return merchantUrl;
+  }
+  
+  // CJ deep link format: https://www.jdoqocy.net/click-{pid}-{aid}?url={encoded_url}
+  // Alternative domains: anrdoezrs.net, dpbolvw.net, kqzyfj.com
+  const encodedUrl = encodeURIComponent(merchantUrl);
+  return `https://www.jdoqocy.net/click-${CJ_PUBLISHER_ID}-${advertiserId}?url=${encodedUrl}`;
+}
+
 export interface CJProduct {
   id: string;
   title: string;
@@ -15,6 +28,7 @@ export interface CJProduct {
   price: { amount: number; currency: string };
   link: string;
   imageLink: string;
+  advertiserId: string;
   advertiserName: string;
   advertiserCountry: string;
   brand?: string;
@@ -127,6 +141,7 @@ export async function searchCJProducts(
       },
       link: r.link || '',
       imageLink: r.imageLink || '',
+      advertiserId: r.advertiserId || '',
       advertiserName: r.advertiserName || '',
       advertiserCountry: r.advertiserCountry || 'UK',
       brand: r.brand || '',
@@ -229,6 +244,9 @@ export async function importCJProductsToDatabase(
         // CRITICAL: Derive proper brand for search visibility
         const derivedBrand = deriveBrand(product, keywords);
         
+        // Generate proper CJ affiliate tracking link
+        const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
+        
         await db.insert(products).values({
           id: productId,
           name: product.title || 'Unknown Product',
@@ -239,7 +257,7 @@ export async function importCJProductsToDatabase(
           brand: derivedBrand,
           category: product.category || null,
           imageUrl: product.imageLink || null,
-          affiliateLink: product.link || '',
+          affiliateLink: affiliateLink,
           inStock: product.inStock ?? true,
           // Optional fields set to null - will be populated by search enrichment later
           embedding: null,
@@ -609,6 +627,9 @@ export async function importByAdvertiser(
             continue;
           }
           
+          // Generate proper CJ affiliate tracking link
+          const affiliateLink = generateCJAffiliateLink(product.link, product.advertiserId);
+          
           await db.insert(products).values({
             id: productId,
             name: product.title || 'Unknown',
@@ -619,7 +640,7 @@ export async function importByAdvertiser(
             brand: product.brand || null,
             category: null,
             imageUrl: product.imageLink || null,
-            affiliateLink: product.link || '',
+            affiliateLink: affiliateLink,
             inStock: true,
             embedding: null,
             canonicalCategory: null,
