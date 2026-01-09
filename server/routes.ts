@@ -511,9 +511,12 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
   // FAST PATH: Skip GPT for simple, direct product queries
   // Pattern: just a product type or brand+product (e.g., "shoes", "nike trainers")
   const lower = query.toLowerCase().trim();
-  const simplePatterns: Record<string, { category: string; keywords: string[] }> = {
-    // Footwear
+  const simplePatterns: Record<string, { category: string; keywords: string[]; mustMatch?: string[] }> = {
+    // Footwear - including common qualifier combinations
     'shoes': { category: 'Shoes', keywords: ['shoes', 'footwear'] },
+    'school shoes': { category: 'Shoes', keywords: ['school shoes', 'school footwear'], mustMatch: ['school'] },
+    'running shoes': { category: 'Shoes', keywords: ['running shoes', 'running trainers'], mustMatch: ['running'] },
+    'football boots': { category: 'Shoes', keywords: ['football boots', 'football shoes'], mustMatch: ['football'] },
     'trainers': { category: 'Shoes', keywords: ['trainers', 'sneakers', 'shoes'] },
     'sneakers': { category: 'Shoes', keywords: ['sneakers', 'trainers', 'shoes'] },
     'boots': { category: 'Shoes', keywords: ['boots', 'footwear'] },
@@ -600,12 +603,17 @@ async function interpretQuery(query: string, openaiKey: string | undefined): Pro
   for (const [pattern, config] of Object.entries(simplePatterns)) {
     if (cleanedQuery === pattern || cleanedQuery === pattern + 's' || lower === pattern) {
       console.log(`[Query Interpreter] FAST PATH: "${query}" → ${config.category} (${Date.now() - startTime}ms)`);
+      // Merge mustMatch from pattern config with brand if present
+      const mustHave: string[] = [];
+      if (detectedBrand) mustHave.push(detectedBrand.toLowerCase());
+      if (config.mustMatch) mustHave.push(...config.mustMatch);
+      
       const fastResult: QueryInterpretation = {
         isSemanticQuery: false,
         originalQuery: query,
         expandedKeywords: config.keywords,
         searchTerms: [config.keywords],
-        mustHaveAll: detectedBrand ? [detectedBrand.toLowerCase()] : [],
+        mustHaveAll: mustHave,
         attributes: detectedBrand ? { brand: detectedBrand } : undefined,
         context: { categoryFilter: config.category },
         rerankerContext: detectedBrand ? `Find actual ${config.keywords[0]} from ${detectedBrand}, not accessories` : '',
