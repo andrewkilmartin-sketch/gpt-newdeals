@@ -596,6 +596,33 @@ export class DatabaseStorage implements IStorage {
     const allTokens = [...tokens, ...expansionTokens.flatMap(e => e.split(/\s+/))];
     const queryLower = query.toLowerCase();
     
+    // CRITICAL: Brand detection for strict filtering
+    const knownBrands = [
+      'nike', 'adidas', 'puma', 'reebok', 'new balance', 'vans', 'converse', 'skechers',
+      'clarks', 'start rite', 'geox', 'lelli kelly', 'kickers', 'dr martens',
+      'timberland', 'ugg', 'hunter', 'joules', 'north face', 'columbia', 
+      'crocs', 'birkenstock', 'havaianas', 'lego', 'playmobil', 'barbie', 
+      'hot wheels', 'matchbox', 'brio', 'sylvanian', 'vtech', 'leapfrog',
+      'micro scooter', 'fisher price', 'little tikes'
+    ];
+    const knownCharacters = [
+      'paw patrol', 'peppa pig', 'bluey', 'hey duggee', 'cocomelon', 'baby shark',
+      'frozen', 'disney', 'spiderman', 'spider-man', 'batman', 'pokemon', 'minecraft',
+      'fortnite', 'roblox', 'mario', 'sonic', 'harry potter', 'star wars', 'marvel',
+      'thomas', 'paddington', 'peter rabbit', 'gruffalo', 'hungry caterpillar',
+      'postman pat', 'fireman sam', 'pj masks', 'ben holly', 'teletubbies',
+      'numberblocks', 'octonauts', 'gabby', 'encanto', 'moana'
+    ];
+    
+    // Detect if query contains a brand or character - these MUST match in results
+    const detectedBrand = knownBrands.find(b => queryLower.includes(b));
+    const detectedCharacter = knownCharacters.find(c => queryLower.includes(c));
+    const mustMatchTerm = detectedBrand || detectedCharacter;
+    
+    if (mustMatchTerm) {
+      console.log(`[Storage] BRAND/CHARACTER DETECTED: "${mustMatchTerm}" - will filter results strictly`);
+    }
+    
     // Known multi-word phrases to match together (brands, franchises, etc.)
     const knownPhrases = [
       'lego star wars', 'lego harry potter', 'lego marvel', 'lego disney',
@@ -605,7 +632,12 @@ export class DatabaseStorage implements IStorage {
       'peppa pig', 'paw patrol', 'frozen elsa', 'toy story', 
       'sonic hedgehog', 'super mario', 'pokemon', 'minecraft',
       'kids trainers', 'teddy bear', 'soft toy', 'plush toy',
-      'moana', 'encanto', 'lilo stitch', 'little mermaid', 'lion king'
+      'moana', 'encanto', 'lilo stitch', 'little mermaid', 'lion king',
+      // Add brand phrases
+      'dr martens', 'new balance', 'north face', 'start rite', 'lelli kelly',
+      'micro scooter', 'fisher price', 'little tikes', 'hot wheels', 'hey duggee',
+      'baby shark', 'hungry caterpillar', 'postman pat', 'fireman sam', 'pj masks',
+      'ben holly', 'peter rabbit'
     ];
     
     
@@ -840,8 +872,37 @@ export class DatabaseStorage implements IStorage {
     // Sort by score and deduplicate - EXCLUDE hardFail products from results
     const allResults = Array.from(productMap.values());
     
+    // CRITICAL: If a brand/character was detected, HARD FILTER results that don't contain it
+    let filteredResults = allResults;
+    if (mustMatchTerm) {
+      const termLower = mustMatchTerm.toLowerCase();
+      const beforeCount = filteredResults.length;
+      filteredResults = filteredResults.filter(r => {
+        const productText = `${r.product.name} ${r.product.brand || ''} ${r.product.description || ''}`.toLowerCase();
+        return productText.includes(termLower);
+      });
+      console.log(`[Storage] BRAND/CHARACTER FILTER: "${mustMatchTerm}" - kept ${filteredResults.length}/${beforeCount} products`);
+    }
+    
     // Filter out hard-failed products first, then sort by score
-    const passResults = allResults.filter(r => !hardFailIds.has(r.product.id));
+    // EXCEPTION: If we detected a brand/character, products containing that term should NOT be filtered out
+    // even if taxonomy marked them as hard-fail (taxonomy may be too aggressive for brand queries)
+    const passResults = filteredResults.filter(r => {
+      // If product is not in hardFailIds, it passes
+      if (!hardFailIds.has(r.product.id)) return true;
+      
+      // If we have a mustMatchTerm and the product contains it, override the hardFail
+      if (mustMatchTerm) {
+        const productText = `${r.product.name} ${r.product.brand || ''} ${r.product.description || ''}`.toLowerCase();
+        if (productText.includes(mustMatchTerm.toLowerCase())) {
+          console.log(`[Storage] OVERRIDE hardFail for brand match: "${r.product.name.substring(0, 50)}..."`);
+          return true;
+        }
+      }
+      
+      // Otherwise, respect the hardFail
+      return false;
+    });
     passResults.sort((a, b) => b.score - a.score);
     
     const seen = new Set<string>();
