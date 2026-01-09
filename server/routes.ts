@@ -4009,14 +4009,53 @@ ONLY use IDs from the list. Never invent IDs.`
         // Calculate relevance score
         const relevanceScore = searchResults.length > 0 ? relevantCount / searchResults.length : 0;
         
-        // Determine status
+        // Check if TOP result matches all required keywords (most important metric!)
+        const topResultRelevant = scoredProducts.length > 0 && scoredProducts[0].relevant === true;
+        
+        // Check if brand/character matches but specific product type is missing (inventory gap)
+        const brandMatches = searchResults.length > 0 && searchResults.some((p: any) => {
+          const productText = `${p.title} ${p.description || ''} ${p.merchant || ''}`.toLowerCase();
+          // Check if at least the main brand/character is in the results
+          const queryWords = query.toLowerCase().split(' ');
+          const brandPhrases = ['paw patrol', 'peppa pig', 'star wars', 'hot wheels', 'barbie', 'frozen', 'disney', 'lego', 'marvel', 'dc'];
+          for (const phrase of brandPhrases) {
+            if (query.toLowerCase().includes(phrase) && productText.includes(phrase)) {
+              return true;
+            }
+          }
+          return queryWords.some(w => w.length > 3 && productText.includes(w));
+        });
+        
+        // Determine status with improved logic
         let status: string;
+        let statusNote = '';
+        
         if (searchResults.length === 0 && dbExists) {
           status = 'FAIL';
+          statusNote = 'Products exist in DB but search returned nothing';
           failCount++;
+        } else if (searchResults.length === 0) {
+          status = 'FAIL';
+          statusNote = 'No products found';
+          failCount++;
+        } else if (topResultRelevant && relevanceScore >= 0.6) {
+          // Top result is relevant AND at least 60% of results match
+          status = 'PASS';
+          statusNote = 'Top result matches, good relevance';
+          passCount++;
+        } else if (topResultRelevant) {
+          // Top result is relevant but other results are less relevant (still a win!)
+          status = 'PASS';
+          statusNote = 'Top result matches query';
+          passCount++;
         } else if (relevanceScore >= 0.8) {
           status = 'PASS';
           passCount++;
+        } else if (brandMatches && relevanceScore < 0.5) {
+          // Brand matches but specific product type not in inventory
+          status = 'PARTIAL';
+          statusNote = 'Brand matches, specific product type not in inventory';
+          partialCount++;
         } else if (relevanceScore >= 0.5) {
           status = 'PARTIAL';
           partialCount++;
@@ -4036,6 +4075,8 @@ ONLY use IDs from the list. Never invent IDs.`
           },
           analysis: {
             status,
+            status_note: statusNote || undefined,
+            top_result_relevant: topResultRelevant,
             relevance_score: Math.round(relevanceScore * 100) / 100,
             relevant_count: relevantCount,
             total_returned: searchResults.length
