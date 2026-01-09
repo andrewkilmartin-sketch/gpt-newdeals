@@ -1268,7 +1268,7 @@ export async function getCJPromotionsForMerchant(merchantName: string): Promise<
   
   // Also try partial matches
   const allMatches: CJPromotion[] = [...promos];
-  for (const [key, values] of cjPromotionsByMerchant) {
+  for (const [key, values] of Array.from(cjPromotionsByMerchant.entries())) {
     if (key !== normalizedName && (key.includes(normalizedName) || normalizedName.includes(key))) {
       allMatches.push(...values);
     }
@@ -1299,10 +1299,10 @@ export async function getAllCJActivePromotions(): Promise<Map<string, CJProductP
   const result = new Map<string, CJProductPromotion[]>();
   const now = new Date();
   
-  for (const [merchantName, promos] of cjPromotionsByMerchant) {
+  for (const [merchantName, promos] of Array.from(cjPromotionsByMerchant.entries())) {
     const activePromos = promos
-      .filter(p => !p.endDate || new Date(p.endDate) > now)
-      .map(p => ({
+      .filter((p: CJPromotion) => !p.endDate || new Date(p.endDate) > now)
+      .map((p: CJPromotion) => ({
         promotionTitle: p.linkName || p.description,
         voucherCode: p.couponCode,
         expiresAt: p.endDate?.split('T')[0],
