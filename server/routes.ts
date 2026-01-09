@@ -3932,8 +3932,9 @@ ONLY use IDs from the list. Never invent IDs.`
           const { db } = await import('./db');
           const { sql: sqlTag } = await import('drizzle-orm');
           
+          // FIX: Use AND logic to match what search actually does (not OR which inflates counts)
           const kwConditions = requiredKws.length > 0
-            ? requiredKws.map((kw: string) => `(LOWER(name) LIKE '%${kw.replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${kw.replace(/'/g, "''")}%')`).join(' OR ')
+            ? requiredKws.map((kw: string) => `(LOWER(name) LIKE '%${kw.replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${kw.replace(/'/g, "''")}%')`).join(' AND ')
             : `LOWER(name) LIKE '%${query.toLowerCase().replace(/'/g, "''").split(' ')[0]}%'`;
           
           const priceCondition = max_price ? ` AND price <= ${parseFloat(max_price)}` : '';
