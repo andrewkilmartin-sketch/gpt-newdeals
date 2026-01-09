@@ -147,6 +147,12 @@ async function getDbCachedInterpretation(query: string): Promise<QueryInterpreta
         return null;
       }
       
+      // Check TTL expiry
+      if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
+        console.log(`[Query Cache] DB entry expired, skipping`);
+        return null;
+      }
+      
       const interpretation = row.interpretation as QueryInterpretation;
       
       // Hydrate memory cache

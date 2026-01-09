@@ -1139,8 +1139,8 @@ let cjPromotionsByMerchant: Map<string, CJPromotion[]> = new Map();
 let cjPromotionsByBrand: Map<string, CJPromotion[]> = new Map();
 let cjPromotionsIndexTime: number = 0;
 
-// Known brands/franchises to extract from promotion titles (same as Awin)
-const KNOWN_BRANDS = [
+// Known brands/franchises to extract from promotion titles (for brand-based matching)
+const PROMO_BRAND_KEYWORDS = [
   'disney', 'marvel', 'star wars', 'starwars', 'frozen', 'pixar', 'princess',
   'lego', 'duplo', 'technic',
   'barbie', 'hot wheels', 'hotwheels', 'fisher price', 'fisherprice', 'mattel',
@@ -1172,7 +1172,7 @@ function extractBrandsFromPromotion(linkName: string, description?: string): str
   const text = `${linkName} ${description || ''}`.toLowerCase();
   const foundBrands: string[] = [];
   
-  for (const brand of KNOWN_BRANDS) {
+  for (const brand of PROMO_BRAND_KEYWORDS) {
     const normalizedBrand = brand.replace(/\s+/g, '');
     if (text.includes(brand) || text.replace(/\s+/g, '').includes(normalizedBrand)) {
       foundBrands.push(normalizedBrand);
