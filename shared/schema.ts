@@ -172,6 +172,10 @@ export const products = pgTable("products", {
   embedding: vector("embedding"),
   canonicalCategory: text("canonical_category"),
   canonicalFranchises: text("canonical_franchises").array(),
+  source: varchar("source", { length: 20 }).default("awin"),
+  lastViewed: timestamp("last_viewed"),
+  lastSold: timestamp("last_sold"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const insertProductSchema = createInsertSchema(products);
