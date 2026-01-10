@@ -243,7 +243,7 @@ These are the ONLY confirmed genuine inventory gaps - verified with raw SQL retu
 
 | Product | Query | SQL Verification | Status |
 |---------|-------|------------------|--------|
-| LOL Dolls | "lol dolls" | `SELECT COUNT(*) FROM products WHERE name ILIKE '%lol%' AND (name ILIKE '%doll%' OR name ILIKE '%surprise%')` = **6** (only 6 products, poor coverage) | LOW INVENTORY |
+| LOL Surprise Dolls | "lol dolls" | `SELECT name FROM products WHERE name ILIKE '%lol surprise%'` = **6 products exist but are all merchandise (games, puzzles, shoes) - NO actual doll/figure toys** | MISSING PRODUCT TYPE (search works, inventory lacks actual dolls) |
 | Vampire Costumes | "vampire costume" | `SELECT COUNT(*) FROM products WHERE name ILIKE '%vampire%' AND name ILIKE '%costume%'` = **0** | NO INVENTORY |
 
 **Before adding to this list:**
