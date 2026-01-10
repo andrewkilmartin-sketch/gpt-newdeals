@@ -256,6 +256,110 @@ function clearQueryCache(): number {
 }
 
 // ============================================================
+// INVENTORY GAP FALLBACK - Show similar items when product doesn't exist
+// Maps search terms to broad categories for fallback suggestions
+// ============================================================
+
+const CATEGORY_INFERENCE_MAP: Record<string, string[]> = {
+  // Toys & Games
+  'toys': ['toys', 'games', 'puzzles', 'play', 'lego', 'barbie', 'action', 'doll', 'figure', 'playset'],
+  'sylvanian families': ['toys'],
+  'calico critters': ['toys'],
+  'playmobil': ['toys'],
+  'lego': ['toys'],
+  'barbie': ['toys', 'dolls'],
+  'action figures': ['toys'],
+  'board games': ['toys', 'games'],
+  
+  // Clothing
+  'clothing': ['dress', 'shirt', 'top', 'trousers', 'jeans', 'jacket', 'coat', 'jumper', 'sweater'],
+  'dresses': ['women', 'dress', 'clothing'],
+  'shirts': ['shirt', 'top', 'clothing'],
+  
+  // Footwear
+  'shoes': ['shoes', 'trainers', 'sneakers', 'boots', 'sandals', 'footwear'],
+  'trainers': ['shoes', 'footwear'],
+  'boots': ['shoes', 'footwear'],
+  
+  // Electronics
+  'electronics': ['headphones', 'speaker', 'phone', 'tablet', 'laptop', 'camera', 'tv'],
+  'headphones': ['electronics', 'audio'],
+  
+  // Home
+  'home': ['furniture', 'decor', 'kitchen', 'bedding', 'garden'],
+  'furniture': ['home', 'decor'],
+  
+  // Kids specific
+  'kids': ['children', 'kids', 'boys', 'girls', 'toddler', 'baby'],
+  'baby': ['baby', 'infant', 'toddler', 'nursery'],
+};
+
+// Brand/franchise to category mapping
+const BRAND_CATEGORY_MAP: Record<string, string> = {
+  'sylvanian': 'toys', 'calico': 'toys', 'playmobil': 'toys', 'lego': 'toys',
+  'barbie': 'toys', 'mattel': 'toys', 'hasbro': 'toys', 'fisher-price': 'toys',
+  'disney': 'toys', 'marvel': 'toys', 'star wars': 'toys', 'pokemon': 'toys',
+  'paw patrol': 'toys', 'peppa pig': 'toys', 'bluey': 'toys', 'cocomelon': 'toys',
+  'fingerlings': 'toys', 'hatchimals': 'toys', 'furby': 'toys', 'tamagotchi': 'toys',
+  'transformers': 'toys', 'nerf': 'toys', 'hot wheels': 'toys', 'beyblade': 'toys',
+  'nike': 'shoes', 'adidas': 'shoes', 'puma': 'shoes', 'reebok': 'shoes',
+  'clarks': 'shoes', 'converse': 'shoes', 'vans': 'shoes', 'jordan': 'shoes',
+  'apple': 'electronics', 'samsung': 'electronics', 'sony': 'electronics',
+  'ikea': 'home', 'john lewis': 'home',
+};
+
+function inferCategoryFromQuery(query: string): { category: string; keywords: string[] } | null {
+  const q = query.toLowerCase().trim();
+  const words = q.split(/\s+/);
+  
+  // Check brand mapping first
+  for (const [brand, category] of Object.entries(BRAND_CATEGORY_MAP)) {
+    if (q.includes(brand)) {
+      return { category, keywords: [category] };
+    }
+  }
+  
+  // Check direct category mapping
+  for (const [key, keywords] of Object.entries(CATEGORY_INFERENCE_MAP)) {
+    if (q.includes(key) || words.some(w => key.includes(w))) {
+      return { category: key, keywords };
+    }
+  }
+  
+  // Age-based inference (kids products)
+  if (/\b(\d+)\s*(year|yr)s?\s*old\b/.test(q) || /\b(boy|girl|kid|child|toddler|baby)\b/.test(q)) {
+    return { category: 'kids', keywords: ['children', 'kids'] };
+  }
+  
+  return null;
+}
+
+async function searchFallbackByCategory(
+  category: string, 
+  keywords: string[], 
+  limit: number = 10
+): Promise<{ products: any[]; fallbackCategory: string }> {
+  try {
+    // Search for products matching the category keywords
+    const fallbackQuery = keywords[0] || category;
+    console.log(`[Fallback Search] Searching category "${category}" with keyword "${fallbackQuery}"`);
+    
+    const results = await storage.searchProducts(fallbackQuery, limit, 0, undefined, {});
+    
+    if (results.products.length > 0) {
+      return { products: results.products, fallbackCategory: category };
+    }
+    
+    // Try broader search if specific category fails
+    const broadResults = await storage.searchProducts(category, limit, 0, undefined, {});
+    return { products: broadResults.products, fallbackCategory: category };
+  } catch (error) {
+    console.error('[Fallback Search] Error:', error);
+    return { products: [], fallbackCategory: category };
+  }
+}
+
+// ============================================================
 // BESPOKE REACTIVE FILTERS - Category-specific filter schemas
 // ============================================================
 
@@ -2543,9 +2647,36 @@ Format: ["id1", "id2", ...]`
         console.log(`[Shop Search] TIMING: Brand check took ${Date.now() - brandCheckStart}ms`);
         
         if (brandCount === 0) {
-          // Brand/character doesn't exist in our catalog - return empty results with message
+          // Brand/character doesn't exist in our catalog
           console.log(`[Shop Search] INVENTORY GAP: "${detectedBrand}" not found in catalog (0 products)`);
           inventoryGapMessage = `No ${detectedBrand} products found in our catalog`;
+          
+          // Try category-based fallback before returning empty
+          const inferredCategory = inferCategoryFromQuery(query);
+          if (inferredCategory) {
+            console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory.category}"`);
+            const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit);
+            if (fallback.products.length > 0) {
+              return res.json({
+                success: true,
+                products: fallback.products,
+                total: fallback.products.length,
+                interpretation: {
+                  original: query,
+                  type: interpretation.isSemanticQuery ? 'semantic' : 'direct',
+                  brand: detectedBrand,
+                  inventoryGap: true
+                },
+                isFallback: true,
+                fallback: {
+                  reason: `No exact matches for "${detectedBrand}"`,
+                  showingCategory: inferredCategory.category,
+                  message: `We don't have "${detectedBrand}" in stock, but here are similar ${inferredCategory.category} items:`
+                },
+                filters: null
+              });
+            }
+          }
           
           return res.json({
             success: true,
@@ -2996,14 +3127,39 @@ Examples:
             interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined 
           });
         }
+        
+        // INVENTORY GAP FALLBACK: Try category-based search for truly missing products
+        const inferredCategory = inferCategoryFromQuery(query);
+        if (inferredCategory) {
+          console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory.category}"`);
+          const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit);
+          if (fallback.products.length > 0) {
+            return res.json({
+              success: true,
+              query,
+              count: fallback.products.length,
+              totalCount: fallback.products.length,
+              hasMore: false,
+              products: fallback.products,
+              isFallback: true,
+              fallback: {
+                reason: `No exact matches for "${query}"`,
+                showingCategory: inferredCategory.category,
+                message: `We don't have "${query}" in stock, but here are similar ${inferredCategory.category} items:`
+              },
+              interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined
+            });
+          }
+        }
+        
         return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
       }
       
       if (candidates.length === 0) {
         // Check for deals-only before returning empty
-        const dealsOnly = await getDealsForMerchant(query);
-        if (dealsOnly.length > 0) {
-          console.log(`[Shop Search] No products but found ${dealsOnly.length} deals for "${query}"`);
+        const dealsOnly2 = await getDealsForMerchant(query);
+        if (dealsOnly2.length > 0) {
+          console.log(`[Shop Search] No products but found ${dealsOnly2.length} deals for "${query}"`);
           return res.json({ 
             success: true, 
             query, 
@@ -3011,11 +3167,36 @@ Examples:
             totalCount: 0, 
             hasMore: false, 
             products: [], 
-            dealsOnly: dealsOnly,
-            message: `No products found, but we have ${dealsOnly.length} deal${dealsOnly.length > 1 ? 's' : ''} from ${query}!`,
+            dealsOnly: dealsOnly2,
+            message: `No products found, but we have ${dealsOnly2.length} deal${dealsOnly2.length > 1 ? 's' : ''} from ${query}!`,
             interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined 
           });
         }
+        
+        // INVENTORY GAP FALLBACK: Try category-based search
+        const inferredCategory2 = inferCategoryFromQuery(query);
+        if (inferredCategory2) {
+          console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory2.category}"`);
+          const fallback2 = await searchFallbackByCategory(inferredCategory2.category, inferredCategory2.keywords, safeLimit);
+          if (fallback2.products.length > 0) {
+            return res.json({
+              success: true,
+              query,
+              count: fallback2.products.length,
+              totalCount: fallback2.products.length,
+              hasMore: false,
+              products: fallback2.products,
+              isFallback: true,
+              fallback: {
+                reason: `No exact matches for "${query}"`,
+                showingCategory: inferredCategory2.category,
+                message: `We don't have "${query}" in stock, but here are similar ${inferredCategory2.category} items:`
+              },
+              interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined
+            });
+          }
+        }
+        
         return res.json({ success: true, query, count: 0, totalCount: totalCandidates, hasMore: false, products: [], interpretation: interpretation.isSemanticQuery ? { expanded: interpretation.expandedKeywords, context: interpretation.context } : undefined });
       }
 

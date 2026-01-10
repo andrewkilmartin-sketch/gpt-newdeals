@@ -1212,7 +1212,8 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
       
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${CJ_API_TOKEN}`
+          'Authorization': `Bearer ${CJ_API_TOKEN}`,
+          'Accept': 'application/json'
         }
       });
       
