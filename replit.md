@@ -88,6 +88,17 @@ Key architectural decisions and features include:
       - GENDER_EXCLUSION_MAP: 16 gender keywords (him/her/boy/girl/son/daughter/etc.) with exclusion lists
     - **Relevance Scorer Updates**: Same expanded blocklists in server/services/relevance-scorer.ts for AI audit scoring
 
+-   **Audit V2 System (Jan 2026)** - Real relevance scoring replacing fake 100% pass rates:
+    - Uses queryParser to extract age, gender, character, price from queries
+    - Calls actual `/api/shop/search` endpoint to test full pipeline with MEGA-FIX 10
+    - Weighted scoring: Character 40%, Age 30%, Price 20%, Diversity 10%
+    - Character matching checks BOTH product text AND brand field (fixes "Jungle Pups" branded as "Paw Patrol")
+    - Null checks fixed: parseQuery returns `null` not `undefined` for missing age/price
+    - New verdict thresholds: PASS ≥70%, PARTIAL ≥40%, FAIL <40%
+    - Breakdown shows: characterMatchPct, ageMatchPct, priceMatchPct, diversityScore, duplicateCount
+    - Example: "paw patrol tower" → 84% PASS (100% char, N/A age, N/A price, 2/10 diversity)
+    - Example: "lego for 8 year old boy under 50" → 91% PASS (100% char, 100% age, 100% price, 1/10 diversity)
+
 -   **Alcohol Removal (Jan 2026)** - Complete removal of alcohol products from family platform:
     - Permanently deleted all alcohol products from database (wine gifts, gin bottles, champagne, whisky, etc.)
     - Added ALCOHOL_BLOCKLIST to both CJ and Awin import pipelines to prevent future imports
