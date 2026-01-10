@@ -94,7 +94,11 @@ Key architectural decisions and features include:
     - Fixed both keyword search path AND semantic search path in routes.ts
     - Also fixed queryParser character detection to use word boundaries (prevents "legoland" → "lego")
     - Added logic to ensure queryParser-detected characters are always added to interpretation.mustHaveAll
-    - Results: "bike for kids" returns bikes (not Biker Coat), "nerf gun" returns Nerf blasters, "school shoes boys" returns boys shoes
+    - **AGE STOPLIST FIX**: Added ageStopWords set to skip age-related terms in mustHaveAll filters
+      - Skips: year, years, old, age, month, toddler, baby, infant, newborn, teen, child, kid, boy, girl, etc.
+      - Fixes production bug where cached interpretations with "3 year old" in mustHaveAll caused 0 results
+      - Log shows: `[Shop Search] Skipping mustHaveAll term "boys" (all words are age/numeric stopwords)`
+    - Results: "bike for kids" returns bikes, "nerf gun" returns Nerf blasters, "toys for 3 year old" returns toys
 
 -   **Audit V2 System (Jan 2026)** - Real relevance scoring replacing fake 100% pass rates:
     - Uses queryParser to extract age, gender, character, price from queries

@@ -3749,6 +3749,13 @@ Format: ["id1", "id2", ...]`
         // FIX: Split multi-word terms and require EACH word separately
         // "sophie giraffe" → requires "sophie" AND "giraffe" (not exact phrase)
         // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
+        // AGE STOPLIST: Skip age-related words that don't appear in product names
+        const ageStopWords = new Set([
+          'year', 'years', 'old', 'age', 'ages', 'aged', 'month', 'months',
+          'toddler', 'toddlers', 'baby', 'babies', 'infant', 'infants',
+          'newborn', 'newborns', 'teen', 'teens', 'teenager', 'teenagers',
+          'child', 'children', 'kid', 'kids', 'boy', 'boys', 'girl', 'girls'
+        ]);
         if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
           for (const term of interpretation.mustHaveAll) {
             // Skip brand terms already handled by brand filter
@@ -3756,8 +3763,14 @@ Format: ["id1", "id2", ...]`
                 term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
               continue;
             }
-            // Split term into individual words and require each one
-            const words = term.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+            // Split term into individual words, require each one EXCEPT age stopwords
+            const words = term.toLowerCase().split(/\s+/).filter(w => 
+              w.length >= 2 && !ageStopWords.has(w) && !/^\d+$/.test(w)
+            );
+            if (words.length === 0) {
+              console.log(`[Shop Search] Skipping mustHaveAll term "${term}" (all words are age/numeric stopwords)`);
+              continue;
+            }
             for (const word of words) {
               const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               const wordBoundary = '\\y' + escaped + '\\y';
