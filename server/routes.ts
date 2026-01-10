@@ -4389,10 +4389,11 @@ Format: ["id1", "id2", ...]`
                                !filterCategory && !filterMerchant && !filterBrand;
       
       if (useBrandFastPath && detectedBrand) {
-        console.log(`[Shop Search] BRAND FAST-PATH: Using indexed query for "${detectedBrand}" (skipping semantic search)`);
+        console.log(`[Shop Search] BRAND FAST-PATH: Using TSVECTOR for "${detectedBrand}"`);
         const brandFastStart = Date.now();
         
-        // Simple indexed query by brand name
+        // Use tsvector search for brand queries (much faster than ILIKE)
+        const brandTsQuery = detectedBrand.toLowerCase().split(/\s+/).join(' & ');
         const brandResults = await db.select({
           id: products.id,
           name: products.name,
@@ -4406,25 +4407,27 @@ Format: ["id1", "id2", ...]`
           in_stock: products.inStock
         }).from(products)
           .where(and(
-            or(
-              ilike(products.brand, `%${detectedBrand}%`),
-              ilike(products.name, `%${detectedBrand}%`)
-            ),
+            sql`search_vector @@ to_tsquery('english', ${brandTsQuery})`,
             products.inStock,
             isNotNull(products.affiliateLink),
             sql`${products.imageUrl} NOT ILIKE '%noimage%'`
           ))
           .limit(100);
         
-        // Shuffle for variety
-        for (let i = brandResults.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [brandResults[i], brandResults[j]] = [brandResults[j], brandResults[i]];
-        }
+        // Sort by relevance: brand name in product name first, then brand column
+        const brandLower = detectedBrand.toLowerCase();
+        brandResults.sort((a, b) => {
+          const aInName = a.name?.toLowerCase().includes(brandLower) ? 1 : 0;
+          const bInName = b.name?.toLowerCase().includes(brandLower) ? 1 : 0;
+          const aInBrand = a.brand?.toLowerCase().includes(brandLower) ? 1 : 0;
+          const bInBrand = b.brand?.toLowerCase().includes(brandLower) ? 1 : 0;
+          // Prioritize: name match > brand match
+          return (bInName * 2 + bInBrand) - (aInName * 2 + aInBrand);
+        });
         
         candidates = brandResults.slice(0, 60);
         totalCandidates = brandResults.length;
-        console.log(`[Shop Search] BRAND FAST-PATH completed in ${Date.now() - brandFastStart}ms (found ${candidates.length} products)`);
+        console.log(`[Shop Search] BRAND FAST-PATH (tsvector) completed in ${Date.now() - brandFastStart}ms (found ${candidates.length} products)`);
       } else if (interpretation.isSemanticQuery && interpretation.searchTerms.length > 0) {
         // Run multiple searches for each keyword combination
         const allCandidates: any[] = [];
@@ -4625,11 +4628,15 @@ Format: ["id1", "id2", ...]`
             
             console.log(`[Shop Search] TSVECTOR: Found ${tsvectorResults.length} results in ${Date.now() - tsvectorStart}ms`);
             
-            // Shuffle in memory for variety
-            for (let i = tsvectorResults.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [tsvectorResults[i], tsvectorResults[j]] = [tsvectorResults[j], tsvectorResults[i]];
-            }
+            // Sort by relevance: original query terms in product name first
+            const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            tsvectorResults.sort((a, b) => {
+              const aName = a.name?.toLowerCase() || '';
+              const bName = b.name?.toLowerCase() || '';
+              const aScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
+              const bScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
+              return bScore - aScore;
+            });
             
             for (const p of tsvectorResults.slice(0, 50)) {
               if (!seenIds.has(p.id)) {
