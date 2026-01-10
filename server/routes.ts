@@ -6628,6 +6628,17 @@ ONLY use IDs from the list. Never invent IDs.`
         return res.status(400).json({ error: 'queries array is required' });
       }
       
+      // Enforce 20-query limit to manage API costs
+      if (queries.length > 20) {
+        return res.status(400).json({ error: 'Maximum 20 queries allowed per audit' });
+      }
+      
+      // Validate queries are non-empty strings
+      const validQueries = queries.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
+      if (validQueries.length === 0) {
+        return res.status(400).json({ error: 'At least one valid query string is required' });
+      }
+      
       const { auditQueryWithScoring, generateCSV } = await import('./services/relevance-scorer');
       const { db } = await import('./db');
       const { sql } = await import('drizzle-orm');
@@ -6635,8 +6646,8 @@ ONLY use IDs from the list. Never invent IDs.`
       const auditResults: any[] = [];
       const startTime = Date.now();
       
-      // Process up to 20 queries (AI scoring is expensive)
-      for (const query of queries.slice(0, 20)) {
+      // Process validated queries (already limited to 20)
+      for (const query of validQueries) {
         const queryStartTime = Date.now();
         const queryLower = (query || '').toLowerCase().trim();
         const searchPattern = `%${queryLower}%`;
