@@ -31,6 +31,8 @@ Key architectural decisions and features include:
 -   **Word Boundary Search Fix**: Changed keyword matching to use PostgreSQL regex with word boundaries `~* '\yword\y'` to prevent substring matching issues. This was applied to both keyword and semantic search paths, including queryParser character detection. An age stoplist was added to skip age-related terms in `mustHaveAll` filters to prevent zero results.
 -   **Audit V2 System**: Implemented a real relevance scoring system using `queryParser` to extract age, gender, character, and price from queries. It calls the actual `/api/shop/search` endpoint and uses weighted scoring for Character (40%), Age (30%), Price (20%), and Diversity (10%). New verdict thresholds are PASS ≥70%, PARTIAL ≥40%, FAIL <40%.
 -   **Alcohol Removal**: All alcohol products have been permanently deleted from the database. An `ALCOHOL_BLOCKLIST` and `ALCOHOL_MERCHANT_BLOCKLIST` have been implemented in both CJ and Awin import pipelines and search filters to prevent future imports and display of alcohol-related products.
+-   **TSVECTOR Ultra Fast Path (v7-fix28)**: Search now uses PostgreSQL full-text search with GIN indexes BEFORE calling OpenAI API, achieving sub-100ms cached response times. Includes production-safe fallbacks when `search_vector` column is missing.
+-   **Production Compatibility**: All database operations wrapped in try/catch with ILIKE fallbacks to prevent 500 errors when schema differs between environments.
 
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.

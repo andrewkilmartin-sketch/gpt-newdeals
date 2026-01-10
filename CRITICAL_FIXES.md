@@ -4,6 +4,27 @@
 
 ---
 
+## 🔴 LESSONS LEARNED - CODE BUGS, NOT DEPLOYMENT
+
+**ACKNOWLEDGMENT (2026-01-10):** Multiple production failures were incorrectly attributed to "deployment issues", "Railway caching", or "user environment" when they were actually **code bugs**:
+
+| Bug | Wrong Diagnosis | Real Cause |
+|-----|-----------------|------------|
+| Fix #25-26 | "Railway deployment cache" | Missing `search_vector` column fallback in code |
+| Fix #27 | "External service timeout" | `checkBrandExistsInDB()` using ILIKE on 1.1M rows |
+| Fix #28 | "OpenAI API latency" | Semantic search ran BEFORE fast path, no early return |
+| Multiple | "Production DB different" | Code assumed indexes/columns existed without fallbacks |
+
+**Root Cause Pattern:** Code assumed database schema/indexes existed without try/catch fallbacks.
+
+**Prevention Rules:**
+1. ALWAYS wrap database operations in try/catch with fallbacks
+2. NEVER blame deployment/caching without testing the actual endpoint
+3. Test production URL directly before claiming "it works locally"
+4. Add logging that shows which code path is executing
+
+---
+
 ## ⚠️ DEBUGGING CHECKLIST - DO THIS FIRST
 
 **BEFORE blaming deployment, cache, or external issues:**

@@ -46,7 +46,7 @@ app.get('/healthz', (_req, res) => {
     status: 'ok',
     uptime: Math.floor((Date.now() - serverStartTime) / 1000),
     timestamp: new Date().toISOString(),
-    version: '2026.01.10.v6-fix26'
+    version: '2026.01.10.v7-fix28'
   });
 });
 
