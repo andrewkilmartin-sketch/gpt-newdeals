@@ -3677,14 +3677,85 @@ Format: ["id1", "id2", ...]`
       // This prevents returning random products when the brand doesn't exist
       const detectedBrand = interpretation.attributes?.brand || interpretation.attributes?.character;
       
-      // PERFORMANCE: Skip brand check for known brands from knownBrands list (already validated)
+      // PERFORMANCE: Skip brand check for known brands (massive list to avoid 120s+ DB scans)
       const knownBrandLower = detectedBrand?.toLowerCase();
-      const isKnownBrand = knownBrandLower && [
-        'nike', 'adidas', 'puma', 'lego', 'barbie', 'disney', 'marvel', 'pokemon', 'minecraft',
-        'frozen', 'paw patrol', 'peppa pig', 'star wars', 'harry potter', 'hot wheels',
-        'clarks', 'vans', 'converse', 'new balance', 'reebok', 'skechers', 'crocs',
-        'fisher price', 'mattel', 'hasbro', 'playmobil', 'bluey', 'cocomelon'
-      ].includes(knownBrandLower);
+      const KNOWN_BRANDS_CACHE = new Set([
+        // Major toy brands
+        'lego', 'barbie', 'mattel', 'hasbro', 'playmobil', 'fisher price', 'hot wheels',
+        'nerf', 'transformers', 'my little pony', 'play-doh', 'monopoly', 'littlest pet shop',
+        // Disney/characters
+        'disney', 'frozen', 'elsa', 'anna', 'moana', 'encanto', 'mirabel', 'coco', 'luca',
+        'toy story', 'woody', 'buzz', 'buzz lightyear', 'finding nemo', 'finding dory',
+        'cars', 'lightning mcqueen', 'incredibles', 'monsters inc', 'inside out', 'up',
+        'tangled', 'rapunzel', 'cinderella', 'snow white', 'sleeping beauty', 'ariel',
+        'little mermaid', 'aladdin', 'jasmine', 'beauty and the beast', 'belle', 'mulan',
+        'pocahontas', 'brave', 'merida', 'raya', 'turning red', 'soul', 'onward', 'elemental',
+        'wish', 'zootopia', 'big hero 6', 'wreck it ralph', 'lilo and stitch', 'stitch',
+        // Marvel
+        'marvel', 'avengers', 'spider-man', 'spiderman', 'iron man', 'hulk', 'thor', 'captain america',
+        'black panther', 'black widow', 'hawkeye', 'scarlet witch', 'doctor strange', 'ant-man',
+        'guardians of the galaxy', 'groot', 'rocket', 'thanos', 'loki', 'venom', 'deadpool',
+        'wolverine', 'x-men', 'fantastic four', 'captain marvel', 'shang-chi', 'eternals',
+        // DC
+        'dc', 'batman', 'superman', 'wonder woman', 'aquaman', 'flash', 'green lantern',
+        'justice league', 'joker', 'harley quinn', 'catwoman', 'robin', 'batgirl', 'supergirl',
+        // Star Wars
+        'star wars', 'darth vader', 'luke skywalker', 'yoda', 'baby yoda', 'grogu', 'mandalorian',
+        'boba fett', 'stormtrooper', 'chewbacca', 'r2d2', 'r2-d2', 'c3po', 'c-3po', 'kylo ren',
+        'rey', 'obi-wan', 'anakin', 'padme', 'princess leia', 'han solo', 'millennium falcon',
+        // Harry Potter
+        'harry potter', 'hogwarts', 'hermione', 'ron weasley', 'dumbledore', 'voldemort',
+        'snape', 'hagrid', 'gryffindor', 'slytherin', 'ravenclaw', 'hufflepuff', 'quidditch',
+        // Pokemon
+        'pokemon', 'pikachu', 'charizard', 'bulbasaur', 'squirtle', 'charmander', 'eevee',
+        'mewtwo', 'gengar', 'snorlax', 'jigglypuff', 'psyduck', 'pokeball',
+        // Gaming
+        'minecraft', 'fortnite', 'roblox', 'sonic', 'mario', 'super mario', 'luigi', 'peach',
+        'bowser', 'yoshi', 'donkey kong', 'zelda', 'link', 'kirby', 'pokemon go', 'among us',
+        // Kids TV
+        'paw patrol', 'chase', 'marshall', 'skye', 'rubble', 'rocky', 'zuma', 'everest',
+        'peppa pig', 'george pig', 'bluey', 'bingo', 'bandit', 'chilli',
+        'cocomelon', 'jj', 'hey duggee', 'duggee', 'bing', 'teletubbies', 'postman pat',
+        'fireman sam', 'thomas', 'thomas the tank', 'thomas and friends', 'bob the builder',
+        'pj masks', 'catboy', 'owlette', 'gekko', 'dora', 'dora the explorer', 'blippi',
+        'numberblocks', 'alphablocks', 'bluey bingo', 'andy', "andy's adventures",
+        'horrible histories', 'cbbc', 'cbeebies', 'mr tumble', 'something special',
+        'in the night garden', 'iggle piggle', 'upsy daisy', 'makka pakka',
+        'sarah and duck', 'go jetters', 'octonauts', 'danger mouse',
+        'peter rabbit', 'paddington', 'paddington bear', 'gruffalo', 'room on the broom',
+        'stick man', 'zog', 'highway rat', 'snail and whale', 'julia donaldson',
+        'mr men', 'little miss', 'winnie the pooh', 'piglet', 'tigger', 'eeyore',
+        'babar', 'curious george', 'miffy', 'maisy', 'spot the dog', 'kipper',
+        // Other characters/franchises
+        'gabby', "gabby's dollhouse", 'baby shark', 'minions', 'despicable me', 'gru',
+        'trolls', 'poppy', 'branch', 'shrek', 'fiona', 'donkey', 'kung fu panda', 'po',
+        'how to train your dragon', 'toothless', 'boss baby', 'croods', 'sing', 'secret life of pets',
+        'angry birds', 'spongebob', 'patrick star', 'paw', 'peppa', 'ben and holly',
+        'sylvanian families', 'sylvanian', 'calico critters', 'lol surprise', 'lol', 'omg',
+        'hatchimals', 'shopkins', 'polly pocket', 'bratz', 'monster high', 'ever after high',
+        'my generation', 'american girl', 'our generation', 'baby born', 'baby annabell',
+        'cabbage patch', 'build a bear', 'beanie babies', 'beanie boos', 'ty', 'squishmallow',
+        'funko', 'funko pop', 'nendoroid', 'action figure', 'action figures',
+        // Dinosaurs
+        'dinosaur', 'dinosaurs', 't-rex', 'trex', 'tyrannosaurus', 'velociraptor', 'raptor',
+        'triceratops', 'stegosaurus', 'brontosaurus', 'pterodactyl', 'jurassic', 'jurassic park',
+        'jurassic world', 'prehistoric',
+        // Sports brands (shoes/clothing)
+        'nike', 'adidas', 'puma', 'reebok', 'new balance', 'skechers', 'clarks', 'vans',
+        'converse', 'crocs', 'under armour', 'jordan', 'air jordan', 'asics', 'fila',
+        // Unicorns/fantasy
+        'unicorn', 'unicorns', 'fairy', 'fairies', 'mermaid', 'mermaids', 'dragon', 'dragons',
+        'princess', 'princesses', 'prince', 'knight', 'knights', 'castle', 'rainbow',
+        // General toy types that shouldn't need brand check
+        'toy', 'toys', 'game', 'games', 'puzzle', 'puzzles', 'doll', 'dolls', 'teddy', 'teddy bear',
+        'plush', 'soft toy', 'stuffed animal', 'building blocks', 'blocks', 'train', 'trains',
+        'car', 'cars', 'truck', 'trucks', 'bike', 'scooter', 'trampoline', 'swing', 'slide',
+        'playhouse', 'tent', 'ball', 'balls', 'football', 'basketball', 'cricket', 'rugby',
+        'costume', 'costumes', 'dress up', 'fancy dress', 'superhero', 'pirate', 'witch',
+        'robot', 'robots', 'science', 'stem', 'craft', 'crafts', 'art', 'paint', 'painting',
+        'playdough', 'slime', 'kinetic sand', 'sand', 'water', 'bath toys', 'outdoor'
+      ]);
+      const isKnownBrand = knownBrandLower && KNOWN_BRANDS_CACHE.has(knownBrandLower);
       
       if (isKnownBrand) {
         console.log(`[Shop Search] FAST PATH: Skipping brand check for known brand "${detectedBrand}"`);
@@ -3825,14 +3896,11 @@ Format: ["id1", "id2", ...]`
               continue;
             }
             for (const word of words) {
-              const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const wordBoundary = '\\y' + escaped + '\\y';
-              // Add as hard filter: each word must appear in name, description, category, or brand
+              // PERFORMANCE FIX: Use simple ILIKE on indexed name column only
+              // Regex word boundaries across 4 columns = 40+ second queries
               const mustHaveCondition = or(
-                sql`${products.name} ~* ${wordBoundary}`,
-                sql`${products.description} ~* ${wordBoundary}`,
-                sql`${products.category} ~* ${wordBoundary}`,
-                sql`${products.brand} ~* ${wordBoundary}`
+                ilike(products.name, `%${word}%`),
+                ilike(products.brand, `%${word}%`)
               );
               if (mustHaveCondition) {
                 filterConditions.push(mustHaveCondition as any);
@@ -3849,17 +3917,11 @@ Format: ["id1", "id2", ...]`
             const words = term.toLowerCase().split(/\s+/).filter(w => w.length > 2);
             if (words.length === 0) continue;
             
-            // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
-            // For each word in the term, match any field with word boundaries
+            // PERFORMANCE FIX: Only search indexed name column with simple ILIKE
+            // Regex word boundaries on 4 columns = 40+ second queries
             const condition = and(...words.map(w => {
-              const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const wordBoundary = '\\y' + escaped + '\\y';
-              return or(
-                sql`${products.name} ~* ${wordBoundary}`,
-                sql`${products.description} ~* ${wordBoundary}`,
-                sql`${products.brand} ~* ${wordBoundary}`,
-                sql`${products.category} ~* ${wordBoundary}`
-              );
+              // Use simple ILIKE for speed (GIN trigram indexed)
+              return ilike(products.name, `%${w}%`);
             }));
             if (condition) termConditions.push(condition);
           }
@@ -3882,6 +3944,9 @@ Format: ["id1", "id2", ...]`
           }
           
           // Search for this term group
+          // PERFORMANCE FIX: Remove ORDER BY RANDOM() - it forces full table sort (13s+)
+          // Shuffle results in memory instead
+          const semanticSearchStart = Date.now();
           const groupResults = await db.select({
             id: products.id,
             name: products.name,
@@ -3895,11 +3960,18 @@ Format: ["id1", "id2", ...]`
             in_stock: products.inStock
           }).from(products)
             .where(and(...whereConditions))
-            .orderBy(sql`RANDOM()`)
-            .limit(30);
+            .limit(100); // Get more results then shuffle in memory
+          console.log(`[Shop Search] TIMING: Semantic DB query took ${Date.now() - semanticSearchStart}ms`);
+          
+          // Shuffle in memory for variety (Fisher-Yates)
+          for (let i = groupResults.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [groupResults[i], groupResults[j]] = [groupResults[j], groupResults[i]];
+          }
+          const shuffledResults = groupResults.slice(0, 30);
           
           // Add unique results
-          for (const p of groupResults) {
+          for (const p of shuffledResults) {
             if (!seenIds.has(p.id)) {
               seenIds.add(p.id);
               allCandidates.push(p);
