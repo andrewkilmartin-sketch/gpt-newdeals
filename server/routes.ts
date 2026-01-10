@@ -6773,6 +6773,47 @@ ONLY use IDs from the list. Never invent IDs.`
     return null;
   }
   
+  // A/B Test Configuration: Percentage of clicks to route through new system
+  const AB_TEST_PERCENTAGE = 0.10; // 10% use /go endpoint
+  
+  // API: Get affiliate link with A/B test assignment
+  app.get('/api/routing/link/:productId', async (req, res) => {
+    const { productId } = req.params;
+    const forceNew = req.query.force === 'new'; // For testing
+    
+    try {
+      // Get product from database
+      const product = await db.execute(sql.raw(`
+        SELECT id, affiliate_link FROM products 
+        WHERE id = '${productId.replace(/'/g, "''")}'
+        LIMIT 1
+      `)) as any[];
+      
+      if (!product || product.length === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+      
+      // A/B assignment: 10% use new routing, 90% use direct link
+      const useNewRouting = forceNew || Math.random() < AB_TEST_PERCENTAGE;
+      
+      if (useNewRouting) {
+        res.json({
+          link: `/go/${productId}`,
+          variant: 'new',
+          description: 'Dynamic routing (A/B test)'
+        });
+      } else {
+        res.json({
+          link: product[0].affiliate_link,
+          variant: 'control',
+          description: 'Direct affiliate link'
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
   // /go/:productId - Dynamic affiliate redirect
   app.get('/go/:productId', async (req, res) => {
     const startTime = Date.now();
@@ -6940,7 +6981,86 @@ ONLY use IDs from the list. Never invent IDs.`
         success: true,
         totals: totals[0] || {},
         byNetworkAndDate: stats,
-        cacheSize: networkDecisionCache.size
+        cacheSize: networkDecisionCache.size,
+        abTestPercentage: AB_TEST_PERCENTAGE * 100 + '%'
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Admin: 24-hour monitoring dashboard for A/B test
+  app.get('/api/routing/monitor', async (req, res) => {
+    try {
+      // Last 24 hours click activity
+      const hourlyClicks = await db.execute(sql.raw(`
+        SELECT 
+          DATE_TRUNC('hour', clicked_at) as hour,
+          network_used,
+          COUNT(*) as clicks,
+          AVG(response_time_ms) as avg_ms,
+          MIN(response_time_ms) as min_ms,
+          MAX(response_time_ms) as max_ms
+        FROM click_events
+        WHERE clicked_at > NOW() - INTERVAL '24 hours'
+        GROUP BY DATE_TRUNC('hour', clicked_at), network_used
+        ORDER BY hour DESC
+      `));
+      
+      // Recent clicks (last 20)
+      const recentClicks = await db.execute(sql.raw(`
+        SELECT 
+          product_id,
+          merchant_slug,
+          network_used,
+          response_time_ms,
+          clicked_at
+        FROM click_events
+        ORDER BY clicked_at DESC
+        LIMIT 20
+      `));
+      
+      // Slow queries (> 500ms)
+      const slowQueries = await db.execute(sql.raw(`
+        SELECT 
+          product_id,
+          merchant_slug,
+          network_used,
+          response_time_ms,
+          clicked_at
+        FROM click_events
+        WHERE response_time_ms > 500
+          AND clicked_at > NOW() - INTERVAL '24 hours'
+        ORDER BY response_time_ms DESC
+        LIMIT 10
+      `));
+      
+      // Performance summary
+      const perfSummary = await db.execute(sql.raw(`
+        SELECT 
+          COUNT(*) as total_24h,
+          AVG(response_time_ms) as avg_ms_24h,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_ms,
+          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms) as p99_ms,
+          COUNT(*) FILTER (WHERE response_time_ms < 200) as under_200ms,
+          COUNT(*) FILTER (WHERE response_time_ms >= 500) as over_500ms
+        FROM click_events
+        WHERE clicked_at > NOW() - INTERVAL '24 hours'
+      `));
+      
+      res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        abTestPercentage: AB_TEST_PERCENTAGE * 100 + '%',
+        caches: {
+          networkDecisions: networkDecisionCache.size,
+          merchantPreferences: merchantNetworkCache.size,
+          merchantAlternatives: merchantAlternativesCache.size
+        },
+        performance: perfSummary[0] || {},
+        hourlyClicks,
+        recentClicks,
+        slowQueries
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
