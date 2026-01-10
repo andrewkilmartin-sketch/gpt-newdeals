@@ -5905,14 +5905,56 @@ ONLY use IDs from the list. Never invent IDs.`
           console.error(`[Audit] DB check failed for "${query}":`, e);
         }
         
-        // Step 2: Run search API
+        // Step 2: Run search API - use PRODUCTS search, not promotions
         let searchResults: any[] = [];
         let searchTime = 0;
         try {
           const searchStart = Date.now();
-          const products = await fetchAwinProducts(query, undefined, limit);
+          // Use internal product search (same as /api/shop/search) instead of fetchAwinProducts (promotions)
+          const { db } = await import('./db');
+          const { products: productsTable } = await import('@shared/schema');
+          const { ilike, or, sql: sqlTag } = await import('drizzle-orm');
+          
+          // Simple keyword search on products table
+          const searchTerms = query.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
+          let productQuery = db.select({
+            id: productsTable.id,
+            name: productsTable.name,
+            description: productsTable.description,
+            price: productsTable.price,
+            merchant: productsTable.merchant,
+            brand: productsTable.brand,
+            category: productsTable.category,
+            imageUrl: productsTable.imageUrl,
+            affiliateLink: productsTable.affiliateLink
+          }).from(productsTable);
+          
+          if (searchTerms.length > 0) {
+            const conditions = searchTerms.map((term: string) => 
+              or(
+                ilike(productsTable.name, `%${term}%`),
+                ilike(productsTable.brand, `%${term}%`)
+              )
+            );
+            productQuery = productQuery.where(sqlTag`${conditions[0]}`) as any;
+          }
+          
+          const dbProducts = await productQuery.limit(limit);
           searchTime = Date.now() - searchStart;
-          searchResults = products;
+          
+          // Map to expected format
+          searchResults = dbProducts.map((p: any) => ({
+            title: p.name,
+            name: p.name,
+            description: p.description,
+            salePrice: p.price,
+            price: p.price,
+            merchant: p.merchant,
+            brand: p.brand,
+            category: p.category,
+            imageUrl: p.imageUrl,
+            link: p.affiliateLink
+          }));
         } catch (e) {
           console.error(`[Audit] Search failed for "${query}":`, e);
         }
