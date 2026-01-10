@@ -20,25 +20,55 @@ export interface ParsedQuery {
 }
 
 // Character/franchise list - these MUST be matched exactly
+// CTO-approved expanded list covering all major franchises
 const CHARACTERS = [
-  'paw patrol', 'peppa pig', 'bluey', 'frozen', 'elsa', 'anna',
-  'spiderman', 'spider-man', 'spider man', 'batman', 'superman',
-  'mario', 'super mario', 'luigi', 'sonic', 'sonic the hedgehog',
-  'pokemon', 'pikachu', 'minecraft', 'fortnite', 'roblox',
-  'disney', 'marvel', 'avengers', 'star wars', 'mandalorian',
-  'harry potter', 'hogwarts', 'lego', 'barbie', 'hot wheels',
-  'paw patrol', 'thomas the tank', 'thomas train', 'teletubbies',
-  'cocomelon', 'baby shark', 'hey duggee', 'in the night garden',
-  'mr tumble', 'paddington', 'peter rabbit', 'gruffalo',
-  'bing bunny', 'postman pat', 'fireman sam', 'bob the builder',
-  'transformers', 'power rangers', 'teenage mutant ninja turtles', 'tmnt',
+  // Kids TV
+  'paw patrol', 'peppa pig', 'bluey', 'cocomelon', 'hey duggee', 'bing', 'teletubbies',
+  'thomas the tank', 'thomas and friends', 'thomas train', 'postman pat', 'fireman sam', 'bob the builder',
+  'in the night garden', 'mr tumble', 'baby shark', 'bing bunny',
   'pj masks', 'chase', 'marshall', 'skye', 'rubble',
-  'encanto', 'moana', 'tangled', 'rapunzel', 'cinderella',
-  'toy story', 'buzz lightyear', 'woody', 'cars', 'lightning mcqueen',
-  'jurassic park', 'jurassic world', 'dinosaur', 'dino',
-  'lol surprise', 'lol dolls', 'gabby dollhouse', 'gabby\'s dollhouse',
-  'my little pony', 'mlp', 'rainbow high', 'monster high',
-  'nerf', 'playmobil', 'sylvanian families', 'calico critters'
+  
+  // Disney
+  'disney', 'mickey mouse', 'minnie mouse', 'frozen', 'elsa', 'anna', 'olaf',
+  'moana', 'ariel', 'belle', 'cinderella', 'rapunzel', 'snow white', 'jasmine',
+  'tiana', 'mulan', 'pocahontas', 'aurora', 'merida', 'encanto', 'mirabel',
+  'lilo and stitch', 'stitch', 'lion king', 'simba', 'toy story', 'woody', 'buzz lightyear',
+  'cars', 'lightning mcqueen', 'finding nemo', 'finding dory', 'monsters inc', 'tangled',
+  
+  // Marvel
+  'marvel', 'avengers', 'spiderman', 'spider-man', 'spider man', 'hulk', 'iron man',
+  'thor', 'captain america', 'black panther', 'black widow', 'hawkeye',
+  'ant-man', 'antman', 'deadpool', 'wolverine', 'x-men', 'guardians of the galaxy',
+  
+  // DC
+  'dc', 'batman', 'superman', 'wonder woman', 'flash', 'aquaman', 'justice league',
+  
+  // Gaming
+  'mario', 'super mario', 'luigi', 'princess peach', 'yoshi', 'donkey kong',
+  'sonic', 'sonic the hedgehog', 'pokemon', 'pikachu', 'minecraft', 'roblox',
+  'fortnite', 'zelda', 'link', 'kirby', 'animal crossing',
+  
+  // Toys/Brands (treated as characters for matching)
+  'lego', 'duplo', 'playmobil', 'barbie', 'hot wheels', 'nerf', 'play-doh', 'playdoh',
+  'sylvanian', 'sylvanian families', 'lol surprise', 'lol dolls', 'hatchimals', 'funko', 'funko pop',
+  'calico critters', 'my little pony', 'mlp', 'rainbow high', 'monster high',
+  'gabby dollhouse', 'gabby\'s dollhouse',
+  
+  // Harry Potter / Franchises
+  'harry potter', 'hogwarts', 'star wars', 'mandalorian', 'baby yoda', 'grogu',
+  'jurassic', 'jurassic world', 'jurassic park', 'transformers', 'power rangers',
+  'teenage mutant ninja turtles', 'tmnt',
+  
+  // Other Popular
+  'paddington', 'peter rabbit', 'winnie the pooh', 'gruffalo', 'hungry caterpillar',
+  'eric carle', 'roald dahl', 'david walliams', 'julia donaldson',
+  'unicorn', 'dinosaur', 'dinosaurs', 'dino', 'dragon', 'mermaid', 'pirate', 'princess', 'superhero'
+];
+
+// Brand-specific queries should skip diversity penalty (exported for routes.ts)
+export const BRAND_CHARACTERS = [
+  'lego', 'duplo', 'nerf', 'barbie', 'hot wheels', 'playmobil', 
+  'sylvanian', 'sylvanian families', 'funko', 'funko pop', 'playdoh', 'play-doh'
 ];
 
 // Product types that indicate what the user is looking for

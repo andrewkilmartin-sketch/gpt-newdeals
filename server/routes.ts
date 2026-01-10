@@ -40,13 +40,14 @@ import {
   parseQuery, 
   applyQueryFilters, 
   getRequiredSearchTerms,
-  ParsedQuery 
+  ParsedQuery,
+  BRAND_CHARACTERS
 } from "./services/queryParser";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
 // Build version for deployment verification - increment this when making changes
-const BUILD_VERSION = '2026.01.10.v3-auditport';
+const BUILD_VERSION = '2026.01.10.v5-stitchfix';
 const BUILD_DATE = '2026-01-09T00:30:00Z';
 const BUILD_FEATURES = [
   'CRITICAL FIX: storage.searchProducts now filters by detected brand/character',
@@ -479,6 +480,52 @@ function filterForBlindContext(results: any[]): any[] {
       console.log(`[Blind Context] Excluded window blinds: "${r.name?.substring(0, 50)}..."`);
     }
     return !isWindowBlinds;
+  });
+}
+
+// Check if query is about Disney's Stitch character
+function hasStitchContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return q.includes('stitch') && (
+    q.includes('plush') || q.includes('toy') || q.includes('soft') ||
+    q.includes('disney') || q.includes('lilo') || q.includes('figure') ||
+    q.includes('gift') || q.includes('kids') || q.includes('child')
+  );
+}
+
+// Filter for Stitch context - exclude clothing/fashion with "stitch" in construction description
+function filterForStitchContext(results: any[]): any[] {
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const brand = (r.brand || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    const description = (r.description || '').toLowerCase();
+    
+    // Allow if Stitch/Disney is in name or brand
+    if (name.includes('stitch') || brand.includes('disney') || brand.includes('stitch')) {
+      return true;
+    }
+    
+    // Allow if category is toys
+    if (category.includes('toy')) {
+      return true;
+    }
+    
+    // Exclude clothing/fashion where "stitch" is construction term
+    const isClothing = category.includes('cloth') || category.includes('fashion') ||
+                       category.includes('footwear') || category.includes('shoe') ||
+                       category.includes('underwear') || category.includes('apparel');
+    const isConstructionTerm = description.includes('stitch-for-stitch') || 
+                               description.includes('stitched') ||
+                               description.includes('stitching') ||
+                               (description.includes('stitch') && description.includes('cotton'));
+    
+    if (isClothing || isConstructionTerm) {
+      console.log(`[Stitch Context] Excluded non-Disney stitch: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    
+    return true;
   });
 }
 
@@ -1016,6 +1063,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (hasBlindContext(query)) {
     console.log(`[Search Quality] Applying blind/accessibility filters for: "${query}"`);
     filtered = filterForBlindContext(filtered);
+  }
+  
+  // Disney Stitch character context - exclude clothing "stitch" construction
+  if (hasStitchContext(query)) {
+    console.log(`[Search Quality] Applying Stitch character filters for: "${query}"`);
+    filtered = filterForStitchContext(filtered);
   }
   
   // PHASE 3: Film/movie context - user wants movies, not random products
@@ -6452,12 +6505,27 @@ ONLY use IDs from the list. Never invent IDs.`
           }
           
           // V2: Score character match - check name, description, AND brand
+          // For ambiguous character names (stitch, flash, link), require name/brand match only
+          const AMBIGUOUS_CHARACTERS = ['stitch', 'flash', 'link', 'belle', 'aurora', 'chase', 'rocky'];
           let matchesCharacter: boolean | null = null;
           if (parsed.character) {
             const charLower = parsed.character.toLowerCase();
             const brandLower = (product.brand || '').toLowerCase();
-            // Match if character is in text OR if brand contains the character name
-            matchesCharacter = productText.includes(charLower) || brandLower.includes(charLower);
+            const nameLower = (product.title || '').toLowerCase();
+            const isAmbiguous = AMBIGUOUS_CHARACTERS.includes(charLower);
+            
+            if (isAmbiguous) {
+              // For ambiguous characters, require match in name or brand only (not description)
+              // Also check for Disney context for Disney characters
+              const hasDisneyContext = brandLower.includes('disney') || nameLower.includes('disney') ||
+                                       nameLower.includes('lilo') || brandLower.includes('lilo');
+              matchesCharacter = nameLower.includes(charLower) || brandLower.includes(charLower) ||
+                                (charLower === 'stitch' && hasDisneyContext);
+            } else {
+              // For clear characters (paw patrol, peppa pig), match in all fields
+              matchesCharacter = productText.includes(charLower) || brandLower.includes(charLower);
+            }
+            
             if (matchesCharacter) {
               characterMatches++;
             } else {
@@ -6562,9 +6630,13 @@ ONLY use IDs from the list. Never invent IDs.`
           // priceMatchPct is 0-100, convert to 0-20 points
           totalScore += ((priceMatchPct || 0) / 100) * 20;
         }
-        // Diversity always scores (0-10 brands → 0-10 points)
-        maxScore += 10;
-        totalScore += Math.min(diversityScore, 10);
+        // Diversity: Skip for brand-specific queries (lego, barbie, nerf, etc.)
+        const isBrandQuery = parsed.character && BRAND_CHARACTERS.includes(parsed.character.toLowerCase());
+        
+        if (!isBrandQuery) {
+          maxScore += 10;
+          totalScore += Math.min(diversityScore, 10);
+        }
         
         const v2Score = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : (n > 0 ? 100 : 0);
         
@@ -6686,7 +6758,7 @@ ONLY use IDs from the list. Never invent IDs.`
               characterMatch: characterMatchPct !== null ? `${characterMatchPct}%` : 'N/A',
               ageMatch: ageMatchPct !== null ? `${ageMatchPct}%` : 'N/A',
               priceMatch: priceMatchPct !== null ? `${priceMatchPct}%` : 'N/A',
-              diversity: `${diversityScore}/10 brands`
+              diversity: isBrandQuery ? 'N/A (brand query)' : `${diversityScore}/10 brands`
             },
             characterMatchPct,
             ageMatchPct,
