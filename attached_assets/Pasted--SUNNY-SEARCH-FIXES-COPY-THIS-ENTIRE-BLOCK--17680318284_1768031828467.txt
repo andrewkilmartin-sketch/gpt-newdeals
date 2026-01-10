@@ -1,0 +1,336 @@
+// ============================================
+// SUNNY SEARCH FIXES - COPY THIS ENTIRE BLOCK
+// ============================================
+
+// 1. EXPANDED CHARACTER LIST
+const CHARACTERS = [
+// Kids TV
+‘paw patrol’, ‘peppa pig’, ‘bluey’, ‘cocomelon’, ‘hey duggee’, ‘bing’, ‘teletubbies’,
+‘thomas the tank’, ‘thomas and friends’, ‘postman pat’, ‘fireman sam’, ‘bob the builder’,
+
+// Disney
+‘disney’, ‘mickey mouse’, ‘minnie mouse’, ‘frozen’, ‘elsa’, ‘anna’, ‘olaf’,
+‘moana’, ‘ariel’, ‘belle’, ‘cinderella’, ‘rapunzel’, ‘snow white’, ‘jasmine’,
+‘tiana’, ‘mulan’, ‘pocahontas’, ‘aurora’, ‘merida’, ‘encanto’, ‘mirabel’,
+‘lilo and stitch’, ‘stitch’, ‘lion king’, ‘simba’, ‘toy story’, ‘woody’, ‘buzz lightyear’,
+‘cars’, ‘lightning mcqueen’, ‘finding nemo’, ‘finding dory’, ‘monsters inc’,
+
+// Marvel
+‘marvel’, ‘avengers’, ‘spiderman’, ‘spider-man’, ‘spider man’, ‘batman’, ‘superman’,
+‘hulk’, ‘iron man’, ‘thor’, ‘captain america’, ‘black panther’, ‘black widow’,
+‘hawkeye’, ‘ant-man’, ‘antman’, ‘deadpool’, ‘wolverine’, ‘x-men’, ‘guardians of the galaxy’,
+
+// DC
+‘dc’, ‘wonder woman’, ‘flash’, ‘aquaman’, ‘justice league’,
+
+// Gaming
+‘mario’, ‘super mario’, ‘luigi’, ‘princess peach’, ‘yoshi’, ‘donkey kong’,
+‘sonic’, ‘sonic the hedgehog’, ‘pokemon’, ‘pikachu’, ‘minecraft’, ‘roblox’,
+‘fortnite’, ‘zelda’, ‘link’, ‘kirby’, ‘animal crossing’,
+
+// Toys/Brands (treated as characters for matching)
+‘lego’, ‘duplo’, ‘playmobil’, ‘barbie’, ‘hot wheels’, ‘nerf’, ‘play-doh’, ‘playdoh’,
+‘sylvanian’, ‘sylvanian families’, ‘lol surprise’, ‘hatchimals’, ‘funko’, ‘funko pop’,
+
+// Harry Potter / Franchises
+‘harry potter’, ‘hogwarts’, ‘star wars’, ‘mandalorian’, ‘baby yoda’, ‘grogu’,
+‘jurassic’, ‘jurassic world’, ‘jurassic park’, ‘transformers’, ‘power rangers’,
+
+// Other Popular
+‘paddington’, ‘peter rabbit’, ‘winnie the pooh’, ‘gruffalo’, ‘hungry caterpillar’,
+‘eric carle’, ‘roald dahl’, ‘david walliams’, ‘julia donaldson’,
+‘unicorn’, ‘dinosaur’, ‘dinosaurs’, ‘dragon’, ‘mermaid’, ‘pirate’, ‘princess’, ‘superhero’
+];
+
+// 2. FIXED QUERY PARSER
+function parseQuery(query) {
+const q = query.toLowerCase().trim();
+
+return {
+age: extractAge(q),
+ageRange: extractAgeRange(q),
+gender: extractGender(q),
+character: extractCharacter(q),
+priceMax: extractPrice(q),
+productType: extractProductType(q),
+keywords: extractKeywords(q)
+};
+}
+
+function extractAge(q) {
+// Match “X year old” - return exact age, not age-1
+const match = q.match(/(\d+)\s*year\s*old/);
+if (match) return parseInt(match[1]);
+
+// Match “for Xs” like “for 5s” or “for 8s”
+const forMatch = q.match(/for\s*(\d+)s?\b/);
+if (forMatch) return parseInt(forMatch[1]);
+
+// Life stages
+if (q.includes(‘newborn’)) return 0;
+if (q.includes(‘baby’) || q.includes(‘infant’)) return 0;
+if (q.includes(‘toddler’)) return 2;
+if (q.includes(‘preschool’)) return 4;
+if (q.includes(‘teenager’) || q.includes(‘teen’)) return 14;
+if (q.includes(‘tween’)) return 11;
+
+return null;
+}
+
+function extractAgeRange(q) {
+const age = extractAge(q);
+if (age === null) return null;
+
+// Baby/infant: 0-1
+if (age === 0 || q.includes(‘baby’) || q.includes(‘newborn’) || q.includes(‘infant’)) {
+return { min: 0, max: 1, label: ‘0-1’ };
+}
+
+// Toddler: 1-3
+if (q.includes(‘toddler’) || (age >= 1 && age <= 2)) {
+return { min: 1, max: 3, label: ‘1-3’ };
+}
+
+// Preschool: 3-5
+if (q.includes(‘preschool’) || (age >= 3 && age <= 4)) {
+return { min: 3, max: 5, label: ‘3-5’ };
+}
+
+// Standard age query: give +/- 2 year range
+return {
+min: Math.max(0, age - 2),
+max: age + 2,
+label: `${Math.max(0, age - 2)}-${age + 2}`
+};
+}
+
+function extractGender(q) {
+if (/\b(boy|boys|son|nephew|grandson|him|his)\b/.test(q)) return ‘boy’;
+if (/\b(girl|girls|daughter|niece|granddaughter|her|hers)\b/.test(q)) return ‘girl’;
+return null;
+}
+
+function extractCharacter(q) {
+// Sort by length descending so “sylvanian families” matches before “sylvanian”
+const sorted = CHARACTERS.slice().sort((a, b) => b.length - a.length);
+for (const char of sorted) {
+if (q.includes(char)) return char;
+}
+return null;
+}
+
+function extractPrice(q) {
+// Match “under £20”, “under 20”, “below £50”, “less than 30”, “up to £25”
+const match = q.match(/(?:under|below|less than|up to|max|maximum)\s*£?(\d+)/);
+if (match) return parseInt(match[1]);
+
+// Match “£20 or less”, “£50 max”
+const match2 = q.match(/£(\d+)\s*(?:or less|max|maximum)/);
+if (match2) return parseInt(match2[1]);
+
+return null;
+}
+
+function extractProductType(q) {
+const types = {
+// Playsets
+‘tower’: ‘playset’, ‘house’: ‘playset’, ‘castle’: ‘playset’, ‘playset’: ‘playset’,
+‘headquarters’: ‘playset’, ‘hq’: ‘playset’, ‘base’: ‘playset’,
+
+```
+// Figures
+'figure': 'figure', 'figures': 'figure', 'action figure': 'figure',
+
+// Vehicles
+'car': 'vehicle', 'truck': 'vehicle', 'vehicle': 'vehicle', 'bike': 'vehicle',
+'scooter': 'vehicle', 'tractor': 'vehicle',
+
+// Soft toys
+'plush': 'soft toy', 'soft toy': 'soft toy', 'teddy': 'soft toy', 'cuddly': 'soft toy',
+
+// Games
+'board game': 'board game', 'card game': 'card game', 'cards': 'cards',
+'trading cards': 'cards', 'game': 'game',
+
+// Costumes
+'costume': 'costume', 'dress up': 'costume', 'outfit': 'costume', 'mask': 'costume',
+
+// Books
+'book': 'book', 'books': 'book',
+
+// Building
+'lego': 'construction', 'duplo': 'construction', 'blocks': 'construction',
+'building': 'construction',
+
+// Craft
+'craft': 'craft', 'art': 'craft', 'paint': 'craft', 'drawing': 'craft',
+
+// Outdoor
+'garden': 'outdoor', 'outdoor': 'outdoor', 'trampoline': 'outdoor', 'swing': 'outdoor'
+```
+
+};
+
+for (const [keyword, type] of Object.entries(types)) {
+if (q.includes(keyword)) return type;
+}
+return null;
+}
+
+function extractKeywords(q) {
+// Remove noise words and return meaningful keywords
+const noise = [‘for’, ‘the’, ‘a’, ‘an’, ‘and’, ‘or’, ‘of’, ‘to’, ‘in’, ‘on’, ‘with’];
+const words = q.split(/\s+/).filter(w =>
+w.length > 2 &&
+!noise.includes(w) &&
+!w.match(/^\d+$/) &&
+!w.match(/^£/)
+);
+return […new Set(words)];
+}
+
+// 3. FIXED SCORING LOGIC
+function calculateScore(parsed, results) {
+let score = 0;
+let maxScore = 0;
+const breakdown = {};
+
+// CHARACTER MATCH (40 points) - Critical for character queries
+if (parsed.character) {
+maxScore += 40;
+const matches = results.filter(r =>
+r.title?.toLowerCase().includes(parsed.character) ||
+r.name?.toLowerCase().includes(parsed.character) ||
+r.brand?.toLowerCase().includes(parsed.character)
+);
+const pct = results.length > 0 ? (matches.length / results.length) * 100 : 0;
+score += (pct / 100) * 40;
+breakdown.characterMatch = `${Math.round(pct)}%`;
+} else {
+breakdown.characterMatch = ‘N/A’;
+}
+
+// AGE MATCH (30 points) - Important for age queries
+if (parsed.age !== null && parsed.ageRange) {
+maxScore += 30;
+const appropriate = results.filter(r => isAgeAppropriate(r, parsed.ageRange));
+const pct = results.length > 0 ? (appropriate.length / results.length) * 100 : 0;
+score += (pct / 100) * 30;
+breakdown.ageMatch = `${Math.round(pct)}%`;
+} else {
+breakdown.ageMatch = ‘N/A’;
+}
+
+// PRICE MATCH (20 points) - Must comply with price filters
+if (parsed.priceMax) {
+maxScore += 20;
+const underBudget = results.filter(r => {
+const price = parseFloat(r.price) || 0;
+return price > 0 && price <= parsed.priceMax;
+});
+const pct = results.length > 0 ? (underBudget.length / results.length) * 100 : 0;
+score += (pct / 100) * 20;
+breakdown.priceMatch = `${Math.round(pct)}%`;
+} else {
+breakdown.priceMatch = ‘N/A’;
+}
+
+// DIVERSITY (10 points) - But NOT for brand-specific queries
+const isBrandQuery = parsed.character &&
+[‘lego’, ‘duplo’, ‘nerf’, ‘barbie’, ‘hot wheels’, ‘playmobil’, ‘sylvanian’, ‘funko’].includes(parsed.character);
+
+if (!isBrandQuery) {
+maxScore += 10;
+const brands = new Set(results.map(r => r.brand || r.merchant).filter(Boolean));
+const diversityPct = Math.min(brands.size / 5, 1); // Max out at 5 unique brands
+score += diversityPct * 10;
+breakdown.diversity = `${brands.size}/10 brands`;
+} else {
+breakdown.diversity = ‘N/A (brand query)’;
+}
+
+// Calculate final percentage
+const finalScore = maxScore > 0 ? Math.round((score / maxScore) * 100) : 100;
+
+// Determine verdict
+let status, statusNote;
+if (finalScore >= 70) {
+status = ‘PASS’;
+statusNote = `Score ${finalScore}%: Good relevance`;
+} else if (finalScore >= 40) {
+status = ‘PARTIAL’;
+statusNote = `Score ${finalScore}%: Needs improvement`;
+} else {
+status = ‘FAIL’;
+statusNote = `Score ${finalScore}%: Poor relevance`;
+}
+
+// Count duplicates
+const titles = results.map(r => r.title || r.name);
+const duplicateCount = titles.length - new Set(titles).size;
+
+return {
+status,
+statusNote,
+score: finalScore,
+breakdown,
+duplicateCount
+};
+}
+
+function isAgeAppropriate(product, ageRange) {
+const text = ((product.title || ‘’) + ’ ’ + (product.description || ‘’) + ’ ’ + (product.name || ‘’)).toLowerCase();
+
+// Extract age from product
+let productMinAge = null;
+
+// Match “X+” age ratings
+const plusMatch = text.match(/(\d+)+/);
+if (plusMatch) productMinAge = parseInt(plusMatch[1]);
+
+// Match “ages X-Y” or “age X-Y”
+const rangeMatch = text.match(/ages?\s*(\d+)[\s-]+(\d+)/);
+if (rangeMatch) productMinAge = parseInt(rangeMatch[1]);
+
+// Match “ages X and up” or “X and up”
+const upMatch = text.match(/(\d+)\s*(?:and up|& up|years? and up)/);
+if (upMatch) productMinAge = parseInt(upMatch[1]);
+
+// Category-based defaults
+if (productMinAge === null) {
+if (text.includes(‘duplo’)) productMinAge = 1;
+else if (text.includes(‘baby’) || text.includes(‘infant’) || text.includes(‘newborn’)) productMinAge = 0;
+else if (text.includes(‘toddler’)) productMinAge = 1;
+else if (text.includes(‘preschool’)) productMinAge = 3;
+}
+
+// If we couldn’t determine age, assume it’s okay (don’t penalise)
+if (productMinAge === null) return true;
+
+// Check if product age fits query age range
+// Product min age should be <= query max age
+if (productMinAge > ageRange.max + 2) return false;
+
+// For baby queries (0-1), be strict
+if (ageRange.max <= 1 && productMinAge > 2) return false;
+
+return true;
+}
+
+// 4. EXPORT FOR USE
+module.exports = {
+CHARACTERS,
+parseQuery,
+calculateScore,
+isAgeAppropriate,
+extractAge,
+extractAgeRange,
+extractGender,
+extractCharacter,
+extractPrice,
+extractProductType,
+extractKeywords
+};
+
+// Or if using ES modules:
+// export { CHARACTERS, parseQuery, calculateScore, isAgeAppropriate, … };
