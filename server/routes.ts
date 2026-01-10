@@ -3628,6 +3628,125 @@ Format: ["id1", "id2", ...]`
       console.log(`[Shop Search] Query: "${query}"${typoResult.wasCorrected ? ` (typo fixed: "${workingQuery}")` : ''}${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
       const searchStartTime = Date.now();
 
+      // ULTRA FAST PATH: Age-based toy queries bypass GPT entirely for <500ms response
+      // Pattern: "toys for X year old", "gifts for X year old boy/girl"
+      const ageOnlyMatch = query.toLowerCase().match(/^(toys?|gifts?|presents?)\s+(for\s+)?(\d+)\s*(year\s*old|yr\s*old|yo)?(\s+(boy|girl))?$/i);
+      if (ageOnlyMatch && !hasFilters) {
+        const requestedAge = parseInt(ageOnlyMatch[3]);
+        const gender = ageOnlyMatch[6]?.toLowerCase();
+        console.log(`[Shop Search] ULTRA FAST PATH: Age-only query detected (age=${requestedAge}, gender=${gender || 'any'})`);
+        
+        const { db } = await import('./db');
+        const { products } = await import('@shared/schema');
+        const { and, or, ilike, isNotNull, sql, not } = await import('drizzle-orm');
+        
+        const fastQueryStart = Date.now();
+        
+        // Build age-appropriate category filter
+        const toyCategories = ['toy', 'toys', 'game', 'games', 'plush', 'doll', 'figure', 'playset', 'lego', 'puzzle'];
+        const excludeCategories = ['adult', 'alcohol', 'wine', 'beer', 'spirits', 'candle', 'makeup', 'cosmetic', 'beauty', 'fragrance', 'perfume', 'jewelry', 'jewellery', 'ring', 'necklace', 'earring'];
+        
+        // Age-appropriate keywords in product name
+        const ageKeywords: string[] = [];
+        if (requestedAge <= 2) {
+          ageKeywords.push('baby', 'infant', 'toddler', 'newborn', 'first', '0-2', '1-2', 'sensory');
+        } else if (requestedAge <= 5) {
+          ageKeywords.push('toddler', 'preschool', 'pre-school', 'early learning', '3+', '4+', '3-5', '2-5', 'little');
+        } else if (requestedAge <= 8) {
+          ageKeywords.push('kids', 'children', '5+', '6+', '7+', '8+', '5-8', '6-9');
+        } else {
+          ageKeywords.push('kids', 'junior', '8+', '9+', '10+', 'tween');
+        }
+        
+        // ULTRA FAST: Use simple category filter (indexed) - no complex OR chains
+        // Query products in toy-related categories using category LIKE
+        const fastResults = await db.select({
+          id: products.id,
+          name: products.name,
+          description: products.description,
+          price: products.price,
+          merchant: products.merchant,
+          brand: products.brand,
+          category: products.category,
+          affiliate_link: products.affiliateLink,
+          image_url: products.imageUrl,
+          in_stock: products.inStock
+        }).from(products)
+          .where(and(
+            isNotNull(products.affiliateLink),
+            // Simple category filter - uses index
+            ilike(products.category, '%toy%')
+          ))
+          .limit(200);
+        
+        console.log(`[Shop Search] ULTRA FAST: DB query took ${Date.now() - fastQueryStart}ms, found ${fastResults.length} candidates`);
+        
+        // Score and filter results by age appropriateness
+        const scoredResults = fastResults.map(p => {
+          let score = 0;
+          const nameLower = (p.name || '').toLowerCase();
+          const catLower = (p.category || '').toLowerCase();
+          
+          // Boost for age-appropriate keywords
+          for (const kw of ageKeywords) {
+            if (nameLower.includes(kw) || catLower.includes(kw)) score += 10;
+          }
+          
+          // Boost for toy/game category
+          if (catLower.includes('toy')) score += 5;
+          if (catLower.includes('game')) score += 3;
+          
+          // Penalize if has age mismatch (e.g., "14+" for a 3 year old query)
+          const ageMatch = nameLower.match(/(\d+)\+/);
+          if (ageMatch) {
+            const productMinAge = parseInt(ageMatch[1]);
+            if (productMinAge > requestedAge + 2) score -= 20; // Too old
+            if (productMinAge <= requestedAge) score += 5; // Age appropriate
+          }
+          
+          // Penalize non-toy items that slipped through
+          if (nameLower.includes('book') && !nameLower.includes('activity')) score -= 10;
+          if (nameLower.includes('candle')) score -= 50;
+          if (nameLower.includes('makeup')) score -= 50;
+          if (nameLower.includes('jacket') && !nameLower.includes('costume')) score -= 10;
+          
+          return { ...p, score };
+        });
+        
+        // Sort by score and take top results
+        scoredResults.sort((a, b) => b.score - a.score);
+        const topResults = scoredResults.slice(0, safeLimit).filter(r => r.score > -10);
+        
+        const responseProducts = topResults.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: (p.description || '').substring(0, 200),
+          price: parseFloat(String(p.price)) || 0,
+          currency: 'GBP',
+          merchant: p.merchant,
+          brand: p.brand,
+          category: p.category,
+          imageUrl: p.image_url,
+          affiliateLink: p.affiliate_link,
+          inStock: p.in_stock
+        }));
+        
+        console.log(`[Shop Search] ULTRA FAST: Returning ${responseProducts.length} results in ${Date.now() - searchStartTime}ms`);
+        
+        return res.json({
+          success: true,
+          query,
+          count: responseProducts.length,
+          totalCount: fastResults.length,
+          hasMore: fastResults.length > safeLimit,
+          products: responseProducts,
+          interpretation: {
+            expanded: ['toy', 'gift'],
+            context: { ageRange: String(requestedAge), categoryFilter: 'Toys' }
+          }
+        });
+      }
+
       // STEP 1: Interpret the query using GPT (use sanitized query for product search)
       const interpretStart = Date.now();
       const interpretation = await interpretQuery(searchQuery, openaiKey);
