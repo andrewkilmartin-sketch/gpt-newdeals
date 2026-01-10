@@ -1,0 +1,31 @@
+FIRST: Read CRITICAL_FIXES.md, REPLIT_FIX_INSTRUCTIONS.md, and STOP_BLAMING_INVENTORY.md. Tell me what fixes are already logged before doing anything.
+Then check these queries LIVE (not cached) and tell me what you see:
+	1.	train set
+	2.	hot wheels
+	3.	water gun
+	4.	super soaker
+	5.	ipad case for kids
+	6.	badminton set
+PROBLEMS FROM AUDIT:
+“train set” returns Nike trainers and Training tops instead of toy trains. Word boundary bug - “train” matching “trainer”.
+“hot wheels” returns Pyjamas £18, Wellies £17, Track Pants £26.99, Calendar £13.99. Zero actual toy cars.
+“water gun” returns Waterproof jackets. No water guns.
+“super soaker” returns 0 results but DB has 8413 products. Search is broken, NOT inventory gap.
+“ipad case for kids” returns Bookcases and Murder mystery books. “case” matching “bookcase”.
+“badminton set” returns NosiBotanical Vest again. This product appears for 20+ unrelated queries.
+FIXES NEEDED:
+Fix #29: Word boundary - “train” should not match “trainer” or “training”
+Fix #30: Hot wheels should return toy cars not clothing
+Fix #31: Block NosiBotanical Vest product - investigate why it matches everything
+Fix #32: “case” should not match “bookcase”
+Fix #33: super soaker returning 0 when 8413 products exist in DB
+DEBUG SQL TO RUN:
+SELECT name, category FROM products WHERE name ILIKE ‘%hot wheels%’ AND category NOT ILIKE ‘%cloth%’ LIMIT 10;
+SELECT name FROM products WHERE name ILIKE ‘%super soaker%’ LIMIT 10;
+SELECT name FROM products WHERE name ILIKE ‘%train%’ AND name NOT ILIKE ‘%trainer%’ AND name NOT ILIKE ‘%training%’ LIMIT 10;
+AFTER EACH FIX:
+	1.	Update CRITICAL_FIXES.md with fix number, problem, root cause, solution, file and line numbers, test query
+	2.	Update STOP_BLAMING_INVENTORY.md if you discover products exist that you thought were missing
+	3.	Run regression tests
+	4.	Do not move to next fix until current fix passes tests
+DO NOT BLAME INVENTORY. We have 1.5 million products. If search returns 0, your search logic is broken. Prove products don’t exist with SQL before claiming inventory gap.​​​​​​​​​​​​​​​​
