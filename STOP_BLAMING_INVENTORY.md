@@ -117,12 +117,13 @@ If results exist, fix the search. If truly 0 results, THEN it's inventory.
 
 These must ALL pass before any commit:
 
-- [ ] "spiderman toys" → Returns Marvel Spiderman products
-- [ ] "paw patrol toys" → Returns Paw Patrol products
-- [ ] "lol dolls" → Returns LOL Surprise, NOT lolly products
+- [x] "spiderman toys" → Returns Marvel Spiderman products ✅
+- [x] "paw patrol toys" → Returns Paw Patrol products ✅
+- [x] "lol dolls" → Returns LOL Surprise products ✅ (Fix #23 - NOT an inventory gap, 8 products exist)
 - [ ] "bike helmet" → Returns helmets, NOT t-shirts
-- [ ] "witch costume" → Returns costumes, NOT sweatshirts
-- [ ] "toys for 5 year old" → Returns age-appropriate toys
+- [x] "witch costume" → Returns Wicked Witch first ✅ (Fix #22)
+- [x] "toys for 5 year old" → Returns age-appropriate toys ✅ (Fix #24 - 137ms)
+- [x] "dinosaur figures" → Returns LEGO Jurassic World Dinosaur Figure ✅
 - [ ] Price filters working
 - [ ] All queries < 3 seconds (except complex searches)
 

@@ -253,7 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` correctTypos() ~line 1219 |
 | **Test Query** | "hot wheels cars" should NOT become "hot wheelss cars" |
 
-### 22. Relevance Sorting (2026-01-10)
+### 22. Relevance Sorting (2026-01-10) - RESOLVED ✅
 | Aspect | Details |
 |--------|---------|
 | **Problem** | Random shuffle caused inconsistent results (Hermione before Wicked Witch for "witch costume") |
@@ -261,18 +261,20 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Correct Fix** | Sort results by query term matches in product NAME (not just search_vector) |
 | **File** | `server/routes.ts` ~line 4420-4429 (brand fast-path) and ~line 4635-4642 (tsvector search) |
 | **Test Query** | "witch costume" should return "Wicked Witch" first, not Hermione/McGonagall |
+| **Status** | RESOLVED - Wicked Witch now returns first |
 
-### 23. Known Brand ILIKE Fallback Timeout (2026-01-10)
+### 23. LOL Dolls Search (2026-01-10) - RESOLVED ✅
 | Aspect | Details |
 |--------|---------|
 | **Problem** | "lol dolls" timed out at 60s because tsvector found 0 (no "lol & dolls" match) and ILIKE fallback took 47s+ |
 | **Root Cause** | ILIKE fallback runs 3 term groups × 18s each = 54s total; products are "LOL Surprise" not "LOL dolls" |
 | **Correct Fix** | For known brands, skip ILIKE fallback entirely - use tsvector brand-only search instead |
 | **File** | `server/routes.ts` ~line 4658-4701 (KNOWN BRAND FAST PATH section) |
-| **Test Query** | "lol dolls" should return LOL Surprise products in <500ms (was 60s timeout) |
-| **Result** | **71ms** with 4 actual LOL products |
+| **Test Query** | "lol dolls" should return LOL Surprise products in <500ms |
+| **Result** | **55ms** (cached) with 4 LOL Surprise products |
+| **Status** | RESOLVED - NOT an inventory gap (8 products exist via SQL) |
 
-### 24. Age Query ILIKE Slowdown (2026-01-10)
+### 24. Age Query Speed (2026-01-10) - RESOLVED ✅
 | Aspect | Details |
 |--------|---------|
 | **Problem** | "toys for 5 year old" took 4.4+ seconds due to ILIKE category filter |
@@ -280,7 +282,8 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Correct Fix** | Use tsvector: `search_vector @@ to_tsquery('english', 'toy | toys | game | games')` |
 | **File** | `server/routes.ts` ~line 4018-4037 (ULTRA FAST PATH section) |
 | **Test Query** | "toys for 5 year old" should complete in <500ms |
-| **Result** | **73ms** (was 4447ms) - 98% faster |
+| **Result** | **137ms** (cached), was 4447ms - 97% faster |
+| **Status** | RESOLVED - Now under 500ms target |
 
 **Files Modified:**
 - `server/routes.ts` ~line 4541-4710 (tsvector search + ILIKE fallback)
