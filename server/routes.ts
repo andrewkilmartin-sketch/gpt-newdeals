@@ -122,54 +122,240 @@ function sanitizeMediaSuffix(query: string): { sanitized: string; stripped: bool
 
 // ============================================================
 // SEARCH QUALITY FILTERS - Critical fixes for family platform
+// CTO Audit: Jan 2026 - Fixing 86% fake PASS rate → real 30-40%
 // ============================================================
 
-// Blocklist for content inappropriate for a family platform
+// PHASE 1: CONTENT SAFETY - Blocklist for inappropriate content
 const INAPPROPRIATE_TERMS = [
+  // Sexual/Adult content
   'bedroom confidence', 'erectile', 'viagra', 'sexual health',
   'reproductive health', 'your status', 'sti test', 'std test',
   'reclaim your confidence', 'regain confidence', 'dating site',
-  'singles near', 'gambling', 'casino', 'betting', 'weight loss pill',
-  'diet pill', 'slimming tablet', 'beer delivery', 'wine subscription',
-  'alcohol delivery', 'cigarette', 'vape juice', 'cbd oil',
-  'sexual performance', 'libido', 'erectile dysfunction'
+  'singles near', 'sexual performance', 'libido', 'erectile dysfunction',
+  'adult toy', 'lingerie', 'sexy', 'erotic', 'intimate moments',
+  // Alcohol - CRITICAL: CTO found 13 instances for kids queries
+  'alcohol gift', 'shop alcohol', 'wine subscription', 'beer delivery',
+  'alcohol delivery', 'gin gift', 'whisky gift', 'vodka gift',
+  'wine gift', 'champagne gift', 'prosecco gift', 'spirits gift',
+  'cocktail gift', 'beer gift', 'ale gift', 'lager gift',
+  'bottle club', 'wine club', 'beer club', 'gin club',
+  'save on gin', 'save on wine', 'save on whisky',
+  // Gambling/Vice
+  'gambling', 'casino', 'betting', 'poker', 'slots',
+  // Health supplements (not for kids platform)
+  'weight loss pill', 'diet pill', 'slimming tablet',
+  'fat burner', 'appetite suppressant',
+  // Vaping/Smoking
+  'cigarette', 'vape juice', 'cbd oil', 'nicotine', 'e-liquid'
 ];
 
-// Known fallback results that appear for unrelated queries
+// PHASE 1: MERCHANT KILL-LIST - Block entire merchants
+const BLOCKED_MERCHANTS = [
+  'bottle club', 'the bottle club', 'wine direct', 'naked wines',
+  'virgin wines', 'laithwaites', 'majestic wine', 'beer hawk',
+  'brewdog', 'whisky exchange', 'master of malt', 'the drink shop',
+  'slimming world', 'weight watchers', 'noom', 'dating direct'
+];
+
+// Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
 const KNOWN_FALLBACKS = [
   'gifting at clarks',
   '10% off organic baby & kidswear',
   'toys from 1p at poundfun',
-  'free delivery',
-  'clearance - save up to'
+  'free delivery!',
+  'clearance - save up to',
+  'free next day delivery',
+  'buy one get one',
+  'any 2 knitwear',
+  'any 2 shirts'
 ];
 
 // Quality intent words - user wants premium, not cheapest
 const QUALITY_INTENT_WORDS = [
   'best', 'top', 'quality', 'premium', 'timeless', 'heirloom', 
-  'investment', 'luxury', 'high end', 'well made', 'durable'
+  'investment', 'luxury', 'high end', 'well made', 'durable',
+  'recommended', 'popular', 'trending', 'must have', 'essential'
 ];
 
-// Discount merchants to deprioritize for quality queries
+// Discount merchants to deprioritize for quality queries (CTO: PoundFun in 126 queries)
 const DISCOUNT_MERCHANTS = [
-  'poundfun', 'poundland', 'poundshop', 'everything5pounds', 'poundworld'
+  'poundfun', 'poundland', 'poundshop', 'everything5pounds', 'poundworld',
+  'poundtoy', 'the works', 'b&m', 'home bargains'
 ];
 
 // Travel/booking merchants to exclude for book context queries
 const TRAVEL_MERCHANTS = [
   'booking.com', 'hotels.com', 'expedia', 'lastminute', 'trivago', 
-  'travelodge', 'premier inn', 'airbnb'
+  'travelodge', 'premier inn', 'airbnb', 'jet2', 'easyjet'
 ];
 
-// Filter inappropriate content from search results
+// PHASE 3: Gender-specific exclusion words
+const GENDER_EXCLUSION_MAP: { [key: string]: string[] } = {
+  'him': ["women's", 'for her', 'gifts for her', "ladies'", 'feminine'],
+  'he': ["women's", 'for her', 'gifts for her', "ladies'", 'feminine'],
+  'boy': ["women's", 'for her', "ladies'", 'feminine', "girl's dress"],
+  'son': ["women's", 'for her', "ladies'", 'feminine'],
+  'nephew': ["women's", 'for her', "ladies'", 'feminine'],
+  'dad': ["women's", 'for her', "ladies'", 'feminine', 'mum', 'mother'],
+  'father': ["women's", 'for her', "ladies'", 'feminine', 'mum', 'mother'],
+  'grandad': ["women's", 'for her', "ladies'", 'feminine'],
+  'her': ["men's", 'for him', 'gifts for him', "gent's", 'masculine'],
+  'she': ["men's", 'for him', 'gifts for him', "gent's", 'masculine'],
+  'girl': ["men's", 'for him', "gent's", "boy's shirt", 'tie'],
+  'daughter': ["men's", 'for him', "gent's", 'masculine'],
+  'niece': ["men's", 'for him', "gent's", 'masculine'],
+  'mum': ["men's", 'for him', "gent's", 'dad', 'father'],
+  'mother': ["men's", 'for him', "gent's", 'dad', 'father'],
+  'grandma': ["men's", 'for him', "gent's", 'masculine']
+};
+
+// PHASE 1: Filter inappropriate content from search results
 function filterInappropriateContent(results: any[]): any[] {
   return results.filter(r => {
     const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
-    const isInappropriate = INAPPROPRIATE_TERMS.some(term => text.includes(term));
-    if (isInappropriate) {
-      console.log(`[Content Filter] Removed inappropriate: "${r.name?.substring(0, 50)}..."`);
+    const merchant = (r.merchant || '').toLowerCase();
+    
+    // Check blocked terms in content
+    const hasBadTerm = INAPPROPRIATE_TERMS.some(term => text.includes(term));
+    if (hasBadTerm) {
+      console.log(`[Content Filter] BLOCKED inappropriate term: "${r.name?.substring(0, 50)}..."`);
+      return false;
     }
-    return !isInappropriate;
+    
+    // Check blocked merchants (entire merchant banned)
+    const isBannedMerchant = BLOCKED_MERCHANTS.some(m => merchant.includes(m));
+    if (isBannedMerchant) {
+      console.log(`[Content Filter] BLOCKED merchant: ${r.merchant} - "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+// PHASE 2: Remove duplicate products from results
+function deduplicateResults(results: any[]): any[] {
+  const seen = new Set<string>();
+  const deduplicated: any[] = [];
+  
+  for (const r of results) {
+    // Create a unique key from name + merchant (normalized)
+    const key = ((r.name || '') + '|' + (r.merchant || '')).toLowerCase().trim();
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(r);
+    } else {
+      console.log(`[Dedup] Removed duplicate: "${r.name?.substring(0, 50)}..."`);
+    }
+  }
+  
+  return deduplicated;
+}
+
+// PHASE 2: Apply merchant caps - max 2 results per merchant
+function applyMerchantCaps(results: any[], maxPerMerchant: number = 2): any[] {
+  const merchantCounts: { [key: string]: number } = {};
+  const capped: any[] = [];
+  
+  for (const r of results) {
+    const merchant = (r.merchant || 'unknown').toLowerCase();
+    const count = merchantCounts[merchant] || 0;
+    
+    if (count < maxPerMerchant) {
+      merchantCounts[merchant] = count + 1;
+      capped.push(r);
+    } else {
+      console.log(`[Merchant Cap] Exceeded ${maxPerMerchant} for ${r.merchant}: "${r.name?.substring(0, 40)}..."`);
+    }
+  }
+  
+  return capped;
+}
+
+// PHASE 3: Check if query has film/movie context
+function hasFilmContext(query: string): boolean {
+  const q = query.toLowerCase();
+  const filmWords = ['film', 'movie', 'watch', 'cinema', 'animated'];
+  const contextWords = ['about', 'with', 'for kids', 'children', 'family', 'disney', 'pixar'];
+  
+  // Has film word AND context word
+  return filmWords.some(f => q.includes(f)) && contextWords.some(c => q.includes(c));
+}
+
+// PHASE 3: Check if query has blind/accessibility context
+function hasBlindContext(query: string): boolean {
+  const q = query.toLowerCase();
+  // "blind character" or "blind kid" = accessibility, not window blinds
+  return q.includes('blind') && (
+    q.includes('character') || q.includes('kid') || q.includes('child') ||
+    q.includes('book') || q.includes('story') || q.includes('person') ||
+    q.includes('toy') || q.includes('doll') || q.includes('disability')
+  );
+}
+
+// PHASE 3: Check if query has gender context
+function hasGenderContext(query: string): string | null {
+  const q = query.toLowerCase();
+  for (const gender of Object.keys(GENDER_EXCLUSION_MAP)) {
+    // Match whole words: "for him", "my son", etc.
+    const regex = new RegExp(`\\b${gender}\\b`, 'i');
+    if (regex.test(q)) {
+      return gender;
+    }
+  }
+  return null;
+}
+
+// PHASE 3: Filter for blind/accessibility context - exclude window blinds
+function filterForBlindContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.description || '') + ' ' + (r.category || '')).toLowerCase();
+    const isWindowBlinds = text.includes('window blind') || text.includes('roller blind') ||
+                           text.includes('venetian') || text.includes('day & night blind') ||
+                           text.includes('blackout blind') || text.includes('blinds.');
+    if (isWindowBlinds) {
+      console.log(`[Blind Context] Excluded window blinds: "${r.name?.substring(0, 50)}..."`);
+    }
+    return !isWindowBlinds;
+  });
+}
+
+// PHASE 3: Filter for gender context - exclude wrong gender products
+function filterForGenderContext(results: any[], gender: string): any[] {
+  const exclusions = GENDER_EXCLUSION_MAP[gender] || [];
+  if (exclusions.length === 0) return results;
+  
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
+    const hasWrongGender = exclusions.some(ex => text.includes(ex));
+    if (hasWrongGender) {
+      console.log(`[Gender Filter] Wrong gender for "${gender}": "${r.name?.substring(0, 50)}..."`);
+    }
+    return !hasWrongGender;
+  });
+}
+
+// PHASE 2: Filter known fallback spam
+function filterFallbackSpam(results: any[], query: string): any[] {
+  const q = query.toLowerCase();
+  
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    
+    for (const fallback of KNOWN_FALLBACKS) {
+      if (name.includes(fallback)) {
+        // Check if there's any semantic connection to the query
+        const queryWords = q.split(/\s+/).filter(w => w.length > 2);
+        const hasConnection = queryWords.some(qw => name.includes(qw));
+        
+        if (!hasConnection) {
+          console.log(`[Fallback Filter] Removed spam result: "${r.name?.substring(0, 50)}..."`);
+          return false;
+        }
+      }
+    }
+    return true;
   });
 }
 
@@ -300,14 +486,21 @@ function isKnownFallback(resultName: string, query: string): boolean {
   return false;
 }
 
-// Main filter function - applies all context-aware filters
+// Main filter function - applies all context-aware filters (ALL 3 PHASES)
 function applySearchQualityFilters(results: any[], query: string): any[] {
+  const originalCount = results.length;
   let filtered = results;
   
-  // Always filter inappropriate content
+  // PHASE 1: Always filter inappropriate content + blocked merchants
   filtered = filterInappropriateContent(filtered);
   
-  // Apply context-specific filters
+  // PHASE 2: Remove duplicates first
+  filtered = deduplicateResults(filtered);
+  
+  // PHASE 2: Remove fallback spam
+  filtered = filterFallbackSpam(filtered, query);
+  
+  // PHASE 3: Apply context-specific filters
   if (hasBookContext(query)) {
     console.log(`[Search Quality] Applying book context filters for: "${query}"`);
     filtered = filterForBookContext(filtered);
@@ -323,10 +516,31 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
     filtered = filterForAgeContext(filtered);
   }
   
-  // Reorder for quality intent (don't remove, just deprioritize)
+  // PHASE 3: Blind/accessibility context
+  if (hasBlindContext(query)) {
+    console.log(`[Search Quality] Applying blind/accessibility filters for: "${query}"`);
+    filtered = filterForBlindContext(filtered);
+  }
+  
+  // PHASE 3: Gender context
+  const genderContext = hasGenderContext(query);
+  if (genderContext) {
+    console.log(`[Search Quality] Applying gender filters (${genderContext}) for: "${query}"`);
+    filtered = filterForGenderContext(filtered, genderContext);
+  }
+  
+  // PHASE 2: Apply merchant caps (max 2 per merchant)
+  filtered = applyMerchantCaps(filtered, 2);
+  
+  // PHASE 2: Reorder for quality intent (don't remove, just deprioritize)
   if (hasQualityIntent(query)) {
     console.log(`[Search Quality] Applying quality intent reordering for: "${query}"`);
     filtered = reorderForQualityIntent(filtered);
+  }
+  
+  // Log summary if significant filtering occurred
+  if (filtered.length < originalCount) {
+    console.log(`[Search Quality] Filtered ${originalCount} → ${filtered.length} results for: "${query}"`);
   }
   
   return filtered;

@@ -2,14 +2,37 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// PHASE 1: Expanded blocklist for family platform content safety
+// CTO Audit Jan 2026: Found 13 alcohol ads, 5 STI ads for kids queries
 const INAPPROPRIATE_TERMS = [
+  // Sexual/Adult content
   'bedroom confidence', 'erectile', 'viagra', 'sexual health',
   'reproductive health', 'your status', 'sti test', 'std test',
   'reclaim your confidence', 'regain confidence', 'dating site',
-  'singles near', 'gambling', 'casino', 'betting', 'weight loss pill',
-  'diet pill', 'slimming tablet', 'beer delivery', 'wine subscription',
-  'alcohol delivery', 'cigarette', 'vape juice', 'cbd oil', 'adult toy',
-  'lingerie', 'sexy', 'erotic'
+  'singles near', 'sexual performance', 'libido', 'erectile dysfunction',
+  'adult toy', 'lingerie', 'sexy', 'erotic', 'intimate moments',
+  // Alcohol - CRITICAL: CTO found 13 instances for kids queries
+  'alcohol gift', 'shop alcohol', 'wine subscription', 'beer delivery',
+  'alcohol delivery', 'gin gift', 'whisky gift', 'vodka gift',
+  'wine gift', 'champagne gift', 'prosecco gift', 'spirits gift',
+  'cocktail gift', 'beer gift', 'ale gift', 'lager gift',
+  'bottle club', 'wine club', 'beer club', 'gin club',
+  'save on gin', 'save on wine', 'save on whisky',
+  // Gambling/Vice
+  'gambling', 'casino', 'betting', 'poker', 'slots',
+  // Health supplements (not for kids platform)
+  'weight loss pill', 'diet pill', 'slimming tablet',
+  'fat burner', 'appetite suppressant',
+  // Vaping/Smoking
+  'cigarette', 'vape juice', 'cbd oil', 'nicotine', 'e-liquid'
+];
+
+// Blocked merchants - entire merchant banned from results
+const BLOCKED_MERCHANTS = [
+  'bottle club', 'the bottle club', 'wine direct', 'naked wines',
+  'virgin wines', 'laithwaites', 'majestic wine', 'beer hawk',
+  'brewdog', 'whisky exchange', 'master of malt', 'the drink shop',
+  'slimming world', 'weight watchers', 'noom', 'dating direct'
 ];
 
 const PLATFORM_CONTEXT = `
