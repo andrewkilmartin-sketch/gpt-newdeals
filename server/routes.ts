@@ -6616,6 +6616,136 @@ ONLY use IDs from the list. Never invent IDs.`
   });
 
   // ============================================================
+  // AI-SCORED AUDIT ENDPOINT - Uses GPT-4o-mini to score each result 1-5
+  // Returns detailed per-result scoring with CSV export
+  // ============================================================
+  
+  app.post('/api/diagnostic/audit-scored', async (req, res) => {
+    try {
+      const { queries, exportCsv = false } = req.body;
+      
+      if (!queries || !Array.isArray(queries) || queries.length === 0) {
+        return res.status(400).json({ error: 'queries array is required' });
+      }
+      
+      const { auditQueryWithScoring, generateCSV } = await import('./services/relevance-scorer');
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      
+      const auditResults: any[] = [];
+      const startTime = Date.now();
+      
+      // Process up to 20 queries (AI scoring is expensive)
+      for (const query of queries.slice(0, 20)) {
+        const queryStartTime = Date.now();
+        const queryLower = (query || '').toLowerCase().trim();
+        const searchPattern = `%${queryLower}%`;
+        
+        // Check cinema intent - skip AI scoring
+        const exactMovieKeywords = ['movies', 'movie', 'cinema', 'films', 'film'];
+        const cinemaIntentPhrases = ['whats on', "what's on", 'now showing', 'at the cinema'];
+        const isCinemaIntent = exactMovieKeywords.includes(queryLower) || 
+                               cinemaIntentPhrases.some(p => queryLower.includes(p));
+        
+        if (isCinemaIntent) {
+          auditResults.push({
+            query,
+            verdict: 'CINEMA_INTENT',
+            dbCount: 0,
+            resultCount: 0,
+            avgScore: '0.00',
+            relevancePercent: 0,
+            flaggedCount: 0,
+            timeMs: Date.now() - queryStartTime,
+            results: [],
+            fixAction: 'Routes to TMDB movies - not a product search'
+          });
+          continue;
+        }
+        
+        // Get DB count
+        let dbCount = 0;
+        try {
+          const dbCheck = await db.execute(sql`
+            SELECT COUNT(*) as total FROM products 
+            WHERE LOWER(name) LIKE ${searchPattern} 
+               OR LOWER(brand) LIKE ${searchPattern}
+          `);
+          dbCount = parseInt((dbCheck[0] as any)?.total || '0');
+        } catch (e) {
+          console.error(`[Audit Scored] DB count error for "${query}":`, e);
+        }
+        
+        // Call shop search API
+        let searchResults: any[] = [];
+        try {
+          const protocol = req.protocol || 'http';
+          const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+          const baseUrl = `${protocol}://${host}`;
+          
+          const response = await fetch(`${baseUrl}/api/shop/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, limit: 8 })
+          });
+          const searchApiResponse = await response.json();
+          searchResults = searchApiResponse?.products || [];
+        } catch (fetchError: any) {
+          console.error(`[Audit Scored] Search API error for "${query}":`, fetchError.message);
+        }
+        
+        const responseTime = Date.now() - queryStartTime;
+        
+        // Score each result with AI
+        console.log(`[Audit Scored] Scoring "${query}" (${searchResults.length} results)...`);
+        const auditResult = await auditQueryWithScoring(query, searchResults, dbCount, responseTime);
+        auditResults.push(auditResult);
+        
+        // Rate limiting pause
+        await new Promise(r => setTimeout(r, 200));
+      }
+      
+      // Calculate summary
+      const summary = {
+        total: auditResults.length,
+        passed: auditResults.filter(r => r.verdict === 'PASS').length,
+        cinemaIntents: auditResults.filter(r => r.verdict === 'CINEMA_INTENT').length,
+        inventoryGaps: auditResults.filter(r => r.verdict === 'INVENTORY_GAP').length,
+        searchBugs: auditResults.filter(r => r.verdict === 'SEARCH_BUG').length,
+        flaggedContent: auditResults.filter(r => r.verdict === 'FLAGGED_CONTENT').length,
+        poorRelevance: auditResults.filter(r => r.verdict === 'POOR_RELEVANCE').length,
+        weakRelevance: auditResults.filter(r => r.verdict === 'WEAK_RELEVANCE').length,
+        errors: auditResults.filter(r => r.verdict === 'ERROR').length,
+        avgRelevanceScore: 0,
+        overallRelevancePercent: 0,
+        totalTimeMs: Date.now() - startTime
+      };
+      
+      // Calculate average relevance across all queries
+      const scoredQueries = auditResults.filter(r => parseFloat(r.avgScore) > 0);
+      if (scoredQueries.length > 0) {
+        summary.avgRelevanceScore = parseFloat(
+          (scoredQueries.reduce((sum, r) => sum + parseFloat(r.avgScore), 0) / scoredQueries.length).toFixed(2)
+        );
+        summary.overallRelevancePercent = Math.round((summary.avgRelevanceScore / 5) * 100);
+      }
+      
+      // Return CSV if requested
+      if (exportCsv) {
+        const csvContent = generateCSV(auditResults);
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=sunny-audit-scored.csv');
+        return res.send(csvContent);
+      }
+      
+      res.json({ summary, results: auditResults });
+    } catch (error: any) {
+      console.error('[Audit Scored] Error:', error);
+      res.status(500).json({ error: 'AI-scored audit failed', details: error.message });
+    }
+  });
+
+  // ============================================================
   // IMAGE VALIDATION ENDPOINT - Check if product images are BROKEN AT SOURCE
   // The database has URLs but the actual images may be removed by retailers
   // ============================================================
