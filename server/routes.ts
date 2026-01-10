@@ -767,7 +767,10 @@ const CLOTHING_INDICATORS = [
   'trainers', 'shoes', 'slides', 'sandals', 'socks', 'pyjamas', 'pajamas',
   'leggings', 'joggers', 'jeans', 'skirt', 'cardigan', 'polo', 'blouse',
   'bodysuit', 'romper', 'dungarees', 'onesie', 'nightwear', 'underwear',
-  'snowsuit', 'swimsuit', 'swimming costume', 'bikini', 'trunks'
+  'snowsuit', 'swimsuit', 'swimming costume', 'bikini', 'trunks',
+  'wellingtons', 'wellington', 'boots', 'wellies', 'slippers', 'crocs',
+  'birthday card', 'photo card', 'greeting card', 'handbell', 'bell',
+  'sticker pack', 'lunch bag', 'storage closet', 'wall decor', 'storage bin'
 ];
 
 const TOY_QUERY_WORDS = [
@@ -791,14 +794,27 @@ function filterForToyContext(results: any[]): any[] {
     const name = (r.name || '').toLowerCase();
     const category = (r.category || '').toLowerCase();
     
-    // Check if this is clothing
+    // Check if this is clothing/footwear/accessories (not toys)
     const isClothing = CLOTHING_INDICATORS.some(term => name.includes(term)) ||
                        category.includes('clothing') || 
                        category.includes('fashion') ||
-                       category.includes('apparel');
+                       category.includes('apparel') ||
+                       category.includes('shoes') ||
+                       category.includes('footwear') ||
+                       category.includes('gifts') ||
+                       category.includes('card') ||
+                       category.includes('accessories') ||
+                       category.includes('bags') ||
+                       category.includes('stationery') ||
+                       category.includes('lunch') ||
+                       category.includes('decor') ||
+                       category.includes('baby clothes') ||
+                       category.includes('sleepwear') ||
+                       category.includes('nightwear') ||
+                       category.includes('mugs');
     
     if (isClothing) {
-      console.log(`[Toy Context] Excluded clothing: "${r.name?.substring(0, 50)}..."`);
+      console.log(`[Toy Context] Excluded non-toy: "${r.name?.substring(0, 50)}..."`);
       return false;
     }
     return true;
@@ -826,7 +842,20 @@ const COSTUME_CLOTHING_INDICATORS = [
   't-shirt', 'tshirt', 'sweatshirt', 'hoodie', 'hoody', 'jumper', 'sweater',
   'polo', 'vest', 'jacket', 'coat', 'cardigan', 'shorts', 'trousers', 'joggers',
   'leggings', 'jeans', 'skirt', 'pyjamas', 'pajamas', 'nightwear', 'onesie',
-  'swimsuit', 'bikini', 'trunks', 'swimming costume' // exclude swimming costume results
+  'swimsuit', 'bikini', 'trunks', 'swimming costume', // exclude swimming costume results
+  // Foreign-language clothing terms
+  'copricostume', 'cover-up', 'coverup', 'maillot', 'badeanzug',
+  // Baby clothing/sleepwear (not costumes you wear)
+  'bunting', 'swaddle', 'sleep sack', 'sleep bag', 'babywear', 'layette',
+  'romper', 'bodysuit', 'sleeper', 'grow bag', 'growbag'
+];
+
+// Non-wearable items that have "costume" in name (toys, storage, etc.)
+const COSTUME_NON_WEARABLE_TERMS = [
+  'doll', 'figure', 'playset', 'toy', 'figurine', 'action figure',
+  'storage', 'closet', 'hanger', 'organizer', 'wardrobe', 'rack',
+  'barbie', 'bratz', 'monster high', // costume-themed dolls
+  'skating barbie', 'ice skating' // specific doll products
 ];
 
 // Categories that indicate real costumes/fancy dress
@@ -843,10 +872,24 @@ function hasCostumeContext(query: string): boolean {
   return COSTUME_QUERY_WORDS.some(word => q.includes(word));
 }
 
-function filterForCostumeContext(results: any[]): any[] {
+// Return type for smarter fallback handling
+interface FilterResult {
+  items: any[];
+  inventoryGap: boolean;
+  gapReason?: string;
+}
+
+function filterForCostumeContext(results: any[]): FilterResult {
   const filtered = results.filter(r => {
     const name = (r.name || '').toLowerCase();
     const category = (r.category || '').toLowerCase();
+    
+    // First check: Exclude non-wearable items (dolls, storage, etc.)
+    const isNonWearable = COSTUME_NON_WEARABLE_TERMS.some(term => name.includes(term));
+    if (isNonWearable) {
+      console.log(`[Costume Context] Excluded non-wearable: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
     
     // If it's in a costume/fancy dress category, always keep it
     const isInCostumeCategory = COSTUME_POSITIVE_CATEGORIES.some(cat => category.includes(cat));
@@ -858,7 +901,10 @@ function filterForCostumeContext(results: any[]): any[] {
     const isClothing = COSTUME_CLOTHING_INDICATORS.some(term => name.includes(term)) ||
                        category.includes('clothing') || 
                        category.includes('fashion') ||
-                       category.includes('apparel');
+                       category.includes('apparel') ||
+                       category.includes('baby') ||
+                       category.includes('swimwear') ||
+                       category.includes('beachwear');
     
     if (isClothing) {
       console.log(`[Costume Context] Excluded clothing: "${r.name?.substring(0, 50)}..."`);
@@ -867,13 +913,14 @@ function filterForCostumeContext(results: any[]): any[] {
     return true;
   });
   
-  // SAFETY: If filtering removed ALL results, return original
+  // SMART FALLBACK: If filtering removed ALL results, return empty with inventory gap flag
+  // Don't show hoodies with "costume" graphics when user wants actual costumes
   if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Costume Context] INVENTORY GAP: All ${results.length} results were clothing, keeping original`);
-    return results;
+    console.log(`[Costume Context] INVENTORY GAP: All ${results.length} results were clothing - returning empty`);
+    return { items: [], inventoryGap: true, gapReason: 'No actual costumes found - only clothing with costume graphics' };
   }
   
-  return filtered;
+  return { items: filtered, inventoryGap: false };
 }
 
 // =============================================================================
@@ -895,7 +942,11 @@ const BOOKS_BLOCK_INDICATORS = [
 
 // Categories that are NOT books
 const BOOKS_NEGATIVE_CATEGORIES = [
-  'bags', 'backpack', 'clothing', 'fashion', 'apparel', 'accessories', 'furniture'
+  'bags', 'backpack', 'clothing', 'fashion', 'apparel', 'accessories', 'furniture',
+  'shoes', 'footwear', 'boots', 'wellingtons', 'wellies', 'trainers', 'sandals',
+  'toys', 'games', 'puzzles', 'baby products', 'bedding', 'decor',
+  'gifts', 'creative', 'construction', 'soft toy', 'plush', 'dresses', 'skirts',
+  'sale', 'clearance', 'baby clothes', 'audio', 'audio equipment'
 ];
 
 function hasBooksContext(query: string): boolean {
@@ -913,7 +964,12 @@ function filterForBooksContext(results: any[]): any[] {
       return true;
     }
     
-    // Check if this is a bag/backpack/clothing (not a book)
+    // If name contains "book", likely a book product - keep it
+    if (name.includes(' book') || name.includes('book ') || name.endsWith(' book')) {
+      return true;
+    }
+    
+    // Check if this is a bag/backpack/clothing/shoes (not a book)
     const isNotABook = BOOKS_BLOCK_INDICATORS.some(term => name.includes(term)) ||
                        BOOKS_NEGATIVE_CATEGORIES.some(cat => category.includes(cat));
     
@@ -924,10 +980,26 @@ function filterForBooksContext(results: any[]): any[] {
     return true;
   });
   
-  // SAFETY: If filtering removed ALL results, return original
+  // SAFETY: If filtering removed ALL results, return original only if there are book-like items
   if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Books Context] INVENTORY GAP: All ${results.length} results were non-books, keeping original`);
-    return results;
+    // Check if there are any actual books in original before falling back
+    const hasAnyBooks = results.some(r => {
+      const name = (r.name || '').toLowerCase();
+      const category = (r.category || '').toLowerCase();
+      return category.includes('book') || name.includes(' book') || name.includes('book ');
+    });
+    
+    if (hasAnyBooks) {
+      // Return only the book items from original
+      return results.filter(r => {
+        const name = (r.name || '').toLowerCase();
+        const category = (r.category || '').toLowerCase();
+        return category.includes('book') || name.includes(' book') || name.includes('book ');
+      });
+    }
+    
+    console.log(`[Books Context] INVENTORY GAP: All ${results.length} results were non-books, returning empty`);
+    return [];
   }
   
   return filtered;
@@ -1282,7 +1354,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   // P1 BUG 4 FIX: Costume context - exclude t-shirts/hoodies for costume queries
   if (hasCostumeContext(query)) {
     console.log(`[Search Quality] Applying costume context filters for: "${query}"`);
-    filtered = filterForCostumeContext(filtered);
+    const costumeResult = filterForCostumeContext(filtered);
+    filtered = costumeResult.items;
+    // Don't restore clothing when inventory gap - just return empty
+    if (costumeResult.inventoryGap) {
+      console.log(`[Search Quality] INVENTORY GAP: ${costumeResult.gapReason}`);
+    }
   }
   
   // P1 BUG 5 FIX: Books context - exclude bags/backpacks for book queries
@@ -4211,7 +4288,54 @@ Format: ["id1", "id2", ...]`
         interpretation.searchTerms = [[query]];
       }
       
-      if (interpretation.isSemanticQuery && interpretation.searchTerms.length > 0) {
+      // ========================================================================
+      // PERFORMANCE FIX: BRAND FAST-PATH FOR KNOWN BRANDS
+      // For known brands like "Lego", skip semantic search entirely and use indexed brand query
+      // This reduces query time from 9s to <500ms
+      // ========================================================================
+      const knownBrandLower2 = detectedBrand?.toLowerCase();
+      const BRAND_FAST_PATH_SET = new Set(['lego', 'barbie', 'mattel', 'hasbro', 'nerf', 'hot wheels']);
+      const useBrandFastPath = knownBrandLower2 && BRAND_FAST_PATH_SET.has(knownBrandLower2) && 
+                               !filterCategory && !filterMerchant && !filterBrand;
+      
+      if (useBrandFastPath && detectedBrand) {
+        console.log(`[Shop Search] BRAND FAST-PATH: Using indexed query for "${detectedBrand}" (skipping semantic search)`);
+        const brandFastStart = Date.now();
+        
+        // Simple indexed query by brand name
+        const brandResults = await db.select({
+          id: products.id,
+          name: products.name,
+          description: products.description,
+          price: products.price,
+          merchant: products.merchant,
+          brand: products.brand,
+          category: products.category,
+          affiliate_link: products.affiliateLink,
+          image_url: products.imageUrl,
+          in_stock: products.inStock
+        }).from(products)
+          .where(and(
+            or(
+              ilike(products.brand, `%${detectedBrand}%`),
+              ilike(products.name, `%${detectedBrand}%`)
+            ),
+            products.inStock,
+            isNotNull(products.affiliateLink),
+            sql`${products.imageUrl} NOT ILIKE '%noimage%'`
+          ))
+          .limit(100);
+        
+        // Shuffle for variety
+        for (let i = brandResults.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [brandResults[i], brandResults[j]] = [brandResults[j], brandResults[i]];
+        }
+        
+        candidates = brandResults.slice(0, 60);
+        totalCandidates = brandResults.length;
+        console.log(`[Shop Search] BRAND FAST-PATH completed in ${Date.now() - brandFastStart}ms (found ${candidates.length} products)`);
+      } else if (interpretation.isSemanticQuery && interpretation.searchTerms.length > 0) {
         // Run multiple searches for each keyword combination
         const allCandidates: any[] = [];
         const seenIds = new Set<string>();
@@ -4311,6 +4435,22 @@ Format: ["id1", "id2", ...]`
           }
         }
         
+        // P1 BUG 5 FIX: Safe singular/plural mappings for common words
+        // Using targeted map instead of naive string surgery (dress → dres is wrong)
+        const MORPH_VARIANTS: Record<string, string> = {
+          'books': 'book', 'book': 'books',
+          'toys': 'toy', 'toy': 'toys',
+          'games': 'game', 'game': 'games',
+          'puzzles': 'puzzle', 'puzzle': 'puzzles',
+          'dolls': 'doll', 'doll': 'dolls',
+          'figures': 'figure', 'figure': 'figures',
+          'stories': 'story', 'story': 'stories',
+          'storybooks': 'storybook', 'storybook': 'storybooks',
+          'costumes': 'costume', 'costume': 'costumes',
+          'gifts': 'gift', 'gift': 'gifts',
+          'activities': 'activity', 'activity': 'activities',
+        };
+        
         for (const termGroup of interpretation.searchTerms) {
           // Build OR conditions for this term group
           const termConditions: ReturnType<typeof and>[] = [];
@@ -4319,12 +4459,17 @@ Format: ["id1", "id2", ...]`
             if (words.length === 0) continue;
             
             // PERFORMANCE FIX: Only search indexed name column with simple ILIKE
-            // Regex word boundaries on 4 columns = 40+ second queries
             const condition = and(...words.map(w => {
-              // Use simple ILIKE for speed (GIN trigram indexed)
-              return ilike(products.name, `%${w}%`);
+              // Use safe morph variants map instead of naive string surgery
+              const variants = [w];
+              if (MORPH_VARIANTS[w]) {
+                variants.push(MORPH_VARIANTS[w]);
+              }
+              // Build OR condition for all variants
+              const variantConditions = variants.map(v => ilike(products.name, `%${v}%`));
+              return or(...variantConditions);
             }));
-            if (condition) termConditions.push(condition);
+            if (condition) termConditions.push(condition as any);
           }
           
           if (termConditions.length === 0) continue;
@@ -4772,6 +4917,32 @@ Examples:
 
       console.log(`[Shop Search] Found ${candidates.length} candidates for "${query}" (total: ${totalCandidates})`);
 
+      // PRE-RERANK QUALITY FILTER: Apply quality filters to ALL candidates BEFORE slicing
+      // This prevents the inventory gap fallback from firing when only the random slice was clothing
+      const preRerankCount = candidates.length;
+      candidates = applySearchQualityFilters(candidates, query);
+      if (candidates.length < preRerankCount) {
+        console.log(`[Shop Search] Pre-rerank quality filter: ${preRerankCount} → ${candidates.length} for "${query}"`);
+      }
+      
+      // TOKEN-MATCH BOOST: Sort products with matching keywords to top before limiting
+      // This ensures "peppa pig books" surfaces products with "book" in name
+      const boostQueryLower = query.toLowerCase();
+      const boostTokens = ['book', 'books', 'toy', 'toys', 'figure', 'figures', 'costume', 'costumes', 'puzzle', 'puzzles', 'game', 'games', 'doll', 'dolls'];
+      const matchingTokens = boostTokens.filter(t => boostQueryLower.includes(t));
+      
+      if (matchingTokens.length > 0 && candidates.length > safeLimit) {
+        // Score candidates: +1 for each matching token in name
+        candidates.sort((a, b) => {
+          const aName = (a.name || '').toLowerCase();
+          const bName = (b.name || '').toLowerCase();
+          const aScore = matchingTokens.filter(t => aName.includes(t)).length;
+          const bScore = matchingTokens.filter(t => bName.includes(t)).length;
+          return bScore - aScore; // Higher score first
+        });
+        console.log(`[Shop Search] Token boost applied for: ${matchingTokens.join(', ')}`);
+      }
+      
       // 2. Send candidates to GPT to pick the best matches
       let selectedProducts: any[] = candidates.slice(0, safeLimit);
       
