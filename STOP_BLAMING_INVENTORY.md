@@ -72,6 +72,25 @@ If your search returns 0 for these, YOUR SEARCH IS BROKEN.
 | "No books in inventory" | Search looking in wrong category or too restrictive filters |
 | "No Paw Patrol toys" | Character not injected into searchTerms, only in post-filter |
 | "No results for X" | searchTerms are generic ["toys","games"] not ["X"] |
+| **"Railway returns 0 results"** | **search_vector column missing + no try/catch = silent crash (Fix #29)** |
+
+---
+
+## ⚠️ FIX #29 - CRITICAL PRODUCTION FIX (2026-01-10)
+
+**Problem:** 100% of production queries returned 0 results, 0ms time
+**Root Cause:** Main tsvector query had NO try/catch wrapper
+**Why:** search_vector column exists in dev but NOT in Railway production
+**Symptom:** Query throws error → returns nothing → appears as "0 results"
+
+**Fix Applied:**
+1. Wrapped tsvector query in try/catch
+2. Added runtime flag `TSVECTOR_DISABLED` to prevent repeated failures  
+3. Added ILIKE fallback when tsvector fails OR returns 0 results
+
+**File:** server/routes.ts lines 4675-4731
+
+**Lesson:** ALWAYS wrap database queries that use optional columns in try/catch with fallbacks!
 
 ---
 

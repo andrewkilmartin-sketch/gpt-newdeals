@@ -33,6 +33,7 @@ Key architectural decisions and features include:
 -   **Alcohol Removal**: All alcohol products have been permanently deleted from the database. An `ALCOHOL_BLOCKLIST` and `ALCOHOL_MERCHANT_BLOCKLIST` have been implemented in both CJ and Awin import pipelines and search filters to prevent future imports and display of alcohol-related products.
 -   **TSVECTOR Ultra Fast Path (v7-fix28)**: Search now uses PostgreSQL full-text search with GIN indexes BEFORE calling OpenAI API, achieving sub-100ms cached response times. Includes production-safe fallbacks when `search_vector` column is missing.
 -   **Production Compatibility**: All database operations wrapped in try/catch with ILIKE fallbacks to prevent 500 errors when schema differs between environments.
+-   **Fix #29 - Critical**: Main tsvector search wrapped in try/catch with runtime `TSVECTOR_DISABLED` flag. If search_vector column is missing, automatically falls back to ILIKE. This prevents 100% failure when deploying without database migration.
 
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.
