@@ -144,6 +144,65 @@ const relevanceTests = [
         throw new Error(`Found products from blocked merchants: ${blockedProducts.map((p: any) => p.merchant).join(', ')}`);
       }
     }
+  },
+  {
+    name: 'Spiderman toys returns Marvel/Disney products, not pet toys',
+    query: 'spiderman toys',
+    test: async function() {
+      const result = await searchProducts(this.query);
+      if (result.count === 0) {
+        throw new Error('Spiderman query returned 0 results. Check character variant injection.');
+      }
+      const petProducts = result.products.filter((p: any) => 
+        p.name?.toLowerCase().includes('dog') || 
+        p.name?.toLowerCase().includes('pet') ||
+        p.category?.toLowerCase().includes('pet')
+      );
+      if (petProducts.length > result.products.length / 2) {
+        throw new Error(`Too many pet products (${petProducts.length}/${result.products.length}). Check character searchTerms injection.`);
+      }
+    }
+  },
+  {
+    name: 'Paw Patrol toys returns real franchise products',
+    query: 'paw patrol toys',
+    test: async function() {
+      const result = await searchProducts(this.query);
+      if (result.count < 3) {
+        throw new Error(`Paw Patrol returned only ${result.count} results. Should have 3+ products.`);
+      }
+      const hasRealPawPatrol = result.products.some((p: any) => 
+        p.name?.toLowerCase().includes('paw patrol')
+      );
+      if (!hasRealPawPatrol) {
+        throw new Error('No real Paw Patrol products found. Check character detection.');
+      }
+    }
+  },
+  {
+    name: 'Price filter works: toys under 10 returns products ≤£10',
+    query: 'toys under 10',
+    test: async function() {
+      const result = await searchProducts(this.query);
+      if (result.count === 0) {
+        throw new Error('Price query returned 0 results.');
+      }
+      const overPriced = result.products.filter((p: any) => p.price > 10);
+      if (overPriced.length > 0) {
+        throw new Error(`Found ${overPriced.length} products over £10. Check price filter in fallback. Products: ${overPriced.map((p: any) => `${p.name}: £${p.price}`).join(', ')}`);
+      }
+    }
+  },
+  {
+    name: 'Stocking fillers under 10 respects price limit',
+    query: 'stocking fillers under 10',
+    test: async function() {
+      const result = await searchProducts(this.query);
+      const overPriced = result.products.filter((p: any) => p.price > 10);
+      if (overPriced.length > 0) {
+        throw new Error(`Found ${overPriced.length} products over £10: ${overPriced.map((p: any) => `${p.name}: £${p.price}`).join(', ')}`);
+      }
+    }
   }
 ];
 
