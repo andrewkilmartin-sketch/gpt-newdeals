@@ -121,6 +121,28 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Safety** | If ALL results are clothing (inventory gap), keep them rather than 0 results |
 | **Test Query** | `dinosaur figures` should return toys/puzzles/figures, not snowsuits |
 
+### 11. Costume Queries Return T-Shirts Instead of Costumes (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "vampire costume" returned "Incredibles Costume Logo Sweatshirt" (t-shirt) |
+| **Root Cause** | Product name contains "Costume" in graphic text, not actual costume |
+| **Wrong Approach** | Relying only on keyword matching |
+| **Correct Fix** | `filterForCostumeContext()` excludes clothing (t-shirts, hoodies) for costume queries |
+| **File** | `server/routes.ts` ~line 820-880 |
+| **Exception** | "swimming costume" bypasses filter (valid clothing item) |
+| **Test Query** | `witch costume` should return Rubies dress-up, not sweatshirts |
+
+### 12. Book Queries Return Bags/Backpacks (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "peppa pig books" returned "Rainbow Stripe Backpack" ("book bag" substring) |
+| **Root Cause** | "book" substring matched "book bag", "backpack", clothing |
+| **Wrong Approach** | Simple keyword matching without context |
+| **Correct Fix** | `filterForBooksContext()` excludes bags/backpacks/clothing for book queries |
+| **File** | `server/routes.ts` ~line 882-930 |
+| **Note** | Many book queries return 0 due to inventory gap (no books in feed) |
+| **Test Query** | `peppa pig books` should NOT return backpacks |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK

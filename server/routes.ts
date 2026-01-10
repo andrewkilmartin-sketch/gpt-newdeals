@@ -815,6 +815,125 @@ function filterForToyContext(results: any[]): any[] {
 }
 
 // =============================================================================
+// P1 BUG 4 FIX: COSTUME CONTEXT FILTER - Exclude clothing for costume queries
+// When user searches for costumes, filter out t-shirts/hoodies with "costume" in graphics
+// See CRITICAL_FIXES.md - Fix #11
+// =============================================================================
+const COSTUME_QUERY_WORDS = ['costume', 'costumes', 'fancy dress', 'dress up', 'dressing up'];
+
+// Clothing that should NOT appear for costume queries (has "costume" in graphic, not actual costume)
+const COSTUME_CLOTHING_INDICATORS = [
+  't-shirt', 'tshirt', 'sweatshirt', 'hoodie', 'hoody', 'jumper', 'sweater',
+  'polo', 'vest', 'jacket', 'coat', 'cardigan', 'shorts', 'trousers', 'joggers',
+  'leggings', 'jeans', 'skirt', 'pyjamas', 'pajamas', 'nightwear', 'onesie',
+  'swimsuit', 'bikini', 'trunks', 'swimming costume' // exclude swimming costume results
+];
+
+// Categories that indicate real costumes/fancy dress
+const COSTUME_POSITIVE_CATEGORIES = [
+  'fancy dress', 'costumes', 'dress up', 'halloween', 'party', 'role play'
+];
+
+function hasCostumeContext(query: string): boolean {
+  const q = query.toLowerCase();
+  // Don't apply filter for "swimming costume" - that's a valid clothing item
+  if (q.includes('swimming costume') || q.includes('swim costume')) {
+    return false;
+  }
+  return COSTUME_QUERY_WORDS.some(word => q.includes(word));
+}
+
+function filterForCostumeContext(results: any[]): any[] {
+  const filtered = results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    
+    // If it's in a costume/fancy dress category, always keep it
+    const isInCostumeCategory = COSTUME_POSITIVE_CATEGORIES.some(cat => category.includes(cat));
+    if (isInCostumeCategory) {
+      return true;
+    }
+    
+    // Check if this is regular clothing (not a costume)
+    const isClothing = COSTUME_CLOTHING_INDICATORS.some(term => name.includes(term)) ||
+                       category.includes('clothing') || 
+                       category.includes('fashion') ||
+                       category.includes('apparel');
+    
+    if (isClothing) {
+      console.log(`[Costume Context] Excluded clothing: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+  
+  // SAFETY: If filtering removed ALL results, return original
+  if (filtered.length === 0 && results.length > 0) {
+    console.log(`[Costume Context] INVENTORY GAP: All ${results.length} results were clothing, keeping original`);
+    return results;
+  }
+  
+  return filtered;
+}
+
+// =============================================================================
+// P1 BUG 5 FIX: BOOKS CONTEXT FILTER - Prioritize Books category, exclude bags
+// When user searches for books, filter out backpacks/bags/clothing with "book" in name
+// See CRITICAL_FIXES.md - Fix #12
+// =============================================================================
+const BOOKS_QUERY_PATTERNS = [
+  /\bbooks?\b/i,  // "book" or "books" as whole word
+  /\breaders?\b/i, // "reader" or "readers"
+  /\bstories\b/i,
+  /\bstorybook\b/i
+];
+
+const BOOKS_BLOCK_INDICATORS = [
+  'book bag', 'bookbag', 'backpack', 'rucksack', 'school bag', 'lunch bag',
+  'book end', 'bookend', 'book shelf', 'bookshelf', 'bookmark'
+];
+
+// Categories that are NOT books
+const BOOKS_NEGATIVE_CATEGORIES = [
+  'bags', 'backpack', 'clothing', 'fashion', 'apparel', 'accessories', 'furniture'
+];
+
+function hasBooksContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return BOOKS_QUERY_PATTERNS.some(pattern => pattern.test(q));
+}
+
+function filterForBooksContext(results: any[]): any[] {
+  const filtered = results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    
+    // If it's in Books category, always keep it
+    if (category.includes('book')) {
+      return true;
+    }
+    
+    // Check if this is a bag/backpack/clothing (not a book)
+    const isNotABook = BOOKS_BLOCK_INDICATORS.some(term => name.includes(term)) ||
+                       BOOKS_NEGATIVE_CATEGORIES.some(cat => category.includes(cat));
+    
+    if (isNotABook) {
+      console.log(`[Books Context] Excluded non-book: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+  
+  // SAFETY: If filtering removed ALL results, return original
+  if (filtered.length === 0 && results.length > 0) {
+    console.log(`[Books Context] INVENTORY GAP: All ${results.length} results were non-books, keeping original`);
+    return results;
+  }
+  
+  return filtered;
+}
+
+// =============================================================================
 // MEGA-FIX 7: KEYWORD COLLISION DETECTION
 // Prevents "book" → car rental, "watch" → jewelry, "blind" → shutters
 // =============================================================================
@@ -1158,6 +1277,18 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (hasToyContext(query)) {
     console.log(`[Search Quality] Applying toy context filters for: "${query}"`);
     filtered = filterForToyContext(filtered);
+  }
+  
+  // P1 BUG 4 FIX: Costume context - exclude t-shirts/hoodies for costume queries
+  if (hasCostumeContext(query)) {
+    console.log(`[Search Quality] Applying costume context filters for: "${query}"`);
+    filtered = filterForCostumeContext(filtered);
+  }
+  
+  // P1 BUG 5 FIX: Books context - exclude bags/backpacks for book queries
+  if (hasBooksContext(query)) {
+    console.log(`[Search Quality] Applying books context filters for: "${query}"`);
+    filtered = filterForBooksContext(filtered);
   }
   
   // PHASE 2: Apply merchant caps (max 2 per merchant)
