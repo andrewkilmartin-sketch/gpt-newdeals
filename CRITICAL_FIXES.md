@@ -175,6 +175,34 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` filterForToyContext() ~line 800-820 |
 | **Test Query** | `dinosaur figures` should return toys, not sleepsuits |
 
+### 16. Peppa Pig Typo Duplication Bug (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "peppa pig school" became "peppa pig pig school" due to typo correction |
+| **Root Cause** | TYPO_CORRECTIONS had 'peppa': 'peppa pig', causing double "pig" |
+| **Wrong Approach** | Expanding single word "peppa" to "peppa pig" |
+| **Correct Fix** | Removed 'peppa': 'peppa pig' from TYPO_CORRECTIONS |
+| **File** | `server/routes.ts` TYPO_CORRECTIONS ~line 1183 |
+| **Test Query** | `peppa pig school` should NOT become "peppa pig pig school" |
+
+### 17. US/UK Phrase Synonyms (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | US users searching for US terms got 0 results |
+| **Root Cause** | UK retailers use British terminology |
+| **Examples** | diaper→nappy, stroller→pushchair, onesie→babygrow, crib→cot |
+| **Correct Fix** | Added 25+ PHRASE_SYNONYMS for US/UK translations |
+| **File** | `server/routes.ts` PHRASE_SYNONYMS ~line 235-268 |
+| **Test Query** | `diaper` should return nappy products |
+
+### 18. TypeScript minPrice Context Type (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | TypeScript error "minPrice does not exist" on context type |
+| **Root Cause** | QueryInterpretation interface missing minPrice in context |
+| **Correct Fix** | Added `minPrice?: number` to context interface |
+| **File** | `server/routes.ts` QueryInterpretation interface ~line 2119 |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
@@ -200,6 +228,21 @@ Alcohol, ED pills, STI testing content filtered via INAPPROPRIATE_TERMS array.
 | Simple brand query (lego, barbie) | <500ms | 30-200ms |
 | Age-based toy query | <500ms | 170-450ms |
 | Complex semantic query | <7s | 2-5s |
+| Character+product combo | <3s | 8-20s (bottleneck) |
+
+### Known Performance Bottleneck (2026-01-10)
+
+**Issue**: Semantic DB queries use regex word boundaries (`~* '\yword\y'`) which don't benefit from GIN trigram indexes. Result: 8-15 seconds per term group.
+
+**Root Cause**: GIN trigram indexes optimize ILIKE but NOT regex patterns.
+
+**Recommended Solution**: Migrate to PostgreSQL full-text search (tsvector):
+1. Add generated `search_terms` tsvector column
+2. Create GIN index on tsvector
+3. Use `plainto_tsquery` for AND semantics
+4. Maintain word boundary accuracy without regex
+
+**Interim Workaround**: Fast-path cache for common slow queries (peppa pig school, thomas train set).
 
 ---
 

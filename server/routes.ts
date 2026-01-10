@@ -230,10 +230,38 @@ const QUERY_SYNONYMS: { [key: string]: string[] } = {
 
 // PHRASE SYNONYMS - US/UK brand name mappings and common alternatives
 const PHRASE_SYNONYMS: { [key: string]: string } = {
-  'calico critters': 'sylvanian families',  // US name → UK name
+  // Brand name translations (US → UK)
+  'calico critters': 'sylvanian families',
   'calico critter': 'sylvanian families',
-  'thomas the tank engine': 'thomas friends',  // Expand search
+  'thomas the tank engine': 'thomas friends',
   'thomas tank engine': 'thomas friends',
+  
+  // Common US/UK spelling differences
+  'play-doh': 'playdough',
+  'playdoh': 'playdough',
+  'legos': 'lego',  // US plural → UK singular
+  
+  // Baby product terms (US → UK)
+  'diaper': 'nappy',
+  'diapers': 'nappies',
+  'pacifier': 'dummy',
+  'pacifiers': 'dummies',
+  'stroller': 'pushchair',
+  'strollers': 'pushchairs',
+  'onesie': 'babygrow',
+  'onesies': 'babygrows',
+  'crib': 'cot',
+  'cribs': 'cots',
+  
+  // Spelling variants
+  'color': 'colour',
+  'colors': 'colours',
+  'favorite': 'favourite',
+  'favorites': 'favourites',
+  'gray': 'grey',
+  
+  // Activity terms
+  'sidewalk chalk': 'pavement chalk',
 };
 
 // Apply phrase synonyms before word-level processing
@@ -1151,9 +1179,9 @@ const TYPO_CORRECTIONS: Record<string, string> = {
   'leggo': 'lego', 'legos': 'lego', 'legao': 'lego', 'lgeo': 'lego',
   // Barbie variants  
   'barbi': 'barbie', 'barbee': 'barbie', 'barbei': 'barbie', 'brbie': 'barbie',
-  // Peppa Pig variants
+  // Peppa Pig variants (don't expand 'peppa' alone - causes 'peppa pig pig school')
   'peper pig': 'peppa pig', 'pepa pig': 'peppa pig', 'pepper pig': 'peppa pig', 
-  'peppa': 'peppa pig', 'peppapig': 'peppa pig',
+  'peppapig': 'peppa pig',
   // Paw Patrol variants
   'paw partol': 'paw patrol', 'pawpatrol': 'paw patrol', 'paw petrol': 'paw patrol',
   // Pokemon variants
@@ -2085,6 +2113,7 @@ interface QueryInterpretation {
     occasion?: string;
     ageRange?: string;
     priceHint?: string;
+    minPrice?: number;
     maxPrice?: number;
     categoryFilter?: string;
     excludeCategories?: string[];
