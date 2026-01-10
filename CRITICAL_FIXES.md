@@ -384,6 +384,21 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 40. Merchant Cap + TSVECTOR Too Aggressive for Sport Equipment (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "badminton set" returned only 3 results despite 17 products in database |
+| **Root Cause 1** | `plainto_tsquery('english', 'badminton set')` uses AND logic - requires BOTH words |
+| **Root Cause 2** | 15/17 badminton products from Debenhams UK → merchant cap of 2 limited variety |
+| **Fix Part 1** | Added OPTIONAL_QUALIFIERS (set, kit, pack, bundle, etc.) - these terms are optional, not required |
+| **Fix Part 2** | Build `to_tsquery` with explicit OR: `badminton & (set | kit | net | racket | racquet | equipment)` |
+| **Fix Part 3** | Progressive merchant cap relaxation: 2 → 4 → 6 → unlimited if still below 8 results |
+| **File** | `server/routes.ts` lines 4845-4930 (TSVECTOR query building), 1619-1645 (merchant cap relaxation) |
+| **Test Query** | `badminton set` → 6 results: Foldable Set, Decathlon Set, Adult Racket, Junior Racket, 2 Nets |
+| **Result** | Sport equipment queries now find products with equipment synonyms (racket, net, etc.) |
+
+---
+
 ### 39. LOL Dolls Returns NYX Makeup (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|

@@ -1613,15 +1613,31 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
     console.log(`[Word Boundary] Filtered ${preBoundaryCount} → ${filtered.length} for: "${query}"`);
   }
   
-  // Fix #30: Apply merchant caps with relaxation - start at 2, raise to 4 if count drops too low
-  const TARGET_MIN_RESULTS = 6;
+  // Fix #30 + Fix #40: Apply merchant caps with aggressive relaxation
+  // Target 8-10 results - raise cap if merchant dominance is reducing variety
+  const TARGET_MIN_RESULTS = 8;
   const preMerchantCapCount = filtered.length;
+  
+  // Start with cap of 2 per merchant
   let cappedFiltered = applyMerchantCaps(filtered, 2);
   
-  // FILTER RELAXATION: If merchant cap reduced results below target, try higher cap
-  if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount >= TARGET_MIN_RESULTS) {
+  // FILTER RELAXATION: If merchant cap reduced results too much, progressively raise cap
+  if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
+    // First try cap of 4
     console.log(`[Filter Relaxation] Merchant cap too aggressive (${cappedFiltered.length} < ${TARGET_MIN_RESULTS}), raising cap to 4`);
     cappedFiltered = applyMerchantCaps(filtered, 4);
+    
+    // If still below target and we have more results available, try cap of 6
+    if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
+      console.log(`[Filter Relaxation] Still below target (${cappedFiltered.length}), raising cap to 6`);
+      cappedFiltered = applyMerchantCaps(filtered, 6);
+    }
+    
+    // For equipment/set queries, allow even more from single merchant if needed
+    if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
+      console.log(`[Filter Relaxation] Removing merchant cap to maximize results (${cappedFiltered.length} → ${preMerchantCapCount})`);
+      cappedFiltered = filtered; // No merchant cap - show all results
+    }
   }
   filtered = cappedFiltered;
   
@@ -4823,45 +4839,88 @@ Format: ["id1", "id2", ...]`
           // Example: "witch costume" matches, but "witch costume dress halloween" fails
           const allTerms = new Set<string>();
           
+          // Fix #40: Generic qualifiers should be OPTIONAL, not REQUIRED
+          // "badminton set" should match "badminton racket" too
+          const OPTIONAL_QUALIFIERS = new Set([
+            'set', 'kit', 'pack', 'bundle', 'collection', 'combo', 'package',
+            'equipment', 'accessories', 'supplies', 'gear', 'complete'
+          ]);
+          
           // Add ORIGINAL query words (e.g., "witch costume")
           const originalWords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
-          originalWords.forEach((w: string) => allTerms.add(w));
+          const requiredTerms = new Set<string>();
+          const optionalTerms = new Set<string>();
           
-          // Also add mustHaveAll terms (character names, key terms)
+          originalWords.forEach((w: string) => {
+            if (OPTIONAL_QUALIFIERS.has(w)) {
+              optionalTerms.add(w);
+            } else {
+              requiredTerms.add(w);
+            }
+          });
+          
+          // Also add mustHaveAll terms (character names, key terms) - always required
           if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
             for (const term of interpretation.mustHaveAll) {
               const words = term.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
-              words.forEach((w: string) => allTerms.add(w));
+              words.forEach((w: string) => {
+                if (!OPTIONAL_QUALIFIERS.has(w)) {
+                  requiredTerms.add(w);
+                }
+              });
             }
           }
+          
+          // Add all to allTerms for backwards compat
+          requiredTerms.forEach(t => allTerms.add(t));
+          optionalTerms.forEach(t => allTerms.add(t));
           
           // REMOVED: GPT-expanded terms (they cause false negatives with AND logic)
           // The ILIKE fallback handles cases where tsvector returns 0
           
-          if (allTerms.size > 0) {
-            // Build tsvector query: all terms must match (AND logic)
-            // Format: 'word1 & word2 & word3'
-            const tsqueryTerms = Array.from(allTerms).map((term: string) => {
-              // Add morph variants with OR logic
-              const variants = [term];
-              if (MORPH_VARIANTS[term]) {
-                variants.push(MORPH_VARIANTS[term]);
-              }
-              return variants.length > 1 
-                ? `(${variants.join(' | ')})` 
-                : term;
-            }).join(' & ');
+          if (requiredTerms.size > 0 || optionalTerms.size > 0) {
+            // Fix #40: Build staged tsquery - require core noun + optional equipment synonyms
+            // Example: "badminton set" → "badminton & (set | kit | net | racket)"
+            // This ensures we get badminton products, with preference for sets
             
-            // Use simple terms joined with spaces for plainto_tsquery
-            const plainTerms = Array.from(allTerms).join(' ');
-            console.log(`[Shop Search] TSVECTOR: Query "${plainTerms}"`);
+            // Equipment-related synonyms for sports queries
+            const EQUIPMENT_SYNONYMS: Record<string, string[]> = {
+              'set': ['set', 'kit', 'net', 'racket', 'racquet', 'equipment'],
+              'kit': ['kit', 'set', 'pack', 'bundle', 'equipment'],
+              'pack': ['pack', 'set', 'kit', 'bundle'],
+            };
             
             const tsvectorStart = Date.now();
+            let tsvectorQuery: string;
+            
+            // Build tsquery with proper operators
+            const requiredTermsArray = Array.from(requiredTerms);
+            const optionalTermsArray = Array.from(optionalTerms);
+            
+            if (optionalTermsArray.length > 0 && requiredTermsArray.length > 0) {
+              // Get synonyms for optional terms
+              const allOptional = new Set(optionalTermsArray);
+              for (const opt of optionalTermsArray) {
+                if (EQUIPMENT_SYNONYMS[opt]) {
+                  EQUIPMENT_SYNONYMS[opt].forEach(s => allOptional.add(s));
+                }
+              }
+              
+              // Build: required1 & required2 & (opt1 | opt2 | opt3)
+              const requiredPart = requiredTermsArray.join(' & ');
+              const optionalPart = Array.from(allOptional).join(' | ');
+              tsvectorQuery = `(${requiredPart}) & (${optionalPart})`;
+              console.log(`[Shop Search] TSVECTOR: Strict query "${tsvectorQuery}"`);
+            } else {
+              // No optional terms - just use required
+              tsvectorQuery = requiredTermsArray.join(' & ');
+              console.log(`[Shop Search] TSVECTOR: Query "${tsvectorQuery}"`);
+            }
             
             // Build WHERE conditions with tsvector + filters
-            // Use raw SQL to avoid Drizzle type interpolation issues
+            // Use to_tsquery for explicit AND/OR operators
             const tsvectorConditions: any[] = [
-              sql.raw(`search_vector @@ plainto_tsquery('english', '${plainTerms.replace(/'/g, "''")}')`),
+              sql.raw(`search_vector @@ to_tsquery('english', '${tsvectorQuery.replace(/'/g, "''")}')`),
               isNotNull(products.affiliateLink),
               ...filterConditions
             ];
@@ -4903,15 +4962,20 @@ Format: ["id1", "id2", ...]`
               tsvectorFailed = true;
             }
             
-            // Sort by relevance: original query terms in product name first
+            // Sort by relevance: prioritize products with optional qualifiers (like "set") 
+            // Then by how many query terms match
             const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            // Note: optionalTermsArray already declared above
             if (tsvectorResults.length > 0) {
               tsvectorResults.sort((a, b) => {
                 const aName = a.name?.toLowerCase() || '';
                 const bName = b.name?.toLowerCase() || '';
-                const aScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
-                const bScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
-                return bScore - aScore;
+                // Score: +2 for each optional term (like "set"), +1 for each other query term
+                const aOptScore = optionalTermsArray.reduce((s, w) => s + (aName.includes(w) ? 2 : 0), 0);
+                const bOptScore = optionalTermsArray.reduce((s, w) => s + (bName.includes(w) ? 2 : 0), 0);
+                const aTermScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
+                const bTermScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
+                return (bOptScore + bTermScore) - (aOptScore + aTermScore);
               });
               
               for (const p of tsvectorResults.slice(0, 50)) {
