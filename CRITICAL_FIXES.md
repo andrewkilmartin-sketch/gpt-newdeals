@@ -384,6 +384,21 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 41. Diversity Constraint + Sport Equipment Age Filter (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "badminton set" returned 6 results, not target 8, even after Fix #40 |
+| **Root Cause 1** | `applyDiversityConstraints` hard-coded max 3 per brand; Decathlon had 7+ products, only 3 kept |
+| **Root Cause 2** | `isAgeAppropriate` marked "Adult Badminton Racket" as age 13+ due to "adult" keyword |
+| **Fix Part 1** | Progressive brand limit relaxation in `applyDiversityConstraints`: 3 → 5 → unlimited |
+| **Fix Part 2** | Added `isSportEquipment` regex check to skip "adult" keyword for sport categories |
+| **Sport Keywords** | badminton, tennis, racket, racquet, golf, swimming, cycling, running, fitness, sport |
+| **File** | `server/services/queryParser.ts` lines 327-343 (age filter), 413-458 (diversity) |
+| **Test Query** | `badminton set` → **8 results**: 2 Sets, 3 Rackets, 3 Nets (includes Adult Racket) |
+| **Result** | Sport equipment queries now return full product range; "adult" sizing not filtered |
+
+---
+
 ### 40. Merchant Cap + TSVECTOR Too Aggressive for Sport Equipment (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|
@@ -394,7 +409,7 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 | **Fix Part 2** | Build `to_tsquery` with explicit OR: `badminton & (set | kit | net | racket | racquet | equipment)` |
 | **Fix Part 3** | Progressive merchant cap relaxation: 2 → 4 → 6 → unlimited if still below 8 results |
 | **File** | `server/routes.ts` lines 4845-4930 (TSVECTOR query building), 1619-1645 (merchant cap relaxation) |
-| **Test Query** | `badminton set` → 6 results: Foldable Set, Decathlon Set, Adult Racket, Junior Racket, 2 Nets |
+| **Test Query** | `badminton set` → 12 TSVECTOR candidates → 8 results after filters |
 | **Result** | Sport equipment queries now find products with equipment synonyms (racket, net, etc.) |
 
 ---

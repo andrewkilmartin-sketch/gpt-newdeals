@@ -321,6 +321,9 @@ export function isAgeAppropriate(product: any, parsed: ParsedQuery): boolean {
   }
 
   // Category-based age inference
+  // FIX #41: Skip "adult" keyword for sport equipment (refers to size, not age)
+  const isSportEquipment = /badminton|tennis|racket|racquet|golf|swimming|cycling|running|fitness|sport/i.test(productText);
+  
   if (productText.includes('duplo')) {
     productAgeMin = 1;
     productAgeMax = 5;
@@ -330,7 +333,8 @@ export function isAgeAppropriate(product: any, parsed: ParsedQuery): boolean {
   } else if (productText.includes('toddler')) {
     productAgeMin = 1;
     productAgeMax = 3;
-  } else if (productText.includes('teen') || productText.includes('adult')) {
+  } else if (productText.includes('teen') || (productText.includes('adult') && !isSportEquipment)) {
+    // For sport equipment, "adult" refers to sizing, not age restriction
     productAgeMin = 13;
     productAgeMax = null;
   }
@@ -405,38 +409,50 @@ export function matchesPriceConstraint(product: any, parsed: ParsedQuery): boole
 
 /**
  * Apply diversity constraints to results
- * Max 3 per brand, max 4 per category, no duplicates
+ * Max N per brand (with progressive relaxation), max 6 per category, no duplicates
+ * FIX #41: Progressive brand limit relaxation for limited-brand categories (sport equipment)
  */
 export function applyDiversityConstraints(products: any[]): any[] {
-  const seen = new Set<string>();
-  const brandCount = new Map<string, number>();
-  const categoryCount = new Map<string, number>();
-  const result: any[] = [];
+  const TARGET_MIN = 8;
+  
+  // Try with progressively higher brand limits: 3 → 5 → unlimited
+  for (const maxBrand of [3, 5, 999]) {
+    const seen = new Set<string>();
+    const brandCount = new Map<string, number>();
+    const categoryCount = new Map<string, number>();
+    const result: any[] = [];
 
-  for (const product of products) {
-    const id = product.id?.toString() || product.name;
+    for (const product of products) {
+      const id = product.id?.toString() || product.name;
+      
+      // Skip duplicates
+      if (seen.has(id)) continue;
+      
+      const brand = (product.brand || product.merchant || 'unknown').toLowerCase();
+      const category = (product.category || 'unknown').toLowerCase().split('>')[0].trim();
+      
+      // Max N per brand (progressively relaxed)
+      const currentBrandCount = brandCount.get(brand) || 0;
+      if (currentBrandCount >= maxBrand) continue;
+      
+      // Max 6 per category (relaxed from 4)
+      const currentCatCount = categoryCount.get(category) || 0;
+      if (currentCatCount >= 6) continue;
+      
+      seen.add(id);
+      brandCount.set(brand, currentBrandCount + 1);
+      categoryCount.set(category, currentCatCount + 1);
+      result.push(product);
+    }
     
-    // Skip duplicates
-    if (seen.has(id)) continue;
-    
-    const brand = (product.brand || product.merchant || 'unknown').toLowerCase();
-    const category = (product.category || 'unknown').toLowerCase().split('>')[0].trim();
-    
-    // Max 3 per brand
-    const currentBrandCount = brandCount.get(brand) || 0;
-    if (currentBrandCount >= 3) continue;
-    
-    // Max 4 per category
-    const currentCatCount = categoryCount.get(category) || 0;
-    if (currentCatCount >= 4) continue;
-    
-    seen.add(id);
-    brandCount.set(brand, currentBrandCount + 1);
-    categoryCount.set(category, currentCatCount + 1);
-    result.push(product);
+    // If we have enough results, return them
+    if (result.length >= TARGET_MIN || maxBrand >= 999) {
+      return result;
+    }
   }
-
-  return result;
+  
+  // Fallback (shouldn't reach here)
+  return products;
 }
 
 /**
