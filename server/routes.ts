@@ -4652,10 +4652,56 @@ Format: ["id1", "id2", ...]`
             // FALLBACK: If tsvector found 0 results, fall back to ILIKE search
             // This handles products that don't have search_vector populated yet
             if (candidates.length === 0) {
-              console.log(`[Shop Search] TSVECTOR: 0 results, falling back to ILIKE search`);
-              // Reset for ILIKE fallback (use .length = 0 to clear const array)
-              allCandidates.length = 0;
-              seenIds.clear();
+              // FIX #23: For known brands, skip slow ILIKE (18s+ per term) and do tsvector brand-only search
+              // This fixes "lol dolls" timeout - tsvector finds "lol" products in <100ms
+              const brandToSearch = interpretation.attributes?.brand || interpretation.attributes?.character;
+              const brandLower = brandToSearch?.toLowerCase();
+              
+              if (brandLower && KNOWN_BRANDS_CACHE.has(brandLower)) {
+                console.log(`[Shop Search] KNOWN BRAND FAST PATH: Skipping ILIKE, searching tsvector for just "${brandLower}"`);
+                
+                const brandFastStart = Date.now();
+                const brandTsquery = brandLower.split(/\s+/).filter(w => w.length > 1).join(' & ');
+                
+                const brandResults = await db.select({
+                  id: products.id,
+                  name: products.name,
+                  description: products.description,
+                  price: products.price,
+                  merchant: products.merchant,
+                  brand: products.brand,
+                  category: products.category,
+                  affiliate_link: products.affiliateLink,
+                  image_url: products.imageUrl,
+                  in_stock: products.inStock
+                }).from(products)
+                  .where(and(
+                    sql`search_vector @@ to_tsquery('english', ${brandTsquery})`,
+                    isNotNull(products.affiliateLink),
+                    ...filterConditions
+                  ))
+                  .limit(100);
+                
+                console.log(`[Shop Search] KNOWN BRAND FAST PATH: Found ${brandResults.length} results in ${Date.now() - brandFastStart}ms`);
+                
+                // Sort by relevance to original query
+                const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                brandResults.sort((a, b) => {
+                  const aName = a.name?.toLowerCase() || '';
+                  const bName = b.name?.toLowerCase() || '';
+                  const aScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
+                  const bScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
+                  return bScore - aScore;
+                });
+                
+                candidates = brandResults;
+                totalCandidates = candidates.length;
+              } else {
+                // Unknown brand - use slow ILIKE fallback
+                console.log(`[Shop Search] TSVECTOR: 0 results, falling back to ILIKE search`);
+                // Reset for ILIKE fallback (use .length = 0 to clear const array)
+                allCandidates.length = 0;
+                seenIds.clear();
               
               // Run ILIKE search as fallback
               for (const termGroup of interpretation.searchTerms) {
@@ -4723,6 +4769,7 @@ Format: ["id1", "id2", ...]`
               candidates = allCandidates;
               totalCandidates = candidates.length;
               console.log(`[Shop Search] ILIKE FALLBACK: Total ${candidates.length} candidates`);
+              }
             }
           }
         } else {
