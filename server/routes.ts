@@ -415,47 +415,56 @@ function filterForFilmContext(results: any[]): any[] {
   });
 }
 
-// Check if query has "watch order" context (movie series, not jewelry watches)
+// Check if query is specifically about movie/show watch order (not jewelry or forms)
 function hasWatchOrderContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return (q.includes('watch order') || q.includes('order to watch') || 
-          q.includes('watching order') || q.includes('best order'));
+  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Must be movie/show context - looking for watch order of a series/franchise
+  const moviePatterns = ['watch order', 'order to watch', 'watching order'];
+  if (!moviePatterns.some(p => q.includes(p))) return false;
+  // Exclude non-movie contexts (forms, accessories)
+  const excludePatterns = ['order form', 'watch strap', 'watch band', 'watch repair'];
+  return !excludePatterns.some(p => q.includes(p));
 }
 
-// Filter results for watch order queries - prioritize movie/show content
+// Filter for watch order queries - only remove explicit jewelry watch merchants
+const JEWELRY_WATCH_MERCHANTS = [
+  'sekonda', 'fossil', 'casio', 'timex', 'watch shop', 'watchshop',
+  'goldsmiths', 'ernest jones', 'h samuel', 'watches of switzerland'
+];
 function filterForWatchOrderContext(results: any[]): any[] {
   return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
-    // Exclude jewelry watches
-    const isJewelryWatch = text.includes('wristwatch') || text.includes('jeweller') ||
-                           text.includes('sekonda') || text.includes('watch winder') ||
-                           text.includes('discount on watches') || text.includes('off watches');
-    if (isJewelryWatch) {
-      console.log(`[Watch Order Context] Excluded jewelry: "${r.name?.substring(0, 50)}..."`);
+    const merchant = (r.merchant || '').toLowerCase();
+    const isJewelryMerchant = JEWELRY_WATCH_MERCHANTS.some(m => merchant.includes(m));
+    if (isJewelryMerchant) {
+      console.log(`[Watch Order Context] Excluded jewelry merchant: "${r.merchant}"`);
       return false;
     }
     return true;
   });
 }
 
-// Check if query has "break" context (chapter breaks, not holiday breaks)
+// Check if query is specifically about chapter/movie breaks (not holiday breaks)
 function hasBreakContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return (q.includes('chapter break') || q.includes('runtime') || 
-          q.includes('toilet break') || q.includes('intermission') ||
-          q.includes('interval'));
+  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Specific patterns for movie runtime breaks
+  return (q.includes('chapter break') || q.includes('toilet break') || 
+          q.includes('intermission') || q.includes('movie break'));
 }
 
-// Filter results for break context queries
+// Filter for break context - only remove explicit travel/holiday merchants
+const HOLIDAY_TRAVEL_MERCHANTS = [
+  'lastminute', 'expedia', 'booking.com', 'trivago', 'jet2', 
+  'easyjet', 'ryanair', 'tui', 'haven', 'pontins'
+];
 function filterForBreakContext(results: any[]): any[] {
   return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
-    // Exclude holiday/travel breaks
-    const isHolidayBreak = text.includes('holiday') || text.includes('hotel') ||
-                           text.includes('easter break') || text.includes('city break') ||
-                           text.includes('off stays') || text.includes('travel');
-    if (isHolidayBreak) {
-      console.log(`[Break Context] Excluded holiday: "${r.name?.substring(0, 50)}..."`);
+    const merchant = (r.merchant || '').toLowerCase();
+    const name = (r.name || '').toLowerCase();
+    // Only exclude if merchant is travel OR product is a holiday package
+    const isTravelMerchant = HOLIDAY_TRAVEL_MERCHANTS.some(m => merchant.includes(m));
+    const isHolidayPackage = name.includes('holiday package') || name.includes('city break deal');
+    if (isTravelMerchant || isHolidayPackage) {
+      console.log(`[Break Context] Excluded travel: "${r.name?.substring(0, 50)}..."`);
       return false;
     }
     return true;

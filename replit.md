@@ -73,15 +73,18 @@ Key architectural decisions and features include:
       - Expanded INAPPROPRIATE_TERMS with 25+ alcohol terms (gin gift, wine subscription, bottle club, save on gin/wine/whisky)
       - Added BLOCKED_MERCHANTS kill-list: 16 merchants banned entirely (Bottle Club, Naked Wines, Virgin Wines, Majestic Wine, Beer Hawk, etc.)
       - filterInappropriateContent() now checks BOTH content terms AND merchant names
+      - Promotion filtering in awin.ts and cj.ts blocks STI testing, ED pills, alcohol ads at cache time (9+ blocked)
     - **PHASE 2 - Search Quality**:
       - deduplicateResults(): Removes duplicate products using ID or name+merchant key, skips entries without names
       - applyMerchantCaps(): Limits any merchant to max 2 results per query (fixes PoundFun in 126 queries)
       - filterFallbackSpam(): Removes known spam patterns (Gifting at Clarks, 10% off Organic Baby) with normalized matching
-      - Enhanced KNOWN_FALLBACKS with CTO's reported patterns, normalized without punctuation
+      - Enhanced KNOWN_FALLBACKS with 25+ CTO's reported patterns: organic baby, treetop challenge, honor choice/magic/pad
     - **PHASE 3 - Context Awareness**:
       - hasBlindContext() + filterForBlindContext(): "blind character" → NOT window blinds
       - hasFilmContext() + filterForFilmContext(): "feelings film" → movies, not shoe sales
       - hasGenderContext() + filterForGenderContext(): "dunno what to get him" → NOT "Gifts for Her"
+      - hasWatchOrderContext() + filterForWatchOrderContext(): "MCU watch order" → NOT Sekonda watches (explicit merchant list)
+      - hasBreakContext() + filterForBreakContext(): "chapter break" → NOT Jet2 holidays (explicit travel merchant list)
       - GENDER_EXCLUSION_MAP: 16 gender keywords (him/her/boy/girl/son/daughter/etc.) with exclusion lists
     - **Relevance Scorer Updates**: Same expanded blocklists in server/services/relevance-scorer.ts for AI audit scoring
 
