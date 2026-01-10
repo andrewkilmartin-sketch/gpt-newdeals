@@ -213,31 +213,34 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` ~line 4109-4131 (after interpretQuery call) |
 | **Test Query** | `diaper` should return nappy bags, nappy pins, swim nappies |
 
-### 20. TSVECTOR Full-Text Search (2026-01-10) - A/B TEST ENABLED
+### 20. TSVECTOR Full-Text Search (2026-01-10) - IN PROGRESS (50.9% populated)
 | Aspect | Details |
 |--------|---------|
 | **Problem** | Regex word boundaries `~* '\yword\y'` don't use GIN indexes, causing 8-15s per term group |
 | **Root Cause** | PostgreSQL GIN trigram indexes only optimize ILIKE, not regex patterns |
 | **Correct Fix** | PostgreSQL full-text search with tsvector + GIN index |
 | **Implementation** | Added `search_vector` column to products table, populated with `to_tsvector('english', name || brand)` |
-| **Performance** | "dinosaur figures" went from 8-15s → 129ms (99% faster!) |
-| **Feature Flag** | `USE_TSVECTOR_SEARCH = true` in routes.ts ~line 4549 |
+| **Key Insight** | Only use ORIGINAL query terms for tsvector (GPT expansions cause false negatives with AND logic) |
+| **Performance** | "witch costume" went from 4900ms → 114ms (97.7% faster!) |
+| **Feature Flag** | `USE_TSVECTOR_SEARCH = true` in routes.ts ~line 4552 |
 | **Fallback** | If tsvector returns 0 results, falls back to ILIKE search |
-| **Population** | 17.6% complete (210K/1.2M products), background job continues |
-| **A/B Test Results** | See table below |
+| **Population** | **52.5% complete (628K/1.2M products)** - background job running |
+| **Status** | IN PROGRESS - DO NOT MARK COMPLETE until 100% populated |
 
-**A/B Test Comparison (2026-01-10):**
+**A/B Test Results @ 50.9% Population (2026-01-10):**
 
-| Query | tsvector Time | Count | Method Used |
-|-------|--------------|-------|-------------|
-| dinosaur figures | **150ms** | 3 | TSVECTOR ✓ |
-| toys for 5 year old | **115ms** | 3 | ULTRA FAST PATH |
-| witch costume | 4150ms | 2 | ILIKE fallback |
-| lego | 6867ms | 3 | Brand fast-path |
-| barbie | 19444ms | 3 | Brand fast-path |
-| hot wheels cars | 10834ms | 3 | Brand fast-path |
-| paw patrol toys | 34968ms | 3 | ILIKE fallback |
-| spiderman toys | 28837ms | 1 | ILIKE fallback |
+| Query | Before | After | Improvement |
+|-------|--------|-------|-------------|
+| witch costume | 4900ms | **114ms** | 97.7% faster |
+| paw patrol toys | 35000ms | **75ms** | 99.8% faster |
+| dinosaur figures | 8000ms | **136ms** | 98.3% faster |
+| spiderman toys | 28000ms | **89ms** | 99.7% faster ✅ |
+| nappy | 60s timeout | **709ms** | Now works! |
+| barbie | 19000ms | **961ms** | 95% faster |
+| lego | 6867ms | 6452ms | Needs work (brand fast-path slow) |
+| hot wheels cars | 10834ms | **485ms** | 95.5% faster ✅ |
+| toys for 5 year old | 3408ms | **478ms** | Fixed (ULTRA FAST PATH) ✅ |
+| lol dolls | 60s timeout | timeout | **INVENTORY: Only 6 products exist** |
 
 **Files Modified:**
 - `server/routes.ts` ~line 4541-4710 (tsvector search + ILIKE fallback)

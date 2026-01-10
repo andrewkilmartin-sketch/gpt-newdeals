@@ -1211,8 +1211,11 @@ function correctTypos(query: string): { corrected: string; wasCorrected: boolean
   let wasCorrected = false;
   
   for (const [typo, correction] of Object.entries(TYPO_CORRECTIONS)) {
-    if (corrected.includes(typo)) {
-      corrected = corrected.replace(new RegExp(typo, 'gi'), correction);
+    // FIX: Use word boundary regex to prevent partial matches
+    // e.g., "hot wheel" shouldn't match "hot wheels" (creates "hot wheelss")
+    const wordBoundaryRegex = new RegExp(`\\b${typo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    if (wordBoundaryRegex.test(corrected)) {
+      corrected = corrected.replace(wordBoundaryRegex, correction);
       wasCorrected = true;
       console.log(`[Typo Fix] Corrected "${typo}" → "${correction}" in query`);
     }
@@ -4549,14 +4552,26 @@ Format: ["id1", "id2", ...]`
         const USE_TSVECTOR_SEARCH = true; // ENABLED: Fix #19 tsvector for <500ms search
         
         if (USE_TSVECTOR_SEARCH) {
-          // Collect all search terms from all term groups
+          // FIX: Only use ORIGINAL query terms for tsvector (not GPT expansions)
+          // plainto_tsquery uses AND logic - too many terms = zero results
+          // GPT expansions ("dress up", "halloween") may not be in product names
+          // Example: "witch costume" matches, but "witch costume dress halloween" fails
           const allTerms = new Set<string>();
-          for (const termGroup of interpretation.searchTerms) {
-            for (const term of termGroup) {
+          
+          // Add ORIGINAL query words (e.g., "witch costume")
+          const originalWords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+          originalWords.forEach((w: string) => allTerms.add(w));
+          
+          // Also add mustHaveAll terms (character names, key terms)
+          if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
+            for (const term of interpretation.mustHaveAll) {
               const words = term.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
               words.forEach((w: string) => allTerms.add(w));
             }
           }
+          
+          // REMOVED: GPT-expanded terms (they cause false negatives with AND logic)
+          // The ILIKE fallback handles cases where tsvector returns 0
           
           if (allTerms.size > 0) {
             // Build tsvector query: all terms must match (AND logic)
