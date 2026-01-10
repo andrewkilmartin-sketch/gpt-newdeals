@@ -36,6 +36,12 @@ import {
   trackUpsellClick, 
   seedDefaultMappings 
 } from "./services/upsell";
+import { 
+  parseQuery, 
+  applyQueryFilters, 
+  getRequiredSearchTerms,
+  ParsedQuery 
+} from "./services/queryParser";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
@@ -3535,6 +3541,22 @@ Format: ["id1", "id2", ...]`
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
       const openaiKey = process.env.OPENAI_API_KEY;
       
+      // MEGA-FIX 10: QUERY PARSING - Extract age, gender, character from query
+      // This prevents "toys for newborn" and "toys for teenager" returning identical results
+      const parsedQuery: ParsedQuery = parseQuery(query);
+      if (parsedQuery.ageMin !== null || parsedQuery.ageMax !== null) {
+        console.log(`[Shop Search] PARSED: age=${parsedQuery.ageMin}-${parsedQuery.ageMax}`);
+      }
+      if (parsedQuery.gender) {
+        console.log(`[Shop Search] PARSED: gender=${parsedQuery.gender}`);
+      }
+      if (parsedQuery.character) {
+        console.log(`[Shop Search] PARSED: character="${parsedQuery.character}"`);
+      }
+      if (parsedQuery.priceMax) {
+        console.log(`[Shop Search] PARSED: priceMax=£${parsedQuery.priceMax}`);
+      }
+      
       // MEGA-FIX 9: TYPO TOLERANCE - Fix common misspellings before search
       const typoResult = correctTypos(query);
       let workingQuery = typoResult.corrected;
@@ -4309,6 +4331,19 @@ ONLY use IDs from the list. Never invent IDs.`
       selectedProducts = applySearchQualityFilters(selectedProducts, query);
       if (selectedProducts.length < preFilterCount) {
         console.log(`[Shop Search] Quality filter: ${preFilterCount} → ${selectedProducts.length} results for "${query}"`);
+      }
+      
+      // MEGA-FIX 10: Apply age, gender, character, price, and diversity filters
+      // This ensures "toys for newborn" returns baby toys and "toys for teenager" returns teen-appropriate items
+      const preAgeFilterCount = selectedProducts.length;
+      selectedProducts = applyQueryFilters(selectedProducts, parsedQuery);
+      if (selectedProducts.length < preAgeFilterCount) {
+        const filterReasons: string[] = [];
+        if (parsedQuery.ageMin !== null || parsedQuery.ageMax !== null) filterReasons.push(`age ${parsedQuery.ageMin}-${parsedQuery.ageMax}`);
+        if (parsedQuery.gender) filterReasons.push(`gender=${parsedQuery.gender}`);
+        if (parsedQuery.character) filterReasons.push(`character=${parsedQuery.character}`);
+        if (parsedQuery.priceMax) filterReasons.push(`price≤£${parsedQuery.priceMax}`);
+        console.log(`[Shop Search] Age/Context filter: ${preAgeFilterCount} → ${selectedProducts.length} (${filterReasons.join(', ')})`);
       }
 
       const hasMore = (safeOffset + selectedProducts.length) < totalCandidates;
