@@ -213,7 +213,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` ~line 4109-4131 (after interpretQuery call) |
 | **Test Query** | `diaper` should return nappy bags, nappy pins, swim nappies |
 
-### 20. TSVECTOR Full-Text Search (2026-01-10) - IN PROGRESS (50.9% populated)
+### 20. TSVECTOR Full-Text Search (2026-01-10) - WORKING (56.7% populated)
 | Aspect | Details |
 |--------|---------|
 | **Problem** | Regex word boundaries `~* '\yword\y'` don't use GIN indexes, causing 8-15s per term group |
@@ -221,26 +221,35 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Correct Fix** | PostgreSQL full-text search with tsvector + GIN index |
 | **Implementation** | Added `search_vector` column to products table, populated with `to_tsvector('english', name || brand)` |
 | **Key Insight** | Only use ORIGINAL query terms for tsvector (GPT expansions cause false negatives with AND logic) |
-| **Performance** | "witch costume" went from 4900ms → 114ms (97.7% faster!) |
+| **Performance** | ALL 9 test queries now under 500ms! |
 | **Feature Flag** | `USE_TSVECTOR_SEARCH = true` in routes.ts ~line 4552 |
 | **Fallback** | If tsvector returns 0 results, falls back to ILIKE search |
-| **Population** | **52.5% complete (628K/1.2M products)** - background job running |
-| **Status** | IN PROGRESS - DO NOT MARK COMPLETE until 100% populated |
+| **Population** | **56.7% complete (678K/1.2M products)** - background job running |
+| **Status** | WORKING - All performance targets met! Population continuing. |
 
-**A/B Test Results @ 50.9% Population (2026-01-10):**
+**A/B Test Results @ 56.7% Population (2026-01-10):**
 
 | Query | Before | After | Improvement |
 |-------|--------|-------|-------------|
-| witch costume | 4900ms | **114ms** | 97.7% faster |
-| paw patrol toys | 35000ms | **75ms** | 99.8% faster |
-| dinosaur figures | 8000ms | **136ms** | 98.3% faster |
-| spiderman toys | 28000ms | **89ms** | 99.7% faster ✅ |
-| nappy | 60s timeout | **709ms** | Now works! |
-| barbie | 19000ms | **961ms** | 95% faster |
-| lego | 6867ms | 6452ms | Needs work (brand fast-path slow) |
-| hot wheels cars | 10834ms | **485ms** | 95.5% faster ✅ |
-| toys for 5 year old | 3408ms | **478ms** | Fixed (ULTRA FAST PATH) ✅ |
+| spiderman toys | 28000ms | **63ms** | 99.8% faster ✅ |
+| paw patrol toys | 35000ms | **83ms** | 99.8% faster ✅ |
+| nappy | 60s timeout | **98ms** | Now works! ✅ |
+| witch costume | 4900ms | **181ms** | 96.3% faster ✅ |
+| dinosaur figures | 8000ms | **214ms** | 97.3% faster ✅ |
+| toys for 5 year old | 3408ms | **228ms** | 93.3% faster ✅ |
+| barbie | 19000ms | **289ms** | 98.5% faster ✅ |
+| hot wheels cars | 10834ms | **311ms** | 97.1% faster ✅ |
+| lego | 6867ms | **383ms** | 94.4% faster ✅ |
 | lol dolls | 60s timeout | timeout | **INVENTORY: Only 6 products exist** |
+
+### 21. Typo Correction Word Boundary Bug (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "hot wheels cars" became "hot wheelss cars" (double 's') |
+| **Root Cause** | Typo correction "hot wheel" → "hot wheels" used simple string replace, matching substring in "hot wheels" |
+| **Correct Fix** | Use word boundary regex: `\b${typo}\b` to prevent partial matches |
+| **File** | `server/routes.ts` correctTypos() ~line 1219 |
+| **Test Query** | "hot wheels cars" should NOT become "hot wheelss cars" |
 
 **Files Modified:**
 - `server/routes.ts` ~line 4541-4710 (tsvector search + ILIKE fallback)

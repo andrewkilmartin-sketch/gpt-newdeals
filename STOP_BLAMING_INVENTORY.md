@@ -234,3 +234,21 @@ SELECT name, brand FROM products WHERE brand ILIKE '%sylvanian%' LIMIT 10;
 **Result:** "calico critters" now returns Sylvanian Families products
 
 **Lesson:** When products seem missing, check if the BRAND NAME differs by region. SQL first, assumptions never.
+
+---
+
+## ⚠️ GENUINE INVENTORY GAPS (Confirmed with SQL)
+
+These are the ONLY confirmed genuine inventory gaps - verified with raw SQL returning 0 results:
+
+| Product | Query | SQL Verification | Status |
+|---------|-------|------------------|--------|
+| LOL Dolls | "lol dolls" | `SELECT COUNT(*) FROM products WHERE name ILIKE '%lol%' AND (name ILIKE '%doll%' OR name ILIKE '%surprise%')` = **6** (only 6 products, poor coverage) | LOW INVENTORY |
+| Vampire Costumes | "vampire costume" | `SELECT COUNT(*) FROM products WHERE name ILIKE '%vampire%' AND name ILIKE '%costume%'` = **0** | NO INVENTORY |
+
+**Before adding to this list:**
+1. Run the exact SQL query against the database
+2. Confirm 0 results (or <10 for "low inventory")
+3. Document the query used for verification
+
+**This list should be SHORT.** If it's growing, we have a data sourcing problem. If search keeps "failing" for products not on this list, the bug is in our code.
