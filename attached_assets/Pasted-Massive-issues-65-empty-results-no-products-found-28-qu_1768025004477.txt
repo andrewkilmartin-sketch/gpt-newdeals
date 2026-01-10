@@ -1,0 +1,316 @@
+Massive issues:
+
+65 empty results (no products found)
+28 queries returning same CYBEX pushchair
+25 queries returning same LEGO Mini Cooper
+20 queries returning M&S school skirt
+What queries return CYBEX pushchair?bashgrep "CYBEX Priam Cloud T Premium" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1}' | head -30Output"baby dolls"
+"baby annabell"
+"stem toys"
+"baby books"
+"non fiction kids"
+"baby clothes"
+"baby gear"
+"baby car seat"
+"baby carrier"
+"baby wrap"
+"travel cot"
+"baby mattress"
+"baby monitor"
+"baby blanket"
+"baby bouncer"
+"baby swing"
+"baby gym"
+"baby toys"
+"travel high chair"
+"baby oil"
+"baby lotion"
+"natural history museum"
+"travel toys"
+"travel pillow kids"
+"travel games"
+"travel journal"
+"travel potty"
+"travel blackout blind"
+What queries return NO results?bashgrep '""' /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1}' | head -30Output"toys for 3 year old"
+"toys for 4 year old"
+"toys for 5 year old"
+"toys for 6 year old"
+"toys for 7 year old"
+"toys for 8 year old"
+"toys for 9 year old"
+"toys for 10 year old"
+"toys for 1 year old"
+"toys for 2 year old"
+"toys for toddler"
+"toys for baby"
+"toys for newborn"
+"toys for teenager"
+"gifts for 3 year old boy"
+"gifts for 3 year old girl"
+"gifts for 5 year old boy"
+"gifts for 5 year old girl"
+"gifts for 7 year old boy"
+"gifts for 7 year old girl"
+"gifts for 10 year old boy"
+"gifts for 10 year old girl"
+"birthday present 4 year old"
+"birthday present 6 year old"
+"birthday present 8 year old"
+"christmas gift for kids"
+"christmas toys"
+"stocking fillers"
+"stocking fillers for kids"
+"stocking fillers under £5"
+Wait - those aren't empty, let me check differently:Find actually empty product1bashawk -F',' '$9 == "\"\"" {print $1}' /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | head -30Output"roblox gift card"
+"roblox toys"
+"sylvanian families"
+"sylvanian house"
+"matchbox cars"
+"nerf gun"
+"nerf bullets"
+"paddling pool"
+"frisbee"
+"magnatiles"
+"microscope for kids"
+"playdough"
+"pottery kit"
+"aquabeads"
+"scrabble junior"
+"jenga"
+"buckaroo"
+"ludo"
+"croquet set"
+"phonics books"
+"roald dahl"
+"wordsearch kids"
+"sudoku kids"
+"pjs kids"
+"tommee tippee"
+"dummies"
+"teethers"
+"swaddle"
+"grobag"
+"bumbo"
+Count empty resultsbashawk -F',' '$9 == "\"\"" {print $1}' /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | wc -lOutput65
+65 queries with ZERO results! Including major brands:All empty result queriesbashawk -F',' '$9 == "\"\"" {print $1}' /mnt/user-data/uploads/audit-results-2026-01-10__11_.csvOutput"roblox gift card"
+"roblox toys"
+"sylvanian families"
+"sylvanian house"
+"matchbox cars"
+"nerf gun"
+"nerf bullets"
+"paddling pool"
+"frisbee"
+"magnatiles"
+"microscope for kids"
+"playdough"
+"pottery kit"
+"aquabeads"
+"scrabble junior"
+"jenga"
+"buckaroo"
+"ludo"
+"croquet set"
+"phonics books"
+"roald dahl"
+"wordsearch kids"
+"sudoku kids"
+"pjs kids"
+"tommee tippee"
+"dummies"
+"teethers"
+"swaddle"
+"grobag"
+"bumbo"
+"rattles"
+"pampers"
+"huggies"
+"weaning"
+"weaning spoons"
+"placemat kids"
+"teething gel"
+"calpol"
+"nurofen kids"
+"plasters kids"
+"sudocrem"
+"bepanthen"
+"petting farm"
+"legoland"
+"chessington"
+"paultons park"
+"edinburgh zoo"
+"knowsley safari"
+"longleat"
+"woburn safari"
+"whipsnade"
+"marwell zoo"
+"colchester zoo"
+"twycross zoo"
+"warwick castle"
+"edinburgh castle"
+"stonehenge"
+"cadbury world"
+"shrek adventure"
+"pantomime"
+"pottery party"
+"piñata"
+"audiobooks kids"
+"tonies"
+"trunki"
+MAJOR GAPS:
+Big Brands with ZERO results:
+
+roblox
+sylvanian families
+nerf
+playdough
+aquabeads
+jenga
+roald dahl
+tommee tippee
+pampers
+huggies
+calpol
+
+Major Attractions with ZERO results:
+
+legoland
+chessington
+longleat
+woburn safari
+warwick castle
+cadbury world
+What returns M&S school skirt?bashgrep "M&S Girls' Cotton Rich Skater School Skirt" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1}' | head -25Output"school uniform"
+"school shoes"
+"school shoes boys"
+"school shoes girls"
+"school trainers"
+"school plimsolls"
+"school bag"
+"school backpack"
+"school trousers"
+"school skirt"
+"school dress"
+"school shirt"
+"school polo shirt"
+"school jumper"
+"school cardigan"
+"school coat"
+"school shoes size 1"
+"school shoes size 2"
+"school shoes size 3"
+"school shoes size 13"
+20 school queries ALL returning same skirt - including "school shoes boys" returning a GIRLS SKIRT!Check party queriesbashgrep "party" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1 " → " $9}' | head -20Output"party bag fillers" → "Disney Party Invitations In Yellow"
+"party bag toys" → "Disney Party Invitations In Yellow"
+"cheap toys for party bags" → "Dirty Deeds Done Cheap Just Dial T-Shirt"
+"kids party venue" → "Nike Dri-FIT Academy Kids' Football Shorts - Black - Polyest"
+"party ideas" → "Disney Party Invitations In Yellow"
+"soft play party" → "Gildan  Softstyle  boys's Children's fleece jacket in Blue"
+"swimming party" → "Just Add Water : My Swimming Life"
+"trampoline party" → "12FT Outdoor Trampoline Exercise Fitness Bounce Jump Trampol"
+"bowling party" → "'Shift' Formal Bowling Style Shoes"
+"cinema party" → "Disney
+"football party" → "Vidaxl Football Goal With Net White&#38;black 184X61X123 Cm "
+"pamper party" → "Debenhams Hair Pampering Set 50Ml"
+"disco party" → "Debenhams Let's Go Disco 7-Piece Nail Polish Gift Set"
+"arts and crafts party" → "LEGO Harry Potter: Beauxbatons Carriage at Hogwarts (75958)"
+"science party" → "10 to 25 : The Science of Motivating Young People"
+"cooking party" → "Kids Kitchen Play Cooking Toy Set with Sink Cooking Bench fo"
+"pottery party" → ""
+"build a bear party" → "LEGO DC Batman Batcave Clayface Invasion Building Toys (7612"
+"entertainer for party" → "Harry Potter Dobby Soft Toy"
+"magician for party" → "The Geomagician"
+Party queries are chaos:
+
+"cheap toys for party bags" → "Dirty Deeds Done Cheap" T-SHIRT
+"kids party venue" → Nike football shorts ???
+"bowling party" → Bowling SHOES not party
+"build a bear party" → LEGO Batman ???
+Check sports/outdoor queriesbashgrep -E "\"bike|\"scooter|\"skateboard|\"helmet" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1 " → " $9}'Output"bike for kids" → "Boucle Biker Coat"
+"bike for 5 year old" → "Boucle Biker Coat"
+"bike with stabilisers" → "Boucle Biker Coat"
+"scooter" → "HOMCOM Kids 90-96cm Kick Scooter - Blue
+"scooter for 3 year old" → "HOMCOM Kids 90-96cm Kick Scooter - Blue
+"skateboard for kids" → "Last Days of Summer : California Skateboarding Archive 1975–"
+"helmet for kids" → "Iron Man Helmet 3D Puzzle"
+"bike helmet" → "Boucle Biker Coat"
+More disasters:
+
+"bike for kids" → BIKER COAT (clothing, not bike!)
+"bike for 5 year old" → BIKER COAT
+"skateboard for kids" → SKATEBOARDING BOOK
+"helmet for kids" → Iron Man 3D PUZZLE
+"bike helmet" → BIKER COAT again
+Check book queriesbashgrep -E "\"book|\"books" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1 " → " $9}' | head -15Output"books for kids" → "The Holiday Bookshop"
+"books for 5 year old" → "The Holiday Bookshop"
+"books for 7 year old" → "The Holiday Bookshop"
+"books for 10 year old" → "The Holiday Bookshop"
+"book bag" → "LEGO Friends: Mini Pocket Book (5002111)"
+"bookshelf kids" → "5-Tier Bookshelf Modern Bookcase Storage Shelving for Home O"
+
+"books for 5 year old" → "The Holiday Bookshop" (ADULT NOVEL)
+"books for 10 year old" → "The Holiday Bookshop" (same adult novel)
+How many actual FAILs?bashgrep "FAIL" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | wc -lOutput0
+ZERO FAILS - everything passed despite being completely wrong.Count verdictsbashawk -F',' 'NR>1 {print $2}' /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | sort | uniq -cOutput     66 INVENTORY_GAP
+    734 PASS
+What's flagged as inventory gap?bashgrep "INVENTORY_GAP" /mnt/user-data/uploads/audit-results-2026-01-10__11_.csv | awk -F',' '{print $1}' | head -20Output"roblox gift card"
+"roblox toys"
+"sylvanian families"
+"sylvanian house"
+"matchbox cars"
+"nerf gun"
+"nerf bullets"
+"paddling pool"
+"frisbee"
+"magnatiles"
+"microscope for kids"
+"playdough"
+"pottery kit"
+"aquabeads"
+"scrabble junior"
+"jenga"
+"buckaroo"
+"ludo"
+"croquet set"
+"phonics books"
+Good - at least empty results are flagged. Now let me create the summary:Creating analysis of the full audit resultsSUNNY_AUDIT_FULL_ANALYSIS.mdPresented fileIt's Worse Than I Thought
+The Numbers:
+
+734 PASS / 0 FAIL - audit is useless, wrong results pass
+66 INVENTORY_GAP - major brands missing
+Same product returned 28+ times for unrelated queries
+
+
+NEW Major Problems Found:
+1. Substring Matching Disaster:
+QueryGotWhy"bike for kids"Boucle Biker Coat"bik" matched "biker""skateboard for kids"Skateboarding Book"bowling party"Bowling Shoes"cheap toys""Dirty Deeds Done Cheap" T-shirt
+2. Major Brands MISSING (zero results):
+
+nerf, roblox, sylvanian families
+playdough, aquabeads, jenga
+pampers, huggies, tommee tippee, calpol
+legoland, chessington, longleat, cadbury world
+
+3. Wrong Gender:
+
+"school shoes boys" → Girls Skirt (!)
+
+
+The Core Problem:
+Search is doing:
+sqlWHERE title LIKE '%bike%'   -- matches "biker" coat
+Should be doing:
+sqlWHERE title REGEXP '\bbike\b'  -- only matches "bike" as word
+
+Fix Priority:
+TODAY:
+
+Word boundary matching (bike ≠ biker)
+Add missing brand inventory
+
+THIS WEEK:
+3. Age filtering
+4. Character must-match
+5. Diversity limits
+Full analysis in the doc. This isn't tuning - the search architecture is broken.

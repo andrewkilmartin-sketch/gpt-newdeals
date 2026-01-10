@@ -6265,11 +6265,12 @@ ONLY use IDs from the list. Never invent IDs.`
   });
   
   // Run full audit - check queries against search API and score relevance
+  // V2: Uses queryParser for real scoring per CTO spec
   app.post("/api/audit/run", async (req, res) => {
     try {
       const { queries, check_relevance = true, limit = 10, use_ai_scoring = false } = req.body;
       
-      console.log(`[Audit] Starting audit for ${queries?.length || 0} queries, use_ai_scoring=${use_ai_scoring}`);
+      console.log(`[Audit V2] Starting audit for ${queries?.length || 0} queries, use_ai_scoring=${use_ai_scoring}`);
       
       if (!queries || !Array.isArray(queries)) {
         return res.status(400).json({ error: 'queries array required' });
@@ -6280,6 +6281,24 @@ ONLY use IDs from the list. Never invent IDs.`
       if (use_ai_scoring) {
         const scorer = await import('./services/relevance-scorer');
         scoreResults = scorer.scoreResults;
+      }
+      
+      // Helper: estimate product age from title/description
+      function estimateProductAge(product: any): number | null {
+        const text = ((product.name || product.title || '') + ' ' + (product.description || '')).toLowerCase();
+        const ageMatch = text.match(/(\d+)\+/) || text.match(/ages?\s*(\d+)/);
+        if (ageMatch) return parseInt(ageMatch[1]);
+        if (text.includes('duplo') || text.includes('toddler')) return 2;
+        if (text.includes('baby') || text.includes('infant') || text.includes('newborn')) return 0;
+        if (text.includes('teen') || text.includes('teenage')) return 14;
+        return null;
+      }
+      
+      // Helper: check age appropriateness
+      function isAgeAppropriate(productAge: number | null, queryAge: number | null): boolean | null {
+        if (productAge === null || queryAge === null) return null; // Can't determine
+        const diff = Math.abs(productAge - queryAge);
+        return diff <= 3; // Within 3 years is appropriate
       }
       
       const results: any[] = [];
@@ -6294,6 +6313,9 @@ ONLY use IDs from the list. Never invent IDs.`
         const expected_brand = isStringQuery ? undefined : testQuery.expected_brand;
         const expected_character = isStringQuery ? undefined : testQuery.expected_character;
         const category = isStringQuery ? undefined : testQuery.category;
+        
+        // V2: Parse query to extract age, gender, character, price, productType
+        const parsed = parseQuery(query);
         
         // Skip empty queries
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -6325,97 +6347,130 @@ ONLY use IDs from the list. Never invent IDs.`
           console.error(`[Audit] DB check failed for "${query}":`, e);
         }
         
-        // Step 2: Run search API - use PRODUCTS search, not promotions
+        // Step 2: Run ACTUAL search API to test the full pipeline (including MEGA-FIX 10)
         let searchResults: any[] = [];
         let searchTime = 0;
         try {
           const searchStart = Date.now();
-          // Use internal product search (same as /api/shop/search) instead of fetchAwinProducts (promotions)
-          const { db } = await import('./db');
-          const { products: productsTable } = await import('@shared/schema');
-          const { ilike, or, sql: sqlTag } = await import('drizzle-orm');
+          // Call actual /api/shop/search endpoint internally via HTTP
+          const searchResponse = await fetch(`http://localhost:5000/api/shop/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, limit })
+          });
           
-          // Simple keyword search on products table - with MEGA-FIX 4 synonym expansion
-          const rawTerms = query.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
-          const searchTerms = expandQueryWithSynonyms(query);
-          let productQuery = db.select({
-            id: productsTable.id,
-            name: productsTable.name,
-            description: productsTable.description,
-            price: productsTable.price,
-            merchant: productsTable.merchant,
-            brand: productsTable.brand,
-            category: productsTable.category,
-            imageUrl: productsTable.imageUrl,
-            affiliateLink: productsTable.affiliateLink
-          }).from(productsTable);
-          
-          if (searchTerms.length > 0) {
-            const conditions = searchTerms.map((term: string) => 
-              or(
-                ilike(productsTable.name, `%${term}%`),
-                ilike(productsTable.brand, `%${term}%`)
-              )
-            );
-            productQuery = productQuery.where(sqlTag`${conditions[0]}`) as any;
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            searchTime = Date.now() - searchStart;
+            
+            // Map products to expected format
+            searchResults = (searchData.products || []).map((p: any) => ({
+              title: p.name,
+              name: p.name,
+              description: p.description || '',
+              salePrice: p.price,
+              price: p.price,
+              merchant: p.merchant,
+              brand: p.brand,
+              category: p.category,
+              imageUrl: p.imageUrl || p.image,
+              link: p.affiliateLink || p.link
+            }));
+          } else {
+            console.error(`[Audit] Search API returned ${searchResponse.status}`);
           }
-          
-          const dbProducts = await productQuery.limit(limit);
-          searchTime = Date.now() - searchStart;
-          
-          // Map to expected format
-          searchResults = dbProducts.map((p: any) => ({
-            title: p.name,
-            name: p.name,
-            description: p.description,
-            salePrice: p.price,
-            price: p.price,
-            merchant: p.merchant,
-            brand: p.brand,
-            category: p.category,
-            imageUrl: p.imageUrl,
-            link: p.affiliateLink
-          }));
         } catch (e) {
-          console.error(`[Audit] Search failed for "${query}":`, e);
+          console.error(`[Audit] Search API failed for "${query}":`, e);
         }
         
-        // Step 3: Score relevance
+        // Step 3: V2 Score relevance using queryParser extracted data
         let relevantCount = 0;
         const scoredProducts: any[] = [];
+        
+        // V2 aggregate counters
+        let characterMatches = 0;
+        let ageMatches = 0;
+        let priceMatches = 0;
+        let ageCheckable = 0; // products with detectable age
+        const brandSet = new Set<string>();
+        const titleSet = new Set<string>();
+        let duplicateCount = 0;
         
         for (const product of searchResults) {
           const productText = `${product.title} ${product.description || ''} ${product.merchant || ''}`.toLowerCase();
           let isRelevant = true;
           const issues: string[] = [];
           
-          // Check required keywords
+          // Track brand diversity
+          const brand = (product.brand || product.merchant || 'Unknown').toLowerCase();
+          brandSet.add(brand);
+          
+          // Track duplicates
+          const normalizedTitle = (product.title || '').toLowerCase().trim();
+          if (titleSet.has(normalizedTitle)) {
+            duplicateCount++;
+          } else {
+            titleSet.add(normalizedTitle);
+          }
+          
+          // V2: Score character match - check name, description, AND brand
+          let matchesCharacter: boolean | null = null;
+          if (parsed.character) {
+            const charLower = parsed.character.toLowerCase();
+            const brandLower = (product.brand || '').toLowerCase();
+            // Match if character is in text OR if brand contains the character name
+            matchesCharacter = productText.includes(charLower) || brandLower.includes(charLower);
+            if (matchesCharacter) {
+              characterMatches++;
+            } else {
+              issues.push(`Missing character: ${parsed.character}`);
+            }
+          }
+          
+          // V2: Score age appropriateness
+          let matchesAge: boolean | null = null;
+          const productAge = estimateProductAge(product);
+          const queryAge = parsed.ageMin !== undefined ? parsed.ageMin : null;
+          if (queryAge !== null) {
+            matchesAge = isAgeAppropriate(productAge, queryAge);
+            if (matchesAge !== null) {
+              ageCheckable++;
+              if (matchesAge) ageMatches++;
+              else issues.push(`Age mismatch: product ${productAge}+, query ${queryAge}`);
+            }
+          }
+          
+          // V2: Score price compliance
+          let matchesPrice: boolean | null = null;
+          const priceLimit = parsed.priceMax !== undefined ? parsed.priceMax : (max_price ? parseFloat(max_price) : null);
+          if (priceLimit && product.salePrice !== undefined) {
+            matchesPrice = product.salePrice <= priceLimit;
+            if (matchesPrice) {
+              priceMatches++;
+            } else {
+              issues.push(`Price £${product.salePrice} > £${priceLimit}`);
+            }
+          }
+          
+          // Check required keywords (legacy support)
           if (check_relevance && requiredKws.length > 0) {
             for (const kw of requiredKws) {
               if (!productText.includes(kw)) {
                 isRelevant = false;
                 issues.push(`Missing: ${kw}`);
-                break; // At least one required keyword missing
+                break;
               }
             }
           }
           
-          // Check price constraint
-          if (max_price && product.salePrice > parseFloat(max_price)) {
+          // V2: Determine relevance based on parsed requirements
+          // Character is critical - if specified and missing, not relevant
+          if (parsed.character && !matchesCharacter) {
             isRelevant = false;
-            issues.push(`Price ${product.salePrice} > ${max_price}`);
           }
-          
-          // Check expected brand
-          if (expected_brand && !productText.includes(expected_brand.toLowerCase())) {
+          // Price is critical - if over budget, not relevant  
+          if (priceLimit && matchesPrice === false) {
             isRelevant = false;
-            issues.push(`Not ${expected_brand}`);
-          }
-          
-          // Check expected character
-          if (expected_character && !productText.includes(expected_character.toLowerCase())) {
-            isRelevant = false;
-            issues.push(`Not ${expected_character}`);
           }
           
           if (isRelevant) relevantCount++;
@@ -6424,45 +6479,71 @@ ONLY use IDs from the list. Never invent IDs.`
             name: product.title,
             price: product.salePrice,
             merchant: product.merchant,
+            brand: product.brand || product.merchant,
             description: product.description || '',
+            hasImage: !!product.imageUrl,
+            // V2 per-product scores
+            matchesCharacter,
+            matchesAge,
+            matchesPrice,
+            productAge,
             relevant: isRelevant,
             issues: issues.length > 0 ? issues : undefined
           });
         }
         
-        // Calculate relevance score
+        // V2: Calculate aggregate percentages
+        const n = searchResults.length;
+        const characterMatchPct = parsed.character && n > 0 ? Math.round((characterMatches / n) * 100) : null;
+        const ageMatchPct = ageCheckable > 0 ? Math.round((ageMatches / ageCheckable) * 100) : null;
+        const priceMaxUsed = parsed.priceMax !== undefined ? parsed.priceMax : (max_price ? parseFloat(max_price) : null);
+        const priceMatchPct = priceMaxUsed && n > 0 ? Math.round((priceMatches / n) * 100) : null;
+        const diversityScore = brandSet.size;
+        
+        // Calculate relevance score (legacy)
         const relevanceScore = searchResults.length > 0 ? relevantCount / searchResults.length : 0;
         
-        // Check if TOP result matches all required keywords (most important metric!)
-        const topResultRelevant = scoredProducts.length > 0 && scoredProducts[0].relevant === true;
+        // V2: Calculate weighted overall score per CTO spec
+        // Character: 40 points, Age: 30 points, Price: 20 points, Diversity: 10 points
+        // All percentages (0-100) are normalized to their point contributions
+        let totalScore = 0;
+        let maxScore = 0;
         
-        // Check if brand/character matches but specific product type is missing (inventory gap)
-        const brandMatches = searchResults.length > 0 && searchResults.some((p: any) => {
-          const productText = `${p.title} ${p.description || ''} ${p.merchant || ''}`.toLowerCase();
-          // Check if at least the main brand/character is in the results
-          const queryWords = query.toLowerCase().split(' ');
-          const brandPhrases = ['paw patrol', 'peppa pig', 'star wars', 'hot wheels', 'barbie', 'frozen', 'disney', 'lego', 'marvel', 'dc'];
-          for (const phrase of brandPhrases) {
-            if (query.toLowerCase().includes(phrase) && productText.includes(phrase)) {
-              return true;
-            }
-          }
-          return queryWords.some(w => w.length > 3 && productText.includes(w));
-        });
+        if (parsed.character) {
+          maxScore += 40;
+          // characterMatchPct is 0-100, convert to 0-40 points
+          totalScore += ((characterMatchPct || 0) / 100) * 40;
+        }
+        if (parsed.ageMin !== null || parsed.ageMax !== null) {
+          maxScore += 30;
+          // ageMatchPct is 0-100, convert to 0-30 points
+          totalScore += ((ageMatchPct || 0) / 100) * 30;
+        }
+        if (priceMaxUsed) {
+          maxScore += 20;
+          // priceMatchPct is 0-100, convert to 0-20 points
+          totalScore += ((priceMatchPct || 0) / 100) * 20;
+        }
+        // Diversity always scores (0-10 brands → 0-10 points)
+        maxScore += 10;
+        totalScore += Math.min(diversityScore, 10);
         
-        // Determine status with improved logic
+        const v2Score = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : (n > 0 ? 100 : 0);
+        
+        // V2: Use new verdict logic based on overall score
+        // PASS: ≥70%, PARTIAL: ≥40%, FAIL: <40%
         let status: string;
         let statusNote = '';
         
+        // Check if TOP result matches character (most important for character queries)
+        const topResultRelevant = scoredProducts.length > 0 && scoredProducts[0].relevant === true;
+        
         // Detect inventory gap: 0 results AND 0 products in DB for this query
-        // This means the brand/product simply doesn't exist in our catalog
         const isInventoryGap = searchResults.length === 0 && !dbExists;
         
         if (isInventoryGap) {
-          // Brand doesn't exist in catalog - not a search bug, just missing inventory
           status = 'INVENTORY_GAP';
-          statusNote = `Brand/product not in catalog`;
-          // Don't count as fail - this is a merchandising issue, not search issue
+          statusNote = 'Brand/product not in catalog';
         } else if (searchResults.length === 0 && dbExists) {
           status = 'FAIL';
           statusNote = 'Products exist in DB but search returned nothing';
@@ -6470,35 +6551,17 @@ ONLY use IDs from the list. Never invent IDs.`
         } else if (searchResults.length === 0) {
           status = 'INVENTORY_GAP';
           statusNote = 'No matching products in catalog';
-          // Don't count as fail
-        } else if (topResultRelevant && relevanceScore >= 0.6) {
-          // Top result is relevant AND at least 60% of results match
+        } else if (v2Score >= 70) {
           status = 'PASS';
-          statusNote = 'Top result matches, good relevance';
+          statusNote = `Score ${v2Score}%: Good relevance`;
           passCount++;
-        } else if (topResultRelevant) {
-          // Top result is relevant but other results are less relevant (still a win!)
-          status = 'PASS';
-          statusNote = 'Top result matches query';
-          passCount++;
-        } else if (relevanceScore >= 0.8) {
-          status = 'PASS';
-          passCount++;
-        } else if (!dbExists && relevanceScore === 0) {
-          // No products in DB for this brand AND all results are irrelevant = INVENTORY_GAP
-          status = 'INVENTORY_GAP';
-          statusNote = 'Brand/product not in catalog, search returned unrelated items';
-          // Don't count as fail - this is a merchandising issue
-        } else if (brandMatches && relevanceScore < 0.5) {
-          // Brand matches but specific product type not in inventory
+        } else if (v2Score >= 40) {
           status = 'PARTIAL';
-          statusNote = 'Brand matches, specific product type not in inventory';
-          partialCount++;
-        } else if (relevanceScore >= 0.5) {
-          status = 'PARTIAL';
+          statusNote = `Score ${v2Score}%: Needs improvement`;
           partialCount++;
         } else {
           status = 'FAIL';
+          statusNote = `Score ${v2Score}%: Poor relevance`;
           failCount++;
         }
         
@@ -6559,6 +6622,17 @@ ONLY use IDs from the list. Never invent IDs.`
         results.push({
           query,
           category,
+          // V2: Include parsed query data
+          parsed_query: {
+            age: parsed.ageMin,
+            ageRange: parsed.ageMin !== null || parsed.ageMax !== null 
+              ? `${parsed.ageMin ?? '?'}-${parsed.ageMax ?? '?'}` : null,
+            gender: parsed.gender || null,
+            character: parsed.character || null,
+            priceMax: parsed.priceMax,
+            productType: parsed.productType || null,
+            keywords: parsed.keywords
+          },
           database_check: { exists: dbExists, count: dbCount },
           search_result: {
             count: searchResults.length,
@@ -6568,6 +6642,20 @@ ONLY use IDs from the list. Never invent IDs.`
           analysis: {
             status,
             status_note: statusNote || undefined,
+            // V2: New scoring metrics
+            score: v2Score,
+            breakdown: {
+              characterMatch: characterMatchPct !== null ? `${characterMatchPct}%` : 'N/A',
+              ageMatch: ageMatchPct !== null ? `${ageMatchPct}%` : 'N/A',
+              priceMatch: priceMatchPct !== null ? `${priceMatchPct}%` : 'N/A',
+              diversity: `${diversityScore}/10 brands`
+            },
+            characterMatchPct,
+            ageMatchPct,
+            priceMatchPct,
+            diversityScore,
+            duplicateCount,
+            // Legacy fields
             top_result_relevant: topResultRelevant,
             relevance_score: Math.round(relevanceScore * 100) / 100,
             relevant_count: relevantCount,
