@@ -220,6 +220,37 @@ export async function auditQueryWithScoring(
   };
 }
 
+export async function scoreResults(
+  query: string,
+  products: Array<{ position: number; title: string; merchant: string; price: string; description?: string }>
+): Promise<Array<{ score: number; reason: string; flagged: boolean }>> {
+  const results: Array<{ score: number; reason: string; flagged: boolean }> = [];
+  
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
+    const scored = await scoreResultRelevance(
+      query,
+      { 
+        name: product.title, 
+        merchant: product.merchant, 
+        price: product.price,
+        description: product.description 
+      },
+      i
+    );
+    
+    results.push({
+      score: Math.round(scored.score * 100) / 100,
+      reason: scored.reason,
+      flagged: scored.flagged
+    });
+    
+    await new Promise(r => setTimeout(r, 50));
+  }
+  
+  return results;
+}
+
 export function generateCSV(auditResults: AuditResult[]): string {
   const headers = [
     'query', 'verdict', 'dbCount', 'resultCount', 'avgScore', 'relevancePercent', 

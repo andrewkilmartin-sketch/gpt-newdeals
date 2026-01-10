@@ -174,6 +174,23 @@
             display: inline-block; background: #334155; padding: 2px 8px;
             border-radius: 4px; font-size: 11px; margin-left: 5px;
         }
+        .ai-score {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;
+        }
+        .ai-score.score-5 { background: rgba(34, 197, 94, 0.3); color: #22c55e; }
+        .ai-score.score-4 { background: rgba(52, 211, 153, 0.3); color: #34d399; }
+        .ai-score.score-3 { background: rgba(59, 130, 246, 0.3); color: #3b82f6; }
+        .ai-score.score-2 { background: rgba(234, 179, 8, 0.3); color: #eab308; }
+        .ai-score.score-1 { background: rgba(239, 68, 68, 0.3); color: #ef4444; }
+        .ai-score.score-0 { background: rgba(127, 29, 29, 0.5); color: #fca5a5; }
+        .ai-score.flagged { background: rgba(220, 38, 38, 0.4); color: #fca5a5; border: 1px solid #dc2626; }
+        .ai-reason { font-size: 11px; color: #94a3b8; font-style: italic; margin-left: 8px; }
+        .ai-avg { 
+            display: inline-block; background: rgba(59, 130, 246, 0.2); 
+            color: #60a5fa; padding: 4px 10px; border-radius: 6px; 
+            font-weight: 600; font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -206,6 +223,7 @@ paw patrol toys for 3 year old
             <div class="controls">
                 <button id="runAudit" data-testid="button-run-audit">Run Full Audit</button>
                 <button id="runSample" class="secondary" data-testid="button-run-sample">Run Sample (20)</button>
+                <button id="runAiSample" class="success" data-testid="button-run-ai-sample">AI Score Sample (5)</button>
                 <button id="pauseResume" class="warning hidden" data-testid="button-pause">Pause</button>
                 
                 <div class="filter-row">
@@ -539,31 +557,52 @@ paw patrol toys for 3 year old
             }
         }
         
+        function getAiScoreClass(score) {
+            if (score === undefined || score === null) return 'score-0';
+            if (score < 0) return 'score-0';
+            if (score >= 5) return 'score-5';
+            if (score >= 4) return 'score-4';
+            if (score >= 3) return 'score-3';
+            if (score >= 2) return 'score-2';
+            if (score >= 1) return 'score-1';
+            return 'score-0';
+        }
+        
         function renderResult(result) {
             const verdict = result.verdict || categorizeVerdict(result);
             const statusSlug = verdict.toLowerCase();
             const products = result.search_result?.products || [];
+            const hasAiScoring = result.analysis?.ai_avg_score !== undefined;
             
             return `
                 <div class="result-item ${statusSlug}" data-category="${result.category || ''}" data-status="${statusSlug}">
                     <div class="result-header">
                         <span class="query-text">${result.query}</span>
+                        ${hasAiScoring && !result.analysis.ai_scoring_failed ? 
+                            `<span class="ai-avg">AI: ${result.analysis.ai_avg_score}/5</span>` : 
+                            (result.analysis.ai_scoring_failed ? `<span class="ai-avg" style="background:rgba(239,68,68,0.2);color:#ef4444">AI: ERROR</span>` : '')}
                         <span class="status-badge ${statusSlug}">${verdict}</span>
                     </div>
                     <div class="result-meta">
                         <span>DB: ${result.database_check?.count || 0} products</span>
                         <span>Returned: ${result.search_result?.count || 0}</span>
                         <span>Relevant: ${Math.round((result.analysis?.relevance_score || 0) * 100)}%</span>
-                        <span>Images: ${Math.round((result.analysis?.image_percent || 0) * 100)}%</span>
+                        ${hasAiScoring && result.analysis.ai_flagged_count > 0 ? `<span style="color:#ef4444">Flagged: ${result.analysis.ai_flagged_count}</span>` : ''}
                         <span>Time: ${result.search_result?.time_ms || 0}ms</span>
                     </div>
                     <div class="result-products">
-                        ${products.slice(0, 5).map(p => `
-                            <span class="product-tag ${p.relevant ? 'relevant' : 'irrelevant'}">
-                                ${(p.name || '').substring(0, 40)}${(p.name || '').length > 40 ? '...' : ''} - £${Number(p.price || 0).toFixed(2)}
-                            </span>
+                        ${products.slice(0, 10).map((p, idx) => `
+                            <div style="display:flex; align-items:center; gap:8px; margin:4px 0; padding:6px; background:#1e293b; border-radius:6px;">
+                                <span style="color:#64748b; font-size:12px; width:20px;">${idx + 1}.</span>
+                                ${p.aiScore !== undefined && p.aiScore !== null ? `
+                                    <span class="ai-score ${getAiScoreClass(p.aiScore)} ${p.flagged ? 'flagged' : ''}">${p.aiScore < 0 ? 'ERR' : p.aiScore}</span>
+                                ` : ''}
+                                <span class="product-tag ${p.relevant ? 'relevant' : 'irrelevant'}" style="flex:1; margin:0;">
+                                    ${(p.name || '').substring(0, 50)}${(p.name || '').length > 50 ? '...' : ''} - £${Number(p.price || 0).toFixed(2)}
+                                </span>
+                                ${p.aiReason ? `<span class="ai-reason">${p.aiReason}</span>` : ''}
+                            </div>
                         `).join('')}
-                        ${products.length > 5 ? `<span class="product-tag">+${products.length - 5} more</span>` : ''}
                     </div>
                 </div>
             `;
@@ -584,7 +623,11 @@ paw patrol toys for 3 year old
             document.getElementById('resultsList').innerHTML = filtered.map(renderResult).join('');
         }
         
-        async function runAudit(queries, resumeFrom = 0) {
+        let useAiScoring = false;
+        
+        async function runAudit(queries, resumeFrom = 0, enableAiScoring = false) {
+            useAiScoring = enableAiScoring;
+            
             if (queries.length === 0) {
                 log('No queries to run. Add some queries first.', 'warning');
                 return;
@@ -592,16 +635,20 @@ paw patrol toys for 3 year old
             
             const btn = document.getElementById('runAudit');
             const sampleBtn = document.getElementById('runSample');
+            const aiSampleBtn = document.getElementById('runAiSample');
             const pauseBtn = document.getElementById('pauseResume');
             
             isRunning = true;
             isPaused = false;
             btn.disabled = true;
             sampleBtn.disabled = true;
+            aiSampleBtn.disabled = true;
             pauseBtn.classList.remove('hidden');
             pauseBtn.textContent = 'Pause';
             pauseBtn.className = 'warning';
-            btn.innerHTML = '<span class="loading"><span class="spinner"></span> Running...</span>';
+            btn.innerHTML = useAiScoring ? 
+                '<span class="loading"><span class="spinner"></span> AI Scoring...</span>' :
+                '<span class="loading"><span class="spinner"></span> Running...</span>';
             
             if (resumeFrom === 0) {
                 startTime = Date.now();
@@ -627,7 +674,12 @@ paw patrol toys for 3 year old
                     const res = await fetch('/api/audit/run', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ queries: batch, check_relevance: true, limit: 10 })
+                        body: JSON.stringify({ 
+                            queries: batch, 
+                            check_relevance: true, 
+                            limit: 10,
+                            use_ai_scoring: useAiScoring
+                        })
                     });
                     const data = await res.json();
                     
@@ -658,8 +710,10 @@ paw patrol toys for 3 year old
             log(`Audit complete in ${elapsed}s! Total: ${allResults.length}`, 'success');
             
             isRunning = false;
+            useAiScoring = false;
             btn.disabled = false;
             sampleBtn.disabled = false;
+            aiSampleBtn.disabled = false;
             pauseBtn.classList.add('hidden');
             btn.textContent = 'Run Full Audit';
         }
@@ -755,7 +809,7 @@ paw patrol toys for 3 year old
             allResults = [];
             runQueries = [...testQueries];
             currentIndex = 0;
-            runAudit(runQueries, 0);
+            runAudit(runQueries, 0, false);
         });
         
         document.getElementById('runSample').addEventListener('click', () => {
@@ -767,7 +821,20 @@ paw patrol toys for 3 year old
             allResults = [];
             runQueries = shuffleArray(testQueries).slice(0, 20);
             currentIndex = 0;
-            runAudit(runQueries, 0);
+            runAudit(runQueries, 0, false);
+        });
+        
+        document.getElementById('runAiSample').addEventListener('click', () => {
+            if (testQueries.length === 0) {
+                log('No queries loaded. Add queries or load defaults first.', 'warning');
+                return;
+            }
+            clearProgress();
+            allResults = [];
+            runQueries = shuffleArray(testQueries).slice(0, 5);
+            currentIndex = 0;
+            log('Running AI-powered relevance scoring (GPT-4o-mini)...', 'info');
+            runAudit(runQueries, 0, true);
         });
         
         document.getElementById('pauseResume').addEventListener('click', togglePause);

@@ -5503,10 +5503,17 @@ ONLY use IDs from the list. Never invent IDs.`
   // Run full audit - check queries against search API and score relevance
   app.post("/api/audit/run", async (req, res) => {
     try {
-      const { queries, check_relevance = true, limit = 10 } = req.body;
+      const { queries, check_relevance = true, limit = 10, use_ai_scoring = false } = req.body;
       
       if (!queries || !Array.isArray(queries)) {
         return res.status(400).json({ error: 'queries array required' });
+      }
+      
+      // Load AI scorer if enabled
+      let scoreResults: typeof import('./services/relevance-scorer').scoreResults | null = null;
+      if (use_ai_scoring) {
+        const scorer = await import('./services/relevance-scorer');
+        scoreResults = scorer.scoreResults;
       }
       
       const results: any[] = [];
@@ -5608,6 +5615,7 @@ ONLY use IDs from the list. Never invent IDs.`
             name: product.title,
             price: product.salePrice,
             merchant: product.merchant,
+            description: product.description || '',
             relevant: isRelevant,
             issues: issues.length > 0 ? issues : undefined
           });
@@ -5685,6 +5693,59 @@ ONLY use IDs from the list. Never invent IDs.`
           failCount++;
         }
         
+        // Limit products to 10 before AI scoring for alignment
+        const limitedProducts = scoredProducts.slice(0, 10);
+        
+        // Add AI scoring if enabled
+        let aiScores: { score: number; reason: string; flagged: boolean }[] = [];
+        let avgAiScore: number | null = null;
+        let aiScoringFailed = false;
+        
+        if (use_ai_scoring && scoreResults && limitedProducts.length > 0) {
+          try {
+            // Format products for AI scoring - description is now directly in limitedProducts
+            const productsForScoring = limitedProducts.map((p, idx) => ({
+              position: idx + 1,
+              title: p.name || '',
+              merchant: p.merchant || '',
+              price: String(p.price || 0),
+              description: p.description || ''
+            }));
+            
+            aiScores = await scoreResults(query, productsForScoring);
+            
+            // Calculate average AI score (exclude error scores of -1)
+            const validScores = aiScores.filter(s => s.score >= 0);
+            if (validScores.length > 0) {
+              avgAiScore = validScores.reduce((sum, s) => sum + s.score, 0) / validScores.length;
+            } else {
+              // All scores are negative - systemic failure
+              aiScoringFailed = true;
+              avgAiScore = null;
+            }
+          } catch (aiError: any) {
+            console.error(`[Audit] AI scoring failed for "${query}":`, aiError.message);
+            aiScoringFailed = true;
+            // Populate with error scores
+            aiScores = limitedProducts.map(() => ({
+              score: -1,
+              reason: 'SCORING_ERROR: API call failed',
+              flagged: false
+            }));
+          }
+        }
+        
+        // Merge AI scores with products - guard against undefined entries
+        const productsWithAiScores = limitedProducts.map((p, idx) => {
+          const aiScore = aiScores[idx];
+          return {
+            ...p,
+            aiScore: aiScore?.score !== undefined ? aiScore.score : null,
+            aiReason: aiScore?.reason || (use_ai_scoring ? 'No AI score' : undefined),
+            flagged: aiScore?.flagged || false
+          };
+        });
+        
         results.push({
           query,
           category,
@@ -5692,7 +5753,7 @@ ONLY use IDs from the list. Never invent IDs.`
           search_result: {
             count: searchResults.length,
             time_ms: searchTime,
-            products: scoredProducts.slice(0, 5) // Limit to first 5 for readability
+            products: productsWithAiScores
           },
           analysis: {
             status,
@@ -5700,7 +5761,10 @@ ONLY use IDs from the list. Never invent IDs.`
             top_result_relevant: topResultRelevant,
             relevance_score: Math.round(relevanceScore * 100) / 100,
             relevant_count: relevantCount,
-            total_returned: searchResults.length
+            total_returned: searchResults.length,
+            ai_avg_score: use_ai_scoring && avgAiScore !== null ? Math.round(avgAiScore * 100) / 100 : undefined,
+            ai_flagged_count: use_ai_scoring ? aiScores.filter(s => s.flagged).length : undefined,
+            ai_scoring_failed: aiScoringFailed || undefined
           }
         });
       }
