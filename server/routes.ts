@@ -98,6 +98,28 @@ function normalizeQueryForCache(query: string): string {
     .trim();
 }
 
+// ============================================================
+// MEDIA SUFFIX SANITIZER - Strips trailing "film", "films", "movie", "movies"
+// "dinosaur film" → "dinosaur", "animated films" → "animated"
+// This fixes 39 SEARCH_BUGs where products exist but film/movie suffix breaks search
+// ============================================================
+function sanitizeMediaSuffix(query: string): { sanitized: string; stripped: boolean } {
+  const mediaSuffixes = ['film', 'films', 'movie', 'movies'];
+  const words = query.toLowerCase().trim().split(/\s+/);
+  
+  // Only strip if query has >1 word and ends with media suffix
+  if (words.length > 1) {
+    const lastWord = words[words.length - 1];
+    if (mediaSuffixes.includes(lastWord)) {
+      const sanitized = words.slice(0, -1).join(' ');
+      console.log(`[MediaSanitizer] Stripped "${lastWord}" from "${query}" → "${sanitized}"`);
+      return { sanitized, stripped: true };
+    }
+  }
+  
+  return { sanitized: query, stripped: false };
+}
+
 function getCachedInterpretation(query: string): QueryInterpretation | null {
   const exact = query.toLowerCase().trim();
   
@@ -2579,12 +2601,20 @@ Format: ["id1", "id2", ...]`
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
       const openaiKey = process.env.OPENAI_API_KEY;
       
-      console.log(`[Shop Search] Query: "${query}", limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
+      // MEDIA SUFFIX FIX: Strip trailing "film", "films", "movie", "movies" for product search
+      // "dinosaur film" → "dinosaur", "animated films" → "animated"
+      // These queries have products in DB but film/movie suffix breaks search
+      const { sanitized: searchQuery, stripped: mediaStripped } = sanitizeMediaSuffix(query);
+      if (mediaStripped) {
+        console.log(`[Shop Search] Media suffix stripped: "${query}" → "${searchQuery}"`);
+      }
+      
+      console.log(`[Shop Search] Query: "${query}"${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
       const searchStartTime = Date.now();
 
-      // STEP 1: Interpret the query using GPT (for semantic queries)
+      // STEP 1: Interpret the query using GPT (use sanitized query for product search)
       const interpretStart = Date.now();
-      const interpretation = await interpretQuery(query, openaiKey);
+      const interpretation = await interpretQuery(searchQuery, openaiKey);
       console.log(`[Shop Search] TIMING: Interpretation took ${Date.now() - interpretStart}ms`);
       
       // Apply GPT-extracted price filters if user didn't specify them
@@ -3525,9 +3555,15 @@ ONLY use IDs from the list. Never invent IDs.`
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
       const openaiKey = process.env.OPENAI_API_KEY;
       
-      console.log(`[Shop V2] Query: "${query}", limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
+      // MEDIA SUFFIX FIX: Strip trailing "film", "films", "movie", "movies" for product search
+      const { sanitized: searchQuery, stripped: mediaStripped } = sanitizeMediaSuffix(query);
+      if (mediaStripped) {
+        console.log(`[Shop V2] Media suffix stripped: "${query}" → "${searchQuery}"`);
+      }
+      
+      console.log(`[Shop V2] Query: "${query}"${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
 
-      const interpretation = await interpretQuery(query, openaiKey);
+      const interpretation = await interpretQuery(searchQuery, openaiKey);
       
       // Apply maxPrice from GPT interpretation if user didn't specify a price filter
       // This handles queries like "running shoes under 50" or "cheap headphones"

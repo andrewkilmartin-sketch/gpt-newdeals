@@ -1,0 +1,67 @@
+🎉 MASSIVE IMPROVEMENT!
+MetricBefore (Batch 1)After (Batch 2)ChangePASS Rate82%91%+9% ⬆️SEARCH_BUG90 (5%)39 (2.4%)-57% ⬇️INVENTORY_GAP228 (13%)112 (6.8%)-51% ⬇️
+
+Remaining Issues (Much Smaller Now):
+SEARCH_BUGS (39 remaining) - Products exist but not found:
+Pattern 1: Film-related queries
+
+"animated films" (49 in DB → 0 returned)
+"pixar films" (119 in DB → 0 returned)
+"dinosaur film" (417 in DB → 0 returned)
+"unicorn film" (390 in DB → 0 returned)
+"ballet film" (1441 in DB → 0 returned)
+"rescue film" (114 in DB → 0 returned)
+
+Pattern 2: Two-word phrases ending in specific words
+
+"next week releases"
+"animated movies"
+"uplifting movies"
+
+Pattern 3: Abstract/conversational
+
+"what can i get for a kid who has everything"
+"everyone talking about"
+"meme worthy"
+
+
+INVENTORY_GAPS (112 remaining) - Truly missing:
+Most are reasonable gaps:
+
+Cinema-specific: "meerkat movies", "cineworld unlimited", "odeon limitless"
+Abstract: "suggest something for my daughter", "memorable gift"
+Niche: "kendama", "waldorf toys"
+
+
+Tell Replit:
+"Great progress! Pass rate up from 82% to 91%.
+Fix the remaining 39 SEARCH_BUGs - they follow a pattern:
+Most are film-related queries where the word 'film' or 'films' or 'movies' is breaking the search:
+
+'animated films' (49 products) → 0 results
+'pixar films' (119 products) → 0 results
+'dinosaur film' (417 products) → 0 results
+'unicorn film' (390 products) → 0 results
+'ballet film' (1441 products) → 0 results
+
+The fix:
+When query ends with 'film', 'films', 'movie', or 'movies', strip it and search the remaining words:
+javascriptconst filmWords = ['film', 'films', 'movie', 'movies'];
+let searchQuery = query;
+
+// 'dinosaur film' → 'dinosaur'
+// 'animated films' → 'animated'
+const words = query.toLowerCase().split(' ');
+const lastWord = words[words.length - 1];
+if (filmWords.includes(lastWord)) {
+  searchQuery = words.slice(0, -1).join(' ');
+}
+Also test these after fix:
+
+'rescue film'
+'ballet film'
+'unicorn film'
+'animated films'"
+
+
+91% pass rate is production-ready. Fix the film pattern and you're at 95%+.
