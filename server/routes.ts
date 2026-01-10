@@ -6776,10 +6776,23 @@ ONLY use IDs from the list. Never invent IDs.`
   // A/B Test Configuration: Percentage of clicks to route through new system
   const AB_TEST_PERCENTAGE = 0.10; // 10% use /go endpoint
   
-  // API: Get affiliate link with A/B test assignment
+  // Deterministic A/B assignment based on session/IP hash (stable per user)
+  function getAbTestVariant(sessionId: string, productId: string): 'new' | 'control' {
+    // Create deterministic hash from session + product for stable assignment
+    const hash = crypto.createHash('md5')
+      .update(sessionId + productId + 'sunny-ab-v1')
+      .digest('hex');
+    // Use first 2 hex chars (0-255 range) for bucketing
+    const bucket = parseInt(hash.substring(0, 2), 16);
+    // 10% = bucket values 0-25 (26/256 ≈ 10.2%)
+    return bucket < 26 ? 'new' : 'control';
+  }
+  
+  // API: Get affiliate link with A/B test assignment (deterministic per session)
   app.get('/api/routing/link/:productId', async (req, res) => {
     const { productId } = req.params;
     const forceNew = req.query.force === 'new'; // For testing
+    const sessionId = req.cookies?.sessionId || req.ip || 'unknown';
     
     try {
       // Get product from database
@@ -6793,19 +6806,21 @@ ONLY use IDs from the list. Never invent IDs.`
         return res.status(404).json({ error: 'Product not found' });
       }
       
-      // A/B assignment: 10% use new routing, 90% use direct link
-      const useNewRouting = forceNew || Math.random() < AB_TEST_PERCENTAGE;
+      // Deterministic A/B assignment: stable per session+product
+      const variant = forceNew ? 'new' : getAbTestVariant(sessionId, productId);
       
-      if (useNewRouting) {
+      if (variant === 'new') {
         res.json({
           link: `/go/${productId}`,
           variant: 'new',
+          sessionBucket: sessionId.substring(0, 8),
           description: 'Dynamic routing (A/B test)'
         });
       } else {
         res.json({
           link: product[0].affiliate_link,
           variant: 'control',
+          sessionBucket: sessionId.substring(0, 8),
           description: 'Direct affiliate link'
         });
       }
@@ -6828,10 +6843,10 @@ ONLY use IDs from the list. Never invent IDs.`
       if (cached && cached.expiry > Date.now()) {
         console.log(`[Routing] CACHE HIT for ${productId}: ${cached.network}`);
         
-        // Log click asynchronously
+        // Log click asynchronously (use cached merchantSlug)
         db.insert(clickEvents).values({
           productId,
-          merchantSlug: null,
+          merchantSlug: cached.merchantSlug || null,
           networkUsed: cached.network,
           sessionId,
           userQuery,
@@ -7035,18 +7050,24 @@ ONLY use IDs from the list. Never invent IDs.`
         LIMIT 10
       `));
       
-      // Performance summary
-      const perfSummary = await db.execute(sql.raw(`
-        SELECT 
-          COUNT(*) as total_24h,
-          AVG(response_time_ms) as avg_ms_24h,
-          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95_ms,
-          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY response_time_ms) as p99_ms,
-          COUNT(*) FILTER (WHERE response_time_ms < 200) as under_200ms,
-          COUNT(*) FILTER (WHERE response_time_ms >= 500) as over_500ms
-        FROM click_events
-        WHERE clicked_at > NOW() - INTERVAL '24 hours'
-      `));
+      // Performance summary (using safe aggregates that work in all PostgreSQL versions)
+      let perfSummary: any[] = [];
+      try {
+        perfSummary = await db.execute(sql.raw(`
+          SELECT 
+            COUNT(*) as total_24h,
+            AVG(response_time_ms) as avg_ms_24h,
+            MAX(response_time_ms) as max_ms,
+            MIN(response_time_ms) as min_ms,
+            COUNT(*) FILTER (WHERE response_time_ms < 200) as under_200ms,
+            COUNT(*) FILTER (WHERE response_time_ms >= 500) as over_500ms
+          FROM click_events
+          WHERE clicked_at > NOW() - INTERVAL '24 hours'
+        `)) as any[];
+      } catch (e) {
+        console.error('[Monitor] Performance query error:', e);
+        perfSummary = [{ total_24h: '0', avg_ms_24h: null, max_ms: null, min_ms: null, under_200ms: '0', over_500ms: '0' }];
+      }
       
       res.json({
         success: true,
