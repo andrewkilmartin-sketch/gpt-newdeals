@@ -68,6 +68,23 @@ Key architectural decisions and features include:
     - **Enhanced Audit Verdicts**: Diagnostic endpoint now captures INAPPROPRIATE, KEYWORD_MISMATCH, QUALITY_MISMATCH, FALLBACK_RESULT verdict types
     - **All 8 Results Captured**: diagnosis.allResults array with position, name, merchant, price, hasImage for proper audit
 
+-   **CTO Audit Fixes (Jan 2026)** - Major search quality overhaul based on manual audit revealing 86% PASS rate was actually ~30% real relevance:
+    - **PHASE 1 - Content Safety**:
+      - Expanded INAPPROPRIATE_TERMS with 25+ alcohol terms (gin gift, wine subscription, bottle club, save on gin/wine/whisky)
+      - Added BLOCKED_MERCHANTS kill-list: 16 merchants banned entirely (Bottle Club, Naked Wines, Virgin Wines, Majestic Wine, Beer Hawk, etc.)
+      - filterInappropriateContent() now checks BOTH content terms AND merchant names
+    - **PHASE 2 - Search Quality**:
+      - deduplicateResults(): Removes duplicate products using ID or name+merchant key, skips entries without names
+      - applyMerchantCaps(): Limits any merchant to max 2 results per query (fixes PoundFun in 126 queries)
+      - filterFallbackSpam(): Removes known spam patterns (Gifting at Clarks, 10% off Organic Baby) with normalized matching
+      - Enhanced KNOWN_FALLBACKS with CTO's reported patterns, normalized without punctuation
+    - **PHASE 3 - Context Awareness**:
+      - hasBlindContext() + filterForBlindContext(): "blind character" → NOT window blinds
+      - hasFilmContext() + filterForFilmContext(): "feelings film" → movies, not shoe sales
+      - hasGenderContext() + filterForGenderContext(): "dunno what to get him" → NOT "Gifts for Her"
+      - GENDER_EXCLUSION_MAP: 16 gender keywords (him/her/boy/girl/son/daughter/etc.) with exclusion lists
+    - **Relevance Scorer Updates**: Same expanded blocklists in server/services/relevance-scorer.ts for AI audit scoring
+
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.
 -   **Awin API**: Integrated for comprehensive shopping deals, product data feeds, and promotional content.

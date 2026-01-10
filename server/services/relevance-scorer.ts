@@ -75,7 +75,20 @@ export async function scoreResultRelevance(
   }
 
   const resultText = ((result.name || result.title || '') + ' ' + (result.description || '')).toLowerCase();
+  const merchantText = (result.merchant || '').toLowerCase();
   
+  // Check blocked merchants first
+  for (const merchant of BLOCKED_MERCHANTS) {
+    if (merchantText.includes(merchant)) {
+      return {
+        score: 0,
+        reason: `BLOCKED_MERCHANT: ${result.merchant}`,
+        flagged: true
+      };
+    }
+  }
+  
+  // Check inappropriate content terms
   for (const term of INAPPROPRIATE_TERMS) {
     if (resultText.includes(term)) {
       return {

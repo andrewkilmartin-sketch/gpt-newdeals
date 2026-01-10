@@ -158,16 +158,20 @@ const BLOCKED_MERCHANTS = [
 ];
 
 // Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
+// NORMALIZED: no punctuation, lowercase - matching is done after stripping punctuation
 const KNOWN_FALLBACKS = [
   'gifting at clarks',
-  '10% off organic baby & kidswear',
-  'toys from 1p at poundfun',
-  'free delivery!',
-  'clearance - save up to',
+  '10 off organic baby',
+  'organic baby kidswear',
+  'toys from 1p',
+  'poundfun',
+  'free delivery',
+  'clearance save',
   'free next day delivery',
   'buy one get one',
   'any 2 knitwear',
-  'any 2 shirts'
+  'any 2 shirts',
+  'buy 1 get 1'
 ];
 
 // Quality intent words - user wants premium, not cheapest
@@ -239,8 +243,17 @@ function deduplicateResults(results: any[]): any[] {
   const deduplicated: any[] = [];
   
   for (const r of results) {
+    // Skip entries without a name - can't reliably dedupe
+    if (!r.name || r.name.trim() === '') {
+      deduplicated.push(r);
+      continue;
+    }
+    
     // Create a unique key from name + merchant (normalized)
-    const key = ((r.name || '') + '|' + (r.merchant || '')).toLowerCase().trim();
+    // Use ID if available for more reliable deduplication
+    const key = r.id 
+      ? `id:${r.id}` 
+      : ((r.name || '') + '|' + (r.merchant || '')).toLowerCase().trim();
     
     if (!seen.has(key)) {
       seen.add(key);
@@ -340,20 +353,47 @@ function filterForGenderContext(results: any[], gender: string): any[] {
 function filterFallbackSpam(results: any[], query: string): any[] {
   const q = query.toLowerCase();
   
+  // Helper to normalize text - strip punctuation and extra spaces
+  const normalize = (text: string) => text.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
   return results.filter(r => {
-    const name = (r.name || '').toLowerCase();
+    const normalizedName = normalize(r.name || '');
     
     for (const fallback of KNOWN_FALLBACKS) {
-      if (name.includes(fallback)) {
+      if (normalizedName.includes(fallback)) {
         // Check if there's any semantic connection to the query
-        const queryWords = q.split(/\s+/).filter(w => w.length > 2);
-        const hasConnection = queryWords.some(qw => name.includes(qw));
+        const queryWords = normalize(q).split(/\s+/).filter(w => w.length > 2);
+        const hasConnection = queryWords.some(qw => normalizedName.includes(qw));
         
         if (!hasConnection) {
-          console.log(`[Fallback Filter] Removed spam result: "${r.name?.substring(0, 50)}..."`);
+          console.log(`[Fallback Filter] Removed spam: "${r.name?.substring(0, 50)}..."`);
           return false;
         }
       }
+    }
+    return true;
+  });
+}
+
+// PHASE 3: Filter for film/movie context - user wants movies, not merchandise
+function filterForFilmContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
+    // Allow: DVDs, Blu-rays, streaming, cinema, actual movie products
+    const isMovieRelated = text.includes('dvd') || text.includes('blu-ray') || 
+                           text.includes('movie') || text.includes('film') ||
+                           text.includes('cinema') || text.includes('disney') ||
+                           text.includes('pixar') || text.includes('dreamworks');
+    // Exclude: random products that have nothing to do with films
+    const isIrrelevantProduct = text.includes('heel') || text.includes('shoe sale') ||
+                                 text.includes('handbag') || text.includes('supplement') ||
+                                 text.includes('vitamin') || text.includes('skincare');
+    if (isIrrelevantProduct && !isMovieRelated) {
+      console.log(`[Film Context] Excluded non-film product: "${r.name?.substring(0, 50)}..."`);
+      return false;
     }
     return true;
   });
@@ -520,6 +560,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (hasBlindContext(query)) {
     console.log(`[Search Quality] Applying blind/accessibility filters for: "${query}"`);
     filtered = filterForBlindContext(filtered);
+  }
+  
+  // PHASE 3: Film/movie context - user wants movies, not random products
+  if (hasFilmContext(query)) {
+    console.log(`[Search Quality] Applying film/movie filters for: "${query}"`);
+    filtered = filterForFilmContext(filtered);
   }
   
   // PHASE 3: Gender context
