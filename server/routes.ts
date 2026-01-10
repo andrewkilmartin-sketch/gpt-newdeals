@@ -5505,6 +5505,8 @@ ONLY use IDs from the list. Never invent IDs.`
     try {
       const { queries, check_relevance = true, limit = 10, use_ai_scoring = false } = req.body;
       
+      console.log(`[Audit] Starting audit for ${queries?.length || 0} queries, use_ai_scoring=${use_ai_scoring}`);
+      
       if (!queries || !Array.isArray(queries)) {
         return res.status(400).json({ error: 'queries array required' });
       }
@@ -5702,6 +5704,7 @@ ONLY use IDs from the list. Never invent IDs.`
         let aiScoringFailed = false;
         
         if (use_ai_scoring && scoreResults && limitedProducts.length > 0) {
+          console.log(`[Audit] Running AI scoring for "${query}" with ${limitedProducts.length} products`);
           try {
             // Format products for AI scoring - description is now directly in limitedProducts
             const productsForScoring = limitedProducts.map((p, idx) => ({
