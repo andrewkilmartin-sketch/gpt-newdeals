@@ -6630,11 +6630,20 @@ ONLY use IDs from the list. Never invent IDs.`
   // ============================================================
   // DYNAMIC AFFILIATE ROUTING - /go/:productId endpoint
   // Redirects to the best affiliate network based on promotions
+  // OPTIMIZED: Pre-warmed caches for < 200ms first-hit
   // ============================================================
   
-  // In-memory cache for network decisions (5 minute TTL)
-  const networkDecisionCache = new Map<string, { network: string; url: string; reason: string; expiry: number }>();
+  // In-memory caches for fast routing decisions
+  const networkDecisionCache = new Map<string, { network: string; url: string; reason: string; merchantSlug: string; expiry: number }>();
   const NETWORK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  
+  // PRE-WARMED: Merchant slug → network preference (loaded at startup)
+  const merchantNetworkCache = new Map<string, { network: string; reason: string; promotionId?: string }>();
+  let merchantCacheExpiry = 0;
+  const MERCHANT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  
+  // PRE-WARMED: Merchant → alternative network products (top merchants only)
+  const merchantAlternativesCache = new Map<string, { network: string; affiliateLink: string }[]>();
   
   // Slugify merchant name for routing
   function slugifyMerchant(name: string): string {
@@ -6644,52 +6653,124 @@ ONLY use IDs from the list. Never invent IDs.`
       .replace(/^-|-$/g, '');
   }
   
-  // Get best network for a merchant based on active promotions
-  async function getBestNetworkForMerchant(merchantSlug: string, productSource: string): Promise<{ network: string; reason: string; promotionId?: string }> {
+  // Pre-warm merchant network preferences (called at startup and every 30 min)
+  async function warmMerchantNetworkCache(): Promise<void> {
     try {
-      // Check for active promotions in our promotion_network_map
       const now = new Date();
-      const activePromos = await db.select()
-        .from(promotionNetworkMap)
-        .where(and(
-          eq(promotionNetworkMap.merchantSlug, merchantSlug),
-          lte(promotionNetworkMap.validFrom, now),
-          gte(promotionNetworkMap.validUntil, now)
-        ))
-        .orderBy(sql`discount_value DESC NULLS LAST`)
-        .limit(1);
       
-      if (activePromos.length > 0) {
-        const promo = activePromos[0];
-        return {
-          network: promo.network,
-          reason: `${promo.discountValue}${promo.discountType === 'percentage' ? '%' : '£'} off promotion`,
-          promotionId: promo.promotionId
-        };
+      // Load all active promotions into memory
+      const promos = await db.execute(sql.raw(`
+        SELECT merchant_slug, network, discount_value, discount_type, promotion_id
+        FROM promotion_network_map
+        WHERE valid_from <= NOW() AND valid_until >= NOW()
+        ORDER BY discount_value DESC
+      `)) as any[];
+      
+      // Load merchant preferences
+      const prefs = await db.execute(sql.raw(`
+        SELECT merchant_slug, preferred_network, preferred_reason
+        FROM merchant_networks
+        WHERE preferred_network IS NOT NULL
+      `)) as any[];
+      
+      // Clear and rebuild cache
+      merchantNetworkCache.clear();
+      
+      // Add promotions (highest priority)
+      for (const p of promos) {
+        if (!merchantNetworkCache.has(p.merchant_slug)) {
+          merchantNetworkCache.set(p.merchant_slug, {
+            network: p.network,
+            reason: `${p.discount_value}${p.discount_type === 'percentage' ? '%' : '£'} off`,
+            promotionId: p.promotion_id
+          });
+        }
       }
       
-      // Check merchant_networks for preferred network
-      const merchantNet = await db.select()
-        .from(merchantNetworks)
-        .where(eq(merchantNetworks.merchantSlug, merchantSlug))
-        .limit(1);
-      
-      if (merchantNet.length > 0 && merchantNet[0].preferredNetwork) {
-        return {
-          network: merchantNet[0].preferredNetwork,
-          reason: merchantNet[0].preferredReason || 'preferred network'
-        };
+      // Add preferences (lower priority - don't overwrite promotions)
+      for (const pref of prefs) {
+        if (!merchantNetworkCache.has(pref.merchant_slug)) {
+          merchantNetworkCache.set(pref.merchant_slug, {
+            network: pref.preferred_network,
+            reason: pref.preferred_reason || 'preferred'
+          });
+        }
       }
       
-      // Default: use product's original source
-      return {
-        network: productSource || 'awin',
-        reason: 'product source default'
-      };
+      merchantCacheExpiry = Date.now() + MERCHANT_CACHE_TTL;
+      console.log(`[Routing] Pre-warmed ${merchantNetworkCache.size} merchant network preferences`);
     } catch (error) {
-      console.error('[Routing] getBestNetwork error:', error);
-      return { network: productSource || 'awin', reason: 'fallback on error' };
+      console.error('[Routing] Warm cache error:', error);
     }
+  }
+  
+  // Pre-warm alternatives for dual-network merchants
+  async function warmMerchantAlternatives(): Promise<void> {
+    try {
+      // Find merchants in both networks and cache one alternative per network
+      const dualMerchants = await db.execute(sql.raw(`
+        SELECT DISTINCT merchant FROM products
+        WHERE source IN ('awin', 'cj')
+        GROUP BY merchant
+        HAVING COUNT(DISTINCT source) > 1
+        LIMIT 50
+      `)) as any[];
+      
+      merchantAlternativesCache.clear();
+      
+      for (const m of dualMerchants) {
+        const alts = await db.execute(sql.raw(`
+          SELECT DISTINCT ON (source) source as network, affiliate_link
+          FROM products
+          WHERE merchant = '${m.merchant.replace(/'/g, "''")}'
+          ORDER BY source, id
+        `)) as any[];
+        
+        if (alts.length > 0) {
+          merchantAlternativesCache.set(m.merchant, alts.map((a: any) => ({
+            network: a.network,
+            affiliateLink: a.affiliate_link
+          })));
+        }
+      }
+      
+      console.log(`[Routing] Pre-warmed alternatives for ${merchantAlternativesCache.size} dual-network merchants`);
+    } catch (error) {
+      console.error('[Routing] Warm alternatives error:', error);
+    }
+  }
+  
+  // Initialize caches on startup
+  warmMerchantNetworkCache().then(() => warmMerchantAlternatives());
+  
+  // Refresh every 30 minutes
+  setInterval(() => {
+    warmMerchantNetworkCache().then(() => warmMerchantAlternatives());
+  }, MERCHANT_CACHE_TTL);
+  
+  // Get best network for a merchant - NOW USES IN-MEMORY CACHE (0ms)
+  function getBestNetworkForMerchant(merchantSlug: string, productSource: string): { network: string; reason: string; promotionId?: string } {
+    // Check pre-warmed cache first (instant)
+    const cached = merchantNetworkCache.get(merchantSlug);
+    if (cached) {
+      return cached;
+    }
+    
+    // Default: use product's original source
+    return {
+      network: productSource || 'awin',
+      reason: 'default'
+    };
+  }
+  
+  // Get alternative link from cache (0ms if cached)
+  function getCachedAlternative(merchant: string, targetNetwork: string): string | null {
+    const alts = merchantAlternativesCache.get(merchant);
+    if (alts) {
+      const alt = alts.find(a => a.network === targetNetwork);
+      if (alt) return alt.affiliateLink;
+    }
+    return null;
   }
   
   // /go/:productId - Dynamic affiliate redirect
@@ -6736,33 +6817,42 @@ ONLY use IDs from the list. Never invent IDs.`
       const prod = product[0];
       const merchantSlug = prod.merchant_slug || slugifyMerchant(prod.merchant);
       
-      // Determine best network
-      const networkDecision = await getBestNetworkForMerchant(merchantSlug, prod.source);
+      // Determine best network (instant - uses pre-warmed cache)
+      const networkDecision = getBestNetworkForMerchant(merchantSlug, prod.source);
       
       // Build redirect URL - CRITICAL: actually switch to the preferred network's link
       let redirectUrl = prod.affiliate_link; // Default: original URL
       let actualNetwork = prod.source; // Track which network we actually use
       
-      // If recommended network differs from product source, try to find alternate
+      // If recommended network differs from product source, try cached alternative first
       if (networkDecision.network !== prod.source) {
-        try {
-          // Look for a product from the same merchant in the preferred network
-          const altProduct = await db.execute(sql.raw(`
-            SELECT affiliate_link, id, name FROM products 
-            WHERE merchant = '${prod.merchant.replace(/'/g, "''")}'
-              AND source = '${networkDecision.network}'
-            LIMIT 1
-          `)) as any[];
-          
-          if (altProduct && altProduct.length > 0) {
-            redirectUrl = altProduct[0].affiliate_link;
-            actualNetwork = networkDecision.network;
-            console.log(`[Routing] SWITCHED ${prod.source} → ${networkDecision.network} for ${prod.merchant}`);
-          } else {
-            console.log(`[Routing] No ${networkDecision.network} alternative found for ${prod.merchant}, using original`);
+        // FAST PATH: Check pre-warmed alternatives cache (0ms)
+        const cachedAlt = getCachedAlternative(prod.merchant, networkDecision.network);
+        
+        if (cachedAlt) {
+          redirectUrl = cachedAlt;
+          actualNetwork = networkDecision.network;
+          console.log(`[Routing] SWITCHED ${prod.source} → ${networkDecision.network} for ${prod.merchant} (cached)`);
+        } else {
+          // SLOW PATH: DB lookup for uncached merchants (rare)
+          try {
+            const altProduct = await db.execute(sql.raw(`
+              SELECT affiliate_link FROM products 
+              WHERE merchant = '${prod.merchant.replace(/'/g, "''")}'
+                AND source = '${networkDecision.network}'
+              LIMIT 1
+            `)) as any[];
+            
+            if (altProduct && altProduct.length > 0) {
+              redirectUrl = altProduct[0].affiliate_link;
+              actualNetwork = networkDecision.network;
+              console.log(`[Routing] SWITCHED ${prod.source} → ${networkDecision.network} for ${prod.merchant} (db)`);
+            } else {
+              console.log(`[Routing] No ${networkDecision.network} alt for ${prod.merchant}`);
+            }
+          } catch (altErr) {
+            console.error('[Routing] Alt lookup error:', altErr);
           }
-        } catch (altErr) {
-          console.error('[Routing] Alt lookup error:', altErr);
         }
       } else {
         actualNetwork = prod.source;
@@ -6771,6 +6861,7 @@ ONLY use IDs from the list. Never invent IDs.`
       // Cache the decision (use actualNetwork, not recommended network)
       networkDecisionCache.set(cacheKey, {
         network: actualNetwork,
+        merchantSlug,
         url: redirectUrl,
         reason: networkDecision.reason + (actualNetwork !== networkDecision.network ? ' (no alt)' : ''),
         expiry: Date.now() + NETWORK_CACHE_TTL
