@@ -157,6 +157,112 @@ const BLOCKED_MERCHANTS = [
   'slimming world', 'weight watchers', 'noom', 'dating direct'
 ];
 
+// MEGA-FIX 2: Promo-only patterns - generic promos that match everything but help no one
+const PROMO_ONLY_PATTERNS = [
+  /^\d+% off/i,                    // "10% off..."
+  /^up to \d+% off/i,              // "Up to 55% off..."
+  /^save \d+%/i,                   // "Save 15%..."
+  /^save up to \d+%/i,             // "Save up to 20%..."
+  /^buy \d+ get \d+/i,             // "Buy 1 get 1..."
+  /^buy one get one/i,             // "Buy one get one..."
+  /^any \d+ .*£\d+/i,              // "Any 2 Knitwear £120"
+  /free delivery/i,                 // "Free Delivery"
+  /free next day/i,                 // "Free Next Day..."
+  /from 1p/i,                       // "Toys from 1p..."
+  /extra \d+% off/i,               // "Extra 15% off..."
+  /£\d+ off/i,                     // "£50 OFF..."
+  /^\d+% discount/i,               // "15% DISCOUNT..."
+  /sale ends/i,                     // "Sale ends soon..."
+];
+
+// Function to detect promo-only results
+function isPromoOnly(title: string): boolean {
+  if (!title) return false;
+  const t = title.trim();
+  return PROMO_ONLY_PATTERNS.some(pattern => pattern.test(t));
+}
+
+// MEGA-FIX 4: Synonym expansion for better recall
+const QUERY_SYNONYMS: { [key: string]: string[] } = {
+  'film': ['movie', 'cinema', 'dvd', 'blu-ray'],
+  'movie': ['film', 'cinema', 'dvd', 'blu-ray'],
+  'movies': ['film', 'films', 'cinema', 'dvd'],
+  'films': ['movie', 'movies', 'cinema', 'dvd'],
+  'kids': ['children', 'child', 'toddler', 'kid'],
+  'children': ['kids', 'child', 'toddler'],
+  'child': ['kid', 'kids', 'children'],
+  'gift': ['present', 'gifts', 'gift set'],
+  'present': ['gift', 'presents', 'gift set'],
+  'game': ['games', 'gaming', 'video game'],
+  'games': ['game', 'gaming', 'video game'],
+  'toy': ['toys', 'plaything'],
+  'toys': ['toy', 'plaything'],
+  'cheap': ['budget', 'affordable', 'value', 'bargain'],
+  'best': ['top', 'popular', 'recommended', 'award winning'],
+};
+
+// Function to expand query with synonyms
+function expandQueryWithSynonyms(query: string): string[] {
+  const words = query.toLowerCase().split(/\s+/);
+  const expanded = new Set<string>(words);
+  
+  for (const word of words) {
+    const synonyms = QUERY_SYNONYMS[word];
+    if (synonyms) {
+      synonyms.forEach(s => expanded.add(s));
+    }
+  }
+  
+  return Array.from(expanded);
+}
+
+// MEGA-FIX 1: Intent Router - route queries to correct category
+type QueryIntent = 'GAMING' | 'ENTERTAINMENT' | 'DAYS_OUT' | 'PARTY' | 'BOOKS' | 'PRODUCTS';
+
+function detectQueryIntent(query: string): QueryIntent {
+  const q = query.toLowerCase();
+  
+  // GAMING intent - video games, consoles
+  if (q.includes('game') || q.includes('xbox') || q.includes('playstation') || 
+      q.includes('nintendo') || q.includes('switch') || q.includes('console') ||
+      q.includes('ps5') || q.includes('ps4') || q.includes('gaming')) {
+    // But not "board game" or "game set"
+    if (!q.includes('board game') && !q.includes('game set')) {
+      return 'GAMING';
+    }
+  }
+  
+  // ENTERTAINMENT intent - films, movies, cinema
+  if (q.includes('film') || q.includes('movie') || q.includes('cinema') ||
+      q.includes('dvd') || q.includes('blu-ray') || q.includes('streaming') ||
+      (q.includes('watch') && (q.includes('order') || q.includes('list') || q.includes('marathon')))) {
+    return 'ENTERTAINMENT';
+  }
+  
+  // DAYS_OUT intent - attractions, experiences
+  if (q.includes('near me') || q.includes('nearby') || q.includes('local') ||
+      q.includes('visit') || q.includes('day out') || q.includes('days out') ||
+      q.includes('attraction') || q.includes('theme park') || q.includes('zoo') ||
+      q.includes('aquarium') || q.includes('museum')) {
+    return 'DAYS_OUT';
+  }
+  
+  // PARTY intent - party supplies
+  if (q.includes('party bag') || q.includes('party supplies') || 
+      q.includes('goody bag') || q.includes('pass the parcel') ||
+      q.includes('party favour') || q.includes('party favor')) {
+    return 'PARTY';
+  }
+  
+  // BOOKS intent
+  if ((q.includes('book') && (q.includes('token') || q.includes('voucher') || q.includes('reading'))) ||
+      q.includes('story book') || q.includes('picture book')) {
+    return 'BOOKS';
+  }
+  
+  return 'PRODUCTS';
+}
+
 // Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
 // NORMALIZED: no punctuation, lowercase - matching is done after stripping punctuation
 const KNOWN_FALLBACKS = [
@@ -577,6 +683,64 @@ function reorderForQualityIntent(results: any[]): any[] {
   return [...otherResults, ...discountResults];
 }
 
+// MEGA-FIX 2: Filter promo-only results (no specific product)
+function filterPromoOnlyResults(results: any[]): any[] {
+  return results.filter(r => {
+    const name = r.name || r.title || '';
+    if (isPromoOnly(name)) {
+      console.log(`[Promo Filter] Removed promo-only: "${name.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
+
+// MEGA-FIX 3: Demote/exclude Kids Pass results (unless DAYS_OUT query)
+function demoteKidsPassResults(results: any[], queryIntent: QueryIntent): any[] {
+  // Only demote if NOT a days out query
+  if (queryIntent === 'DAYS_OUT') {
+    return results;
+  }
+  
+  const kidsPassResults: any[] = [];
+  const otherResults: any[] = [];
+  
+  for (const r of results) {
+    const name = (r.name || '').toLowerCase();
+    const merchant = (r.merchant || '').toLowerCase();
+    
+    const isKidsPass = merchant.includes('kids pass') || 
+                       name.includes('kids pass') ||
+                       name.includes('save up to') && (
+                         name.includes('theme park') ||
+                         name.includes('aquarium') ||
+                         name.includes('hotel') ||
+                         name.includes('dining') ||
+                         name.includes('cinema') ||
+                         name.includes('indoor activities') ||
+                         name.includes('toddler friendly')
+                       ) ||
+                       name.includes('treetop challenge');
+    
+    if (isKidsPass) {
+      kidsPassResults.push(r);
+      console.log(`[Kids Pass] Demoted/excluded: "${(r.name || '').substring(0, 50)}..."`);
+    } else {
+      otherResults.push(r);
+    }
+  }
+  
+  // If we have enough non-Kids-Pass results, exclude Kids Pass entirely
+  // Otherwise, put Kids Pass at the end (better than nothing)
+  if (otherResults.length >= 5) {
+    console.log(`[Kids Pass] Excluded ${kidsPassResults.length} Kids Pass results (${otherResults.length} other results available)`);
+    return otherResults;
+  }
+  
+  // Not enough other results - include Kids Pass at end as fallback
+  return [...otherResults, ...kidsPassResults];
+}
+
 // Check if result is a known fallback (generic result for unrelated queries)
 function isKnownFallback(resultName: string, query: string): boolean {
   const name = (resultName || '').toLowerCase();
@@ -598,19 +762,31 @@ function isKnownFallback(resultName: string, query: string): boolean {
   return false;
 }
 
-// Main filter function - applies all context-aware filters (ALL 3 PHASES)
+// Main filter function - applies all context-aware filters (ALL 3 PHASES + MEGA-FIXES)
 function applySearchQualityFilters(results: any[], query: string): any[] {
   const originalCount = results.length;
   let filtered = results;
   
+  // Detect query intent for routing (MEGA-FIX 1)
+  const queryIntent = detectQueryIntent(query);
+  if (queryIntent !== 'PRODUCTS') {
+    console.log(`[Intent Router] Query "${query}" → ${queryIntent}`);
+  }
+  
   // PHASE 1: Always filter inappropriate content + blocked merchants
   filtered = filterInappropriateContent(filtered);
   
-  // PHASE 2: Remove duplicates first
+  // MEGA-FIX 2: Remove promo-only results (generic promos without products)
+  filtered = filterPromoOnlyResults(filtered);
+  
+  // PHASE 2: Remove duplicates first (MEGA-FIX 5)
   filtered = deduplicateResults(filtered);
   
   // PHASE 2: Remove fallback spam
   filtered = filterFallbackSpam(filtered, query);
+  
+  // MEGA-FIX 3: Demote Kids Pass results to end (unless DAYS_OUT)
+  filtered = demoteKidsPassResults(filtered, queryIntent);
   
   // PHASE 3: Apply context-specific filters
   if (hasBookContext(query)) {
@@ -5915,8 +6091,9 @@ ONLY use IDs from the list. Never invent IDs.`
           const { products: productsTable } = await import('@shared/schema');
           const { ilike, or, sql: sqlTag } = await import('drizzle-orm');
           
-          // Simple keyword search on products table
-          const searchTerms = query.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
+          // Simple keyword search on products table - with MEGA-FIX 4 synonym expansion
+          const rawTerms = query.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
+          const searchTerms = expandQueryWithSynonyms(query);
           let productQuery = db.select({
             id: productsTable.id,
             name: productsTable.name,
