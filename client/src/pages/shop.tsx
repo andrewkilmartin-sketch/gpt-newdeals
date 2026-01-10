@@ -552,8 +552,20 @@ export default function ShopSearch() {
                           <Ticket className="w-3 h-3 flex-shrink-0" />
                           {product.promotion.title}
                         </p>
+                        {product.promotion.voucherCode ? (
+                          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs text-gray-600">Use code:</span>
+                            <code className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded text-xs font-mono font-bold">{product.promotion.voucherCode}</code>
+                            <CopyCodeButton code={product.promotion.voucherCode} />
+                          </div>
+                        ) : (
+                          <div className="mt-1.5 flex items-center gap-1 text-xs text-blue-600">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Auto-applies at checkout</span>
+                          </div>
+                        )}
                         {product.promotion.expiresAt && (
-                          <p className="text-xs text-gray-500 mt-0.5">
+                          <p className="text-xs text-gray-500 mt-1">
                             Expires: {product.promotion.expiresAt}
                           </p>
                         )}
