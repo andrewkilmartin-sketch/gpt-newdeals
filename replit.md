@@ -59,6 +59,15 @@ Key architectural decisions and features include:
     - Performance: 146ms response time for mixed results
     - Attribution: "This product uses the TMDB API but is not endorsed or certified by TMDB."
 
+-   **Search Quality Filters (Jan 2026)**:
+    - **Inappropriate Content Blocklist**: INAPPROPRIATE_TERMS array filters ED pills, STI testing, adult content from family platform
+    - **Context-Aware Detection**: hasBookContext() prevents "book tokens" from returning booking.com; hasPartyBagContext() prevents party bags returning fashion handbags; hasAgeContext() prevents "5 year old" matching "5-Year Warranty"
+    - **Quality Intent Detection**: hasQualityIntent() detects "best/top/quality" queries and deprioritizes PoundFun and discount merchants (DISCOUNT_MERCHANTS list)
+    - **Fallback Detection**: isKnownFallback() identifies generic results like "Gifting At Clarks" appearing for unrelated queries
+    - **applySearchQualityFilters()**: Central function applied to both /api/shop/search and /api/shopv2/search before pagination
+    - **Enhanced Audit Verdicts**: Diagnostic endpoint now captures INAPPROPRIATE, KEYWORD_MISMATCH, QUALITY_MISMATCH, FALLBACK_RESULT verdict types
+    - **All 8 Results Captured**: diagnosis.allResults array with position, name, merchant, price, hasImage for proper audit
+
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.
 -   **Awin API**: Integrated for comprehensive shopping deals, product data feeds, and promotional content.
