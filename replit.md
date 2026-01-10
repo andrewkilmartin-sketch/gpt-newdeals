@@ -88,6 +88,14 @@ Key architectural decisions and features include:
       - GENDER_EXCLUSION_MAP: 16 gender keywords (him/her/boy/girl/son/daughter/etc.) with exclusion lists
     - **Relevance Scorer Updates**: Same expanded blocklists in server/services/relevance-scorer.ts for AI audit scoring
 
+-   **Word Boundary Search Fix (Jan 2026)** - Critical fix for substring matching disasters:
+    - Changed keyword matching from `ILIKE '%word%'` to PostgreSQL regex with word boundaries `~* '\yword\y'`
+    - Prevents "bike" matching "biker", "cheap" matching "cheapskate", "book" matching "booking"
+    - Fixed both keyword search path AND semantic search path in routes.ts
+    - Also fixed queryParser character detection to use word boundaries (prevents "legoland" → "lego")
+    - Added logic to ensure queryParser-detected characters are always added to interpretation.mustHaveAll
+    - Results: "bike for kids" returns bikes (not Biker Coat), "nerf gun" returns Nerf blasters, "school shoes boys" returns boys shoes
+
 -   **Audit V2 System (Jan 2026)** - Real relevance scoring replacing fake 100% pass rates:
     - Uses queryParser to extract age, gender, character, price from queries
     - Calls actual `/api/shop/search` endpoint to test full pipeline with MEGA-FIX 10

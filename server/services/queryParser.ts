@@ -165,9 +165,13 @@ export function parseQuery(query: string): ParsedQuery {
     }
   }
 
-  // 4. EXTRACT CHARACTER/FRANCHISE - CRITICAL: must be exact match
+  // 4. EXTRACT CHARACTER/FRANCHISE - CRITICAL: must be exact word match
+  // FIX: Use word boundary matching to prevent "legoland" matching "lego"
   for (const character of CHARACTERS) {
-    if (q.includes(character)) {
+    // Escape regex special chars and use word boundaries
+    const escaped = character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const charPattern = new RegExp(`\\b${escaped}\\b`, 'i');
+    if (charPattern.test(q)) {
       result.character = character;
       // Don't remove from remaining query - we want to search for this
       break;

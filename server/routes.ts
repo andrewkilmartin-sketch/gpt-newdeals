@@ -3580,6 +3580,20 @@ Format: ["id1", "id2", ...]`
       const interpretation = await interpretQuery(searchQuery, openaiKey);
       console.log(`[Shop Search] TIMING: Interpretation took ${Date.now() - interpretStart}ms`);
       
+      // CRITICAL FIX: Ensure queryParser-detected character is ALWAYS required in results
+      // This prevents "nerf gun" from returning random toys when GPT returns mustMatch: []
+      if (parsedQuery.character) {
+        const charLower = parsedQuery.character.toLowerCase();
+        const alreadyInMustHave = interpretation.mustHaveAll?.some(
+          t => t.toLowerCase().includes(charLower) || charLower.includes(t.toLowerCase())
+        );
+        if (!alreadyInMustHave) {
+          if (!interpretation.mustHaveAll) interpretation.mustHaveAll = [];
+          interpretation.mustHaveAll.push(parsedQuery.character);
+          console.log(`[Shop Search] Added queryParser character "${parsedQuery.character}" to mustHaveAll`);
+        }
+      }
+      
       // Apply GPT-extracted price filters if user didn't specify them
       let effectiveMaxPrice = filterMaxPrice;
       if (effectiveMaxPrice === undefined && interpretation.context.maxPrice) {
@@ -3734,6 +3748,7 @@ Format: ["id1", "id2", ...]`
         // CRITICAL: Apply mustHaveAll as hard SQL filters (e.g., "star wars" must appear in results)
         // FIX: Split multi-word terms and require EACH word separately
         // "sophie giraffe" → requires "sophie" AND "giraffe" (not exact phrase)
+        // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
         if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
           for (const term of interpretation.mustHaveAll) {
             // Skip brand terms already handled by brand filter
@@ -3744,12 +3759,14 @@ Format: ["id1", "id2", ...]`
             // Split term into individual words and require each one
             const words = term.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
             for (const word of words) {
+              const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const wordBoundary = '\\y' + escaped + '\\y';
               // Add as hard filter: each word must appear in name, description, category, or brand
               const mustHaveCondition = or(
-                ilike(products.name, `%${word}%`),
-                ilike(products.description, `%${word}%`),
-                ilike(products.category, `%${word}%`),
-                ilike(products.brand, `%${word}%`)
+                sql`${products.name} ~* ${wordBoundary}`,
+                sql`${products.description} ~* ${wordBoundary}`,
+                sql`${products.category} ~* ${wordBoundary}`,
+                sql`${products.brand} ~* ${wordBoundary}`
               );
               if (mustHaveCondition) {
                 filterConditions.push(mustHaveCondition as any);
@@ -3766,14 +3783,16 @@ Format: ["id1", "id2", ...]`
             const words = term.toLowerCase().split(/\s+/).filter(w => w.length > 2);
             if (words.length === 0) continue;
             
-            // For each word in the term, match any field
+            // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
+            // For each word in the term, match any field with word boundaries
             const condition = and(...words.map(w => {
-              const pattern = `%${w}%`;
+              const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const wordBoundary = '\\y' + escaped + '\\y';
               return or(
-                ilike(products.name, pattern),
-                ilike(products.description, pattern),
-                ilike(products.brand, pattern),
-                ilike(products.category, pattern)
+                sql`${products.name} ~* ${wordBoundary}`,
+                sql`${products.description} ~* ${wordBoundary}`,
+                sql`${products.brand} ~* ${wordBoundary}`,
+                sql`${products.category} ~* ${wordBoundary}`
               );
             }));
             if (condition) termConditions.push(condition);
@@ -3865,9 +3884,13 @@ Format: ["id1", "id2", ...]`
         if (words.length > 0) {
           // PERFORMANCE FIX: Only search name column (indexed with GIN trigram)
           // Removed OR conditions across description/brand/category that bypass indexes
+          // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
+          // This prevents "bike" matching "biker", "cheap" matching "cheapskate"
           const wordConditions = words.map(w => {
-            const pattern = `%${w}%`;
-            return ilike(products.name, pattern);
+            // Escape regex special chars in the word
+            const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // \y is PostgreSQL word boundary anchor (equivalent to \b in other regex)
+            return sql`${products.name} ~* ${'\\y' + escaped + '\\y'}`;
           });
           
           // Build base WHERE clause with keyword matching
