@@ -39,6 +39,17 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(express.static('public'));
 
+// Health check endpoint - ALWAYS check this first before any debugging
+const serverStartTime = Date.now();
+app.get('/healthz', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    timestamp: new Date().toISOString(),
+    version: '2026.01.10.v6-fix26'
+  });
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",

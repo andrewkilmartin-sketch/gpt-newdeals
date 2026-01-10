@@ -4,6 +4,26 @@
 
 ---
 
+## ⚠️ DEBUGGING CHECKLIST - DO THIS FIRST
+
+**BEFORE blaming deployment, cache, or external issues:**
+
+1. **Check server health FIRST:**
+   ```bash
+   curl -s http://localhost:5000/healthz | jq
+   ```
+   If this fails, the server is crashed - restart workflow!
+
+2. **Check workflow logs:**
+   - Use `refresh_all_logs` tool
+   - Look for FAILED status or error messages
+
+3. **Only AFTER confirming server is running**, investigate other causes.
+
+**DO NOT** tell user it's their deployment/cache issue without checking health first!
+
+---
+
 ## DATABASE INDEXES - DO NOT REMOVE
 
 These indexes reduce query times from 10-22 seconds to under 500ms.
