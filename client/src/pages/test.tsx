@@ -66,6 +66,14 @@ function getVerdictIcon(verdict: string) {
       return <Image className="w-5 h-5 text-purple-500" />;
     case 'SPEED_BUG':
       return <Clock className="w-5 h-5 text-red-500" />;
+    case 'INAPPROPRIATE':
+      return <XCircle className="w-5 h-5 text-red-600" />;
+    case 'KEYWORD_MISMATCH':
+      return <AlertTriangle className="w-5 h-5 text-orange-600" />;
+    case 'QUALITY_MISMATCH':
+      return <AlertTriangle className="w-5 h-5 text-amber-500" />;
+    case 'FALLBACK_RESULT':
+      return <ArrowRight className="w-5 h-5 text-gray-500" />;
     default:
       return <XCircle className="w-5 h-5 text-gray-500" />;
   }
@@ -81,6 +89,10 @@ function getVerdictLabel(verdict: string) {
     case 'RANKING_BUG': return 'RANKING';
     case 'IMAGE_BUG': return 'IMAGES';
     case 'SPEED_BUG': return 'SPEED';
+    case 'INAPPROPRIATE': return 'INAPPROPRIATE';
+    case 'KEYWORD_MISMATCH': return 'KEYWORD';
+    case 'QUALITY_MISMATCH': return 'QUALITY';
+    case 'FALLBACK_RESULT': return 'GENERIC';
     default: return verdict;
   }
 }

@@ -120,6 +120,218 @@ function sanitizeMediaSuffix(query: string): { sanitized: string; stripped: bool
   return { sanitized: query, stripped: false };
 }
 
+// ============================================================
+// SEARCH QUALITY FILTERS - Critical fixes for family platform
+// ============================================================
+
+// Blocklist for content inappropriate for a family platform
+const INAPPROPRIATE_TERMS = [
+  'bedroom confidence', 'erectile', 'viagra', 'sexual health',
+  'reproductive health', 'your status', 'sti test', 'std test',
+  'reclaim your confidence', 'regain confidence', 'dating site',
+  'singles near', 'gambling', 'casino', 'betting', 'weight loss pill',
+  'diet pill', 'slimming tablet', 'beer delivery', 'wine subscription',
+  'alcohol delivery', 'cigarette', 'vape juice', 'cbd oil',
+  'sexual performance', 'libido', 'erectile dysfunction'
+];
+
+// Known fallback results that appear for unrelated queries
+const KNOWN_FALLBACKS = [
+  'gifting at clarks',
+  '10% off organic baby & kidswear',
+  'toys from 1p at poundfun',
+  'free delivery',
+  'clearance - save up to'
+];
+
+// Quality intent words - user wants premium, not cheapest
+const QUALITY_INTENT_WORDS = [
+  'best', 'top', 'quality', 'premium', 'timeless', 'heirloom', 
+  'investment', 'luxury', 'high end', 'well made', 'durable'
+];
+
+// Discount merchants to deprioritize for quality queries
+const DISCOUNT_MERCHANTS = [
+  'poundfun', 'poundland', 'poundshop', 'everything5pounds', 'poundworld'
+];
+
+// Travel/booking merchants to exclude for book context queries
+const TRAVEL_MERCHANTS = [
+  'booking.com', 'hotels.com', 'expedia', 'lastminute', 'trivago', 
+  'travelodge', 'premier inn', 'airbnb'
+];
+
+// Filter inappropriate content from search results
+function filterInappropriateContent(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
+    const isInappropriate = INAPPROPRIATE_TERMS.some(term => text.includes(term));
+    if (isInappropriate) {
+      console.log(`[Content Filter] Removed inappropriate: "${r.name?.substring(0, 50)}..."`);
+    }
+    return !isInappropriate;
+  });
+}
+
+// Check if query has "book" context (children's books, not booking.com)
+function hasBookContext(query: string): boolean {
+  const q = query.toLowerCase();
+  if (!q.includes('book')) return false;
+  
+  const bookContextWords = [
+    'tokens', 'voucher', 'gift', 'about', 'for kids', 'children', 
+    'dentist', 'doctor', 'hospital', 'baby', 'sibling', 'families',
+    'new baby', 'potty', 'bedtime', 'story', 'read'
+  ];
+  return bookContextWords.some(w => q.includes(w));
+}
+
+// Check if query has "party bag" context (party supplies, not fashion)
+function hasPartyBagContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return q.includes('party bag') || q.includes('goody bag') || 
+         q.includes('bag filler') || q.includes('bag bits');
+}
+
+// Check if query has age context (for kids, not warranty)
+function hasAgeContext(query: string): boolean {
+  const q = query.toLowerCase();
+  const agePattern = /(\d+)\s*(year|yr)s?\s*(old)?/i;
+  if (!agePattern.test(q)) return false;
+  
+  // Must also have kid-related words
+  const kidWords = ['old', 'child', 'kid', 'boy', 'girl', 'son', 'daughter', 'essentials'];
+  return kidWords.some(w => q.includes(w));
+}
+
+// Check if query has quality intent
+function hasQualityIntent(query: string): boolean {
+  const q = query.toLowerCase();
+  return QUALITY_INTENT_WORDS.some(w => q.includes(w));
+}
+
+// Filter results for book context - exclude travel/booking results
+function filterForBookContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
+    const isTravel = text.includes('car rental') || text.includes('holiday') || 
+                     text.includes('hotel') || text.includes('flight') ||
+                     TRAVEL_MERCHANTS.some(m => text.includes(m));
+    if (isTravel) {
+      console.log(`[Book Context] Excluded travel result: "${r.name?.substring(0, 50)}..."`);
+    }
+    return !isTravel;
+  });
+}
+
+// Filter results for party bag context - exclude fashion bags
+function filterForPartyBagContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
+    const isFashionBag = text.includes('handbag') || text.includes("women's bag") ||
+                         text.includes('river island') || text.includes('fashion') ||
+                         (text.includes('bag') && !text.includes('party'));
+    // More lenient - only exclude obvious fashion bags
+    const isObviousFashion = text.includes('river island bag') || 
+                             text.includes("women's bag") || 
+                             text.includes('handbag');
+    if (isObviousFashion) {
+      console.log(`[Party Bag Context] Excluded fashion bag: "${r.name?.substring(0, 50)}..."`);
+    }
+    return !isObviousFashion;
+  });
+}
+
+// Filter results for age context - exclude warranty/plan products
+function filterForAgeContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
+    const isWarranty = text.includes('year plan') || text.includes('year warranty') ||
+                       text.includes('year care') || text.includes('year guarantee') ||
+                       text.includes('year protection');
+    if (isWarranty) {
+      console.log(`[Age Context] Excluded warranty product: "${r.name?.substring(0, 50)}..."`);
+    }
+    return !isWarranty;
+  });
+}
+
+// Reorder results to deprioritize discount merchants for quality queries
+function reorderForQualityIntent(results: any[]): any[] {
+  const discountResults: any[] = [];
+  const otherResults: any[] = [];
+  
+  for (const r of results) {
+    const merchant = (r.merchant || '').toLowerCase();
+    const name = (r.name || '').toLowerCase();
+    const isDiscount = DISCOUNT_MERCHANTS.some(m => merchant.includes(m)) ||
+                       name.includes('from 1p') || name.includes('from 1 p');
+    
+    if (isDiscount) {
+      discountResults.push(r);
+      console.log(`[Quality Intent] Deprioritized: "${r.name?.substring(0, 50)}..."`);
+    } else {
+      otherResults.push(r);
+    }
+  }
+  
+  // Put quality results first, discount last
+  return [...otherResults, ...discountResults];
+}
+
+// Check if result is a known fallback (generic result for unrelated queries)
+function isKnownFallback(resultName: string, query: string): boolean {
+  const name = (resultName || '').toLowerCase();
+  const q = query.toLowerCase();
+  
+  for (const fallback of KNOWN_FALLBACKS) {
+    if (name.includes(fallback)) {
+      // Check for semantic connection
+      const queryWords = q.split(/\s+/).filter(w => w.length > 3);
+      const fallbackWords = fallback.split(/\s+/);
+      const hasConnection = queryWords.some(qw => 
+        fallbackWords.some(fw => fw.includes(qw) || qw.includes(fw))
+      );
+      if (!hasConnection) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Main filter function - applies all context-aware filters
+function applySearchQualityFilters(results: any[], query: string): any[] {
+  let filtered = results;
+  
+  // Always filter inappropriate content
+  filtered = filterInappropriateContent(filtered);
+  
+  // Apply context-specific filters
+  if (hasBookContext(query)) {
+    console.log(`[Search Quality] Applying book context filters for: "${query}"`);
+    filtered = filterForBookContext(filtered);
+  }
+  
+  if (hasPartyBagContext(query)) {
+    console.log(`[Search Quality] Applying party bag context filters for: "${query}"`);
+    filtered = filterForPartyBagContext(filtered);
+  }
+  
+  if (hasAgeContext(query)) {
+    console.log(`[Search Quality] Applying age context filters for: "${query}"`);
+    filtered = filterForAgeContext(filtered);
+  }
+  
+  // Reorder for quality intent (don't remove, just deprioritize)
+  if (hasQualityIntent(query)) {
+    console.log(`[Search Quality] Applying quality intent reordering for: "${query}"`);
+    filtered = reorderForQualityIntent(filtered);
+  }
+  
+  return filtered;
+}
+
 function getCachedInterpretation(query: string): QueryInterpretation | null {
   const exact = query.toLowerCase().trim();
   
@@ -3363,6 +3575,13 @@ ONLY use IDs from the list. Never invent IDs.`
         }
       }
 
+      // CRITICAL: Apply search quality filters to remove inappropriate content and fix keyword mismatches
+      const preFilterCount = selectedProducts.length;
+      selectedProducts = applySearchQualityFilters(selectedProducts, query);
+      if (selectedProducts.length < preFilterCount) {
+        console.log(`[Shop Search] Quality filter: ${preFilterCount} → ${selectedProducts.length} results for "${query}"`);
+      }
+
       const hasMore = (safeOffset + selectedProducts.length) < totalCandidates;
       
       // Fetch active promotions for all merchants
@@ -4378,6 +4597,13 @@ Selection rules:
           console.log(`[Shop V2] GPT rerank failed, using offset ${safeOffset}:`, aiError);
           selectedProducts = candidates.slice(safeOffset, safeOffset + safeLimit);
         }
+      }
+
+      // CRITICAL: Apply search quality filters to remove inappropriate content and fix keyword mismatches
+      const preFilterCountV2 = selectedProducts.length;
+      selectedProducts = applySearchQualityFilters(selectedProducts, query);
+      if (selectedProducts.length < preFilterCountV2) {
+        console.log(`[Shop V2] Quality filter: ${preFilterCountV2} → ${selectedProducts.length} results for "${query}"`);
       }
 
       const hasMore = (safeOffset + selectedProducts.length) < totalCandidates;
@@ -6097,9 +6323,81 @@ ONLY use IDs from the list. Never invent IDs.`
         imagePercent: Math.round(imagePercent)
       };
       
-      // STEP 6: VERDICT - Compare DB count vs API results
+      // STEP 6: ENHANCED VERDICT - Quality checks for family platform
       const totalTimeMs = Date.now() - startTime;
       
+      // Check for inappropriate content
+      const checkInappropriate = (results: any[]) => {
+        for (const r of results) {
+          const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
+          const found = INAPPROPRIATE_TERMS.find(term => text.includes(term));
+          if (found) return { found: true, term: found, result: r.name };
+        }
+        return { found: false };
+      };
+      
+      // Check for keyword mismatch (book vs booking, party bag vs fashion)
+      const checkKeywordMismatch = (results: any[], q: string) => {
+        const qLower = q.toLowerCase();
+        const firstResult = (results[0]?.name || '').toLowerCase();
+        
+        // Book context check
+        if (hasBookContext(q)) {
+          if (firstResult.includes('car rental') || firstResult.includes('holiday') || firstResult.includes('hotel')) {
+            return { found: true, type: 'book_vs_booking', result: results[0]?.name };
+          }
+        }
+        
+        // Party bag context check
+        if (hasPartyBagContext(q)) {
+          if (firstResult.includes('river island') || firstResult.includes('handbag') || firstResult.includes("women's bag")) {
+            return { found: true, type: 'party_bag_vs_fashion', result: results[0]?.name };
+          }
+        }
+        
+        // Age context check
+        if (hasAgeContext(q)) {
+          if (firstResult.includes('year plan') || firstResult.includes('year warranty') || firstResult.includes('year care')) {
+            return { found: true, type: 'age_vs_warranty', result: results[0]?.name };
+          }
+        }
+        
+        return { found: false };
+      };
+      
+      // Check for quality mismatch (best/top returning cheapest)
+      const checkQualityMismatch = (results: any[], q: string) => {
+        if (!hasQualityIntent(q) || results.length === 0) return { found: false };
+        
+        const firstMerchant = (results[0]?.merchant || '').toLowerCase();
+        const firstName = (results[0]?.name || '').toLowerCase();
+        const isDiscount = DISCOUNT_MERCHANTS.some(m => firstMerchant.includes(m)) ||
+                          firstName.includes('from 1p') || firstName.includes('1p at');
+        
+        if (isDiscount) {
+          return { found: true, result: results[0]?.name };
+        }
+        return { found: false };
+      };
+      
+      // Check for fallback results
+      const checkFallback = (results: any[], q: string) => {
+        if (results.length === 0) return { found: false };
+        const firstName = (results[0]?.name || '').toLowerCase();
+        const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        
+        for (const fallback of KNOWN_FALLBACKS) {
+          if (firstName.includes(fallback)) {
+            const hasConnection = qWords.some(qw => fallback.includes(qw));
+            if (!hasConnection) {
+              return { found: true, fallback: results[0]?.name };
+            }
+          }
+        }
+        return { found: false };
+      };
+      
+      // Apply verdict checks in priority order
       if (dbProductCount === 0 && searchResults.length === 0) {
         result.verdict = 'INVENTORY_GAP';
         result.fixAction = 'No products exist in catalog. Add to Awin/CJ feed.';
@@ -6108,26 +6406,55 @@ ONLY use IDs from the list. Never invent IDs.`
         result.verdict = 'SEARCH_BUG';
         result.fixAction = `${dbProductCount} products exist but search returned 0. Check search algorithm.`;
       }
-      else if (searchResults.length > 0 && relevancePercent < 50) {
-        result.verdict = 'RANKING_BUG';
-        result.fixAction = `Found ${searchResults.length} results but only ${relevantCount} relevant. Fix ranking.`;
-      }
-      else if (searchResults.length > 0 && imagePercent < 50) {
-        result.verdict = 'IMAGE_BUG';
-        result.fixAction = `Found products but ${searchResults.length - withImages} missing images.`;
-      }
-      else if (totalTimeMs > 5000) {
-        result.verdict = 'SPEED_BUG';
-        result.fixAction = `Search took ${totalTimeMs}ms. Optimize for <2s target.`;
-      }
-      else if (searchResults.length > 0 && relevancePercent >= 50) {
-        result.verdict = 'PASS';
-        result.fixAction = 'All checks passed.';
-      }
       else {
-        result.verdict = 'UNKNOWN';
-        result.fixAction = 'Unexpected state - review manually.';
+        // NEW: Check quality issues
+        const inappropriate = checkInappropriate(searchResults);
+        const keywordMismatch = checkKeywordMismatch(searchResults, query);
+        const qualityMismatch = checkQualityMismatch(searchResults, query);
+        const fallback = checkFallback(searchResults, query);
+        
+        if (inappropriate.found) {
+          result.verdict = 'INAPPROPRIATE';
+          result.fixAction = `Inappropriate content: "${inappropriate.term}" in "${inappropriate.result}"`;
+        }
+        else if (keywordMismatch.found) {
+          result.verdict = 'KEYWORD_MISMATCH';
+          result.fixAction = `Wrong context: ${keywordMismatch.type} - got "${keywordMismatch.result}"`;
+        }
+        else if (qualityMismatch.found) {
+          result.verdict = 'QUALITY_MISMATCH';
+          result.fixAction = `Quality query returned discount: "${qualityMismatch.result}"`;
+        }
+        else if (fallback.found) {
+          result.verdict = 'FALLBACK_RESULT';
+          result.fixAction = `Generic fallback: "${fallback.fallback}"`;
+        }
+        else if (relevancePercent < 50) {
+          result.verdict = 'RANKING_BUG';
+          result.fixAction = `Found ${searchResults.length} results but only ${relevantCount} relevant. Fix ranking.`;
+        }
+        else if (imagePercent < 50) {
+          result.verdict = 'IMAGE_BUG';
+          result.fixAction = `Found products but ${searchResults.length - withImages} missing images.`;
+        }
+        else if (totalTimeMs > 5000) {
+          result.verdict = 'SPEED_BUG';
+          result.fixAction = `Search took ${totalTimeMs}ms. Optimize for <2s target.`;
+        }
+        else {
+          result.verdict = 'PASS';
+          result.fixAction = 'All checks passed.';
+        }
       }
+      
+      // Add all 8 results to diagnosis for proper audit
+      result.diagnosis.allResults = searchResults.slice(0, 8).map((p: any, i: number) => ({
+        position: i + 1,
+        name: p.name,
+        merchant: p.merchant,
+        price: p.price,
+        hasImage: !!(p.imageUrl && p.imageUrl.trim() !== '')
+      }));
       
       result.totalTimeMs = totalTimeMs;
       
