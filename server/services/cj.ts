@@ -1157,6 +1157,74 @@ const PROMO_BRAND_KEYWORDS = [
   'toys', 'games', 'puzzles', 'crafts', 'outdoor', 'garden'
 ];
 
+// Parse CJ Link-Search XML response
+// CJ returns XML like: <cj-api><links><link><link-id>123</link-id>...</link></links></cj-api>
+function parseCJLinksXML(xmlText: string): Array<{
+  linkId: number;
+  advertiserId: number;
+  advertiserName: string;
+  linkName: string;
+  description: string;
+  linkType: string;
+  promotionType?: string;
+  couponCode?: string;
+  promotionStartDate?: string;
+  promotionEndDate?: string;
+  clickUrl: string;
+  category?: string;
+}> {
+  const links: Array<any> = [];
+  
+  try {
+    // Simple XML parsing using regex (avoids adding xml2js dependency)
+    // Match each <link>...</link> block
+    const linkMatches = xmlText.match(/<link>([\s\S]*?)<\/link>/gi) || [];
+    
+    for (const linkXml of linkMatches) {
+      const getTagValue = (tag: string): string => {
+        const match = linkXml.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+        return match ? match[1].trim() : '';
+      };
+      
+      const linkId = parseInt(getTagValue('link-id')) || 0;
+      const advertiserId = parseInt(getTagValue('advertiser-id')) || 0;
+      const advertiserName = getTagValue('advertiser-name');
+      const linkName = getTagValue('link-name');
+      const description = getTagValue('description');
+      const linkType = getTagValue('link-type');
+      const promotionType = getTagValue('promotion-type') || undefined;
+      const couponCode = getTagValue('coupon-code') || undefined;
+      const promotionStartDate = getTagValue('promotion-start-date') || undefined;
+      const promotionEndDate = getTagValue('promotion-end-date') || undefined;
+      const clickUrl = getTagValue('clickUrl') || getTagValue('click-url') || '';
+      const category = getTagValue('category') || undefined;
+      
+      if (linkId && advertiserName) {
+        links.push({
+          linkId,
+          advertiserId,
+          advertiserName,
+          linkName,
+          description,
+          linkType,
+          promotionType,
+          couponCode,
+          promotionStartDate,
+          promotionEndDate,
+          clickUrl,
+          category
+        });
+      }
+    }
+    
+    console.log(`[CJ XML] Parsed ${links.length} links from XML response`);
+  } catch (error) {
+    console.error('[CJ XML] Parse error:', error);
+  }
+  
+  return links;
+}
+
 // Normalize merchant name for matching
 function normalizeMerchantName(name: string): string {
   return name
@@ -1197,12 +1265,13 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
     console.log('[CJ Promotions] Fetching promotions from Link-Search API...');
     const allPromotions: CJPromotion[] = [];
     
-    // Fetch different promotion types
-    const promotionTypes = ['coupon', 'sale'];
+    // Valid CJ promotion types: coupon, sweepstakes, product, sale/discount, free shipping, seasonal link, site to store
+    const promotionTypes = ['coupon', 'sale/discount', 'free shipping'];
     
     for (const promoType of promotionTypes) {
       const params = new URLSearchParams({
         'website-id': CJ_WEBSITE_ID!,
+        'advertiser-ids': 'joined',  // Only get promotions from joined advertisers
         'link-type': 'Text Link',
         'promotion-type': promoType,
         'records-per-page': '100'
@@ -1213,7 +1282,7 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${CJ_API_TOKEN}`,
-          'Accept': 'application/json'
+          'Accept': 'application/xml'  // CJ Link-Search API only returns XML
         }
       });
       
@@ -1223,8 +1292,9 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
         continue;
       }
       
-      const data = await response.json();
-      const links = data?.links || [];
+      // Parse XML response (CJ Link-Search returns XML, not JSON)
+      const xmlText = await response.text();
+      const links = parseCJLinksXML(xmlText);
       
       console.log(`[CJ Promotions] Found ${links.length} ${promoType} promotions`);
       
@@ -1240,7 +1310,7 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
           couponCode: link.couponCode || undefined,
           startDate: link.promotionStartDate,
           endDate: link.promotionEndDate,
-          clickUrl: link.clickUrl || link.linkCodeJavascript || '',
+          clickUrl: link.clickUrl || '',
           category: link.category || undefined
         });
       }
