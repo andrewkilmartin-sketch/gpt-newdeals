@@ -80,6 +80,36 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` ~line 3100 |
 | **Pattern** | Skip: year, years, old, age, month, toddler, baby, infant, kid, boy, girl |
 
+### 7. Character Query Returns Wrong Products (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "spiderman toys" returned "DOG TOYS SPIDERMAN" (pet product) |
+| **Root Cause** | GPT cache had searchTerms: ['toys','games'] but NOT the character |
+| **Wrong Approach** | Only adding character to mustHaveAll (post-filter) |
+| **Correct Fix** | INJECT character variants into searchTerms for SQL candidate query |
+| **File** | `server/routes.ts` ~line 3812-3841 |
+| **Test Query** | `spiderman toys` should return Marvel/Disney products |
+
+### 8. Price Filter Ignored in Fallback (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "party bag toys under 2" returned £44-66 products |
+| **Root Cause** | searchFallbackByCategory didn't pass maxPrice to storage |
+| **Wrong Approach** | Passing filters object as 5th argument (ignored) |
+| **Correct Fix** | Pass maxPrice as 4th argument to storage.searchProducts |
+| **File** | `server/routes.ts` ~line 1367-1380 |
+| **Test Query** | `toys under 10` should return products ≤£10 |
+
+### 9. Character Brand Filter Blocks Results (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Character queries only matched products with brand="Spiderman" |
+| **Root Cause** | GPT sets brand="Spiderman" but real products have brand="Marvel" |
+| **Wrong Approach** | Using brand filter for character queries |
+| **Correct Fix** | Skip brand filter when brand matches detected character |
+| **File** | `server/routes.ts` ~line 4039-4051 |
+| **Test Query** | `frozen toys` should return Disney products |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK

@@ -1352,22 +1352,34 @@ function inferCategoryFromQuery(query: string): { category: string; keywords: st
 async function searchFallbackByCategory(
   category: string, 
   keywords: string[], 
-  limit: number = 10
+  limit: number = 10,
+  maxPrice?: number
 ): Promise<{ products: any[]; fallbackCategory: string }> {
   try {
     // Search for products matching the category keywords
     const fallbackQuery = keywords[0] || category;
-    console.log(`[Fallback Search] Searching category "${category}" with keyword "${fallbackQuery}"`);
+    console.log(`[Fallback Search] Searching category "${category}" with keyword "${fallbackQuery}"${maxPrice ? `, maxPrice: £${maxPrice}` : ''}`);
     
-    const results = await storage.searchProducts(fallbackQuery, limit, 0, undefined, {});
+    // CRITICAL FIX: Pass price filter to fallback search - pass maxPrice as 4th argument
+    const results = await storage.searchProducts(fallbackQuery, limit, 0, maxPrice);
     
-    if (results.products.length > 0) {
-      return { products: results.products, fallbackCategory: category };
+    // Filter by price if specified (double-check since storage might not apply it in all paths)
+    let filteredProducts = results.products;
+    if (maxPrice) {
+      filteredProducts = filteredProducts.filter((p: any) => p.price <= maxPrice);
+    }
+    
+    if (filteredProducts.length > 0) {
+      return { products: filteredProducts, fallbackCategory: category };
     }
     
     // Try broader search if specific category fails
-    const broadResults = await storage.searchProducts(category, limit, 0, undefined, {});
-    return { products: broadResults.products, fallbackCategory: category };
+    const broadResults = await storage.searchProducts(category, limit, 0, maxPrice);
+    let broadFiltered = broadResults.products;
+    if (maxPrice) {
+      broadFiltered = broadFiltered.filter((p: any) => p.price <= maxPrice);
+    }
+    return { products: broadFiltered, fallbackCategory: category };
   } catch (error) {
     console.error('[Fallback Search] Error:', error);
     return { products: [], fallbackCategory: category };
@@ -3758,15 +3770,23 @@ Format: ["id1", "id2", ...]`
       
       // CRITICAL FIX: Ensure queryParser-detected character is ALWAYS required in results
       // This prevents "nerf gun" from returning random toys when GPT returns mustMatch: []
+      // FIX: Normalize hyphens to prevent "spiderman" AND "spider-man" being required (no product has both!)
       if (parsedQuery.character) {
         const charLower = parsedQuery.character.toLowerCase();
-        const alreadyInMustHave = interpretation.mustHaveAll?.some(
-          t => t.toLowerCase().includes(charLower) || charLower.includes(t.toLowerCase())
-        );
+        // Normalize: remove hyphens and spaces for comparison
+        const charNormalized = charLower.replace(/[-\s]/g, '');
+        
+        const alreadyInMustHave = interpretation.mustHaveAll?.some(t => {
+          const tNormalized = t.toLowerCase().replace(/[-\s]/g, '');
+          return tNormalized.includes(charNormalized) || charNormalized.includes(tNormalized);
+        });
+        
         if (!alreadyInMustHave) {
           if (!interpretation.mustHaveAll) interpretation.mustHaveAll = [];
           interpretation.mustHaveAll.push(parsedQuery.character);
           console.log(`[Shop Search] Added queryParser character "${parsedQuery.character}" to mustHaveAll`);
+        } else {
+          console.log(`[Shop Search] Skipping duplicate character "${parsedQuery.character}" (already in mustHaveAll)`);
         }
       }
       
@@ -3781,6 +3801,40 @@ Format: ["id1", "id2", ...]`
       if (effectiveMinPrice === undefined && interpretation.context.minPrice) {
         effectiveMinPrice = interpretation.context.minPrice;
         console.log(`[Shop Search] Applying GPT-extracted minPrice: £${effectiveMinPrice}`);
+      }
+      
+      // CRITICAL FIX: Force semantic path for character/franchise queries
+      // This ensures consistent alias handling (spiderman = spider-man) regardless of GPT cache
+      // See architect recommendation: "Gate all character-detected queries through semantic pipeline"
+      if (parsedQuery.character) {
+        const charNorm = parsedQuery.character.toLowerCase().replace(/[-\s]/g, '');
+        
+        // Build character variants (hyphenated and non-hyphenated)
+        const variants = [parsedQuery.character.toLowerCase()];
+        if (parsedQuery.character.includes('-')) {
+          variants.push(parsedQuery.character.replace(/-/g, '').toLowerCase()); // spider-man → spiderman
+        } else if (/spider|iron|bat|super|aqua|ant/.test(charNorm)) {
+          const hyphenated = parsedQuery.character.replace(/(spider|iron|bat|super|aqua|ant)(man|woman|girl|boy)/gi, '$1-$2');
+          if (hyphenated !== parsedQuery.character) variants.push(hyphenated.toLowerCase());
+        }
+        
+        // ALWAYS add character variants to searchTerms (even if GPT cache has stale terms)
+        // This ensures the SQL candidate query searches for the character, not just generic words like "toys"
+        if (!interpretation.searchTerms || interpretation.searchTerms.length === 0) {
+          interpretation.searchTerms = [variants];
+        } else {
+          // CRITICAL: Prepend character variants to existing search terms
+          // GPT cache might have ['toys','games'] but we need ['spiderman', 'spider-man', 'toys', 'games']
+          interpretation.searchTerms.unshift(variants);
+          console.log(`[Shop Search] INJECTING character variants "${variants.join(', ')}" into searchTerms`);
+        }
+        
+        // Force semantic path if not already
+        if (!interpretation.isSemanticQuery) {
+          console.log(`[Shop Search] FORCING semantic path for character query "${parsedQuery.character}"`);
+          interpretation.isSemanticQuery = true;
+          interpretation.expandedKeywords = [...variants, ...(interpretation.expandedKeywords || [])];
+        }
       }
       
       if (interpretation.isSemanticQuery) {
@@ -3913,7 +3967,7 @@ Format: ["id1", "id2", ...]`
           const inferredCategory = inferCategoryFromQuery(query);
           if (inferredCategory) {
             console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory.category}"`);
-            const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit);
+            const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit, effectiveMaxPrice);
             if (fallback.products.length > 0) {
               return res.json({
                 success: true,
@@ -3987,13 +4041,23 @@ Format: ["id1", "id2", ...]`
           if (brandCondition) filterConditions.push(brandCondition as any);
         } else if (interpretation.attributes?.brand) {
           // Apply GPT-extracted brand filter (e.g., "star wars lego" → brand: Lego)
+          // CRITICAL FIX: Do NOT use brand filter for character queries
+          // Characters like "Spiderman" appear in product names, not brand column
+          // Real Spider-Man products have brand="Marvel" or "Disney", not "Spiderman"
           const gptBrand = interpretation.attributes.brand;
-          const brandCondition = or(
-            ilike(products.brand, `%${gptBrand}%`),
-            ilike(products.name, `%${gptBrand}%`)
-          );
-          if (brandCondition) filterConditions.push(brandCondition as any);
-          console.log(`[Shop Search] Applying GPT-extracted brand filter: ${gptBrand}`);
+          const isCharacterQuery = parsedQuery.character && 
+            gptBrand.toLowerCase().replace(/[-\s]/g, '') === parsedQuery.character.toLowerCase().replace(/[-\s]/g, '');
+          
+          if (!isCharacterQuery) {
+            const brandCondition = or(
+              ilike(products.brand, `%${gptBrand}%`),
+              ilike(products.name, `%${gptBrand}%`)
+            );
+            if (brandCondition) filterConditions.push(brandCondition as any);
+            console.log(`[Shop Search] Applying GPT-extracted brand filter: ${gptBrand}`);
+          } else {
+            console.log(`[Shop Search] SKIPPING brand filter for character query (character will be matched via mustHaveAll)`);
+          }
         }
         
         // CRITICAL: Apply mustHaveAll as hard SQL filters (e.g., "star wars" must appear in results)
@@ -4009,8 +4073,12 @@ Format: ["id1", "id2", ...]`
         ]);
         if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
           for (const term of interpretation.mustHaveAll) {
-            // Skip brand terms already handled by brand filter
-            if (interpretation.attributes?.brand && 
+            // CRITICAL FIX: Do NOT skip character terms even if they match brand
+            // GPT often sets brand="Spiderman" but products have brand="Marvel"
+            // We MUST still require "spider-man" in product name to avoid DOG TOYS SPIDERMAN
+            // Only skip if it's a REAL brand (not a character/franchise)
+            const isCharacterBrand = /spider|man|patrol|patrol|frozen|disney|marvel|dc|star\s*wars|pokemon|harry\s*potter|peppa|bluey/i.test(term);
+            if (!isCharacterBrand && interpretation.attributes?.brand && 
                 term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
               continue;
             }
@@ -4023,12 +4091,23 @@ Format: ["id1", "id2", ...]`
               continue;
             }
             for (const word of words) {
-              // PERFORMANCE FIX: Use simple ILIKE on indexed name column only
-              // Regex word boundaries across 4 columns = 40+ second queries
-              const mustHaveCondition = or(
-                ilike(products.name, `%${word}%`),
-                ilike(products.brand, `%${word}%`)
-              );
+              // CRITICAL FIX: Handle hyphenated variants (spider-man vs spiderman)
+              // Create OR condition that matches EITHER variant
+              const wordVariants = [word];
+              if (word.includes('-')) {
+                wordVariants.push(word.replace(/-/g, '')); // spider-man → spiderman
+              } else if (/spider|man|iron|bat|super/.test(word)) {
+                // Common superhero words that might have hyphenated variants
+                const hyphenated = word.replace(/(spider|iron|bat|super)(man|woman|girl|boy)/i, '$1-$2');
+                if (hyphenated !== word) wordVariants.push(hyphenated);
+              }
+              
+              // Build OR condition for all variants
+              const variantConditions = wordVariants.flatMap(variant => [
+                ilike(products.name, `%${variant}%`),
+                ilike(products.brand, `%${variant}%`)
+              ]);
+              const mustHaveCondition = or(...variantConditions);
               if (mustHaveCondition) {
                 filterConditions.push(mustHaveCondition as any);
               }
@@ -4151,11 +4230,26 @@ Format: ["id1", "id2", ...]`
           // Removed OR conditions across description/brand/category that bypass indexes
           // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
           // This prevents "bike" matching "biker", "cheap" matching "cheapskate"
+          // HYPHENATED FIX: Also search for hyphenated variants (spiderman → spider-man)
           const wordConditions = words.map(w => {
             // Escape regex special chars in the word
             const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            // \y is PostgreSQL word boundary anchor (equivalent to \b in other regex)
-            return sql`${products.name} ~* ${'\\y' + escaped + '\\y'}`;
+            
+            // CRITICAL FIX: Handle hyphenated superhero variants
+            // "spiderman" should also match "spider-man" and vice versa
+            const variants = [escaped];
+            if (/spiderman|ironman|batman|superman|aquaman|antman/.test(w)) {
+              // Add hyphenated variant: spiderman → spider-man
+              const hyphenated = w.replace(/(spider|iron|bat|super|aqua|ant)(man|woman|girl|boy)/i, '$1-$2');
+              if (hyphenated !== w) variants.push(hyphenated);
+            } else if (w.includes('-') && /spider|iron|bat|super|aqua|ant/.test(w)) {
+              // Add non-hyphenated variant: spider-man → spiderman
+              variants.push(w.replace(/-/g, ''));
+            }
+            
+            // Build OR condition for all variants
+            const regexPattern = variants.map(v => '\\y' + v + '\\y').join('|');
+            return sql`${products.name} ~* ${regexPattern}`;
           });
           
           // Build base WHERE clause with keyword matching
@@ -4413,7 +4507,7 @@ Examples:
         const inferredCategory = inferCategoryFromQuery(query);
         if (inferredCategory) {
           console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory.category}"`);
-          const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit);
+          const fallback = await searchFallbackByCategory(inferredCategory.category, inferredCategory.keywords, safeLimit, effectiveMaxPrice);
           if (fallback.products.length > 0) {
             return res.json({
               success: true,
@@ -4458,7 +4552,7 @@ Examples:
         const inferredCategory2 = inferCategoryFromQuery(query);
         if (inferredCategory2) {
           console.log(`[Shop Search] INVENTORY GAP FALLBACK: "${query}" → category "${inferredCategory2.category}"`);
-          const fallback2 = await searchFallbackByCategory(inferredCategory2.category, inferredCategory2.keywords, safeLimit);
+          const fallback2 = await searchFallbackByCategory(inferredCategory2.category, inferredCategory2.keywords, safeLimit, effectiveMaxPrice);
           if (fallback2.products.length > 0) {
             return res.json({
               success: true,
