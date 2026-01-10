@@ -355,6 +355,35 @@ UPDATE products SET search_vector = to_tsvector('english', COALESCE(name, '') ||
 ```
 OR just redeploy - the code now has ILIKE fallbacks that will work without the column.
 
+### ROOT CAUSE ANALYSIS: 37-Query Regression (2026-01-10)
+
+**Symptom:** 37 out of ~60 queries returned 0 results (57% failure rate)
+
+**Why It Happened:**
+| Phase | Problem | Impact |
+|-------|---------|--------|
+| 1. TSVECTOR introduced | PostgreSQL `to_tsvector('english', ...)` uses English stemming | Many product names don't match stemmed queries |
+| 2. TSVECTOR returns 0 | "playdough" → 0 results because products have "dough" not "playdough" | Query fails at fast path |
+| 3. ILIKE fallback slow | ILIKE on 1.1M rows takes 12-18 seconds per term group | Timeout before results return |
+| 4. No early termination | Code waited for ALL phases (OpenAI API, ILIKE, semantic) before returning | Combined latency exceeded timeout |
+
+**Specific Failure Modes:**
+1. **TSVECTOR stemming mismatch**: "playdough" stemmed differently than product names
+2. **ILIKE fallback timeout**: 12.6s+ for single query, multiple queries = crash
+3. **No fallback from storage.searchProducts**: Called OpenAI API even when tsvector would find results
+4. **checkBrandExistsInDB hanging**: ILIKE scan on 1.1M rows = 18s+ per call
+
+**What Fixed It:**
+| Fix | What Changed | Impact |
+|-----|--------------|--------|
+| #27 | checkBrandExistsInDB uses tsvector | 18s → 10ms |
+| #28 | storage.searchProducts runs tsvector FIRST, returns early if enough results | Skips slow OpenAI call |
+| #26 | try/catch around ALL tsvector with ILIKE fallback | No 500 errors when column missing |
+
+**Key Lesson:** TSVECTOR is fast but doesn't match all products due to English stemming. Must have fast fallbacks that complete in <2s, not 12-18s.
+
+---
+
 ### 27. checkBrandExistsInDB Hanging (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|
