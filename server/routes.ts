@@ -4103,6 +4103,30 @@ Format: ["id1", "id2", ...]`
       const interpretation = await interpretQuery(searchQuery, openaiKey);
       console.log(`[Shop Search] TIMING: Interpretation took ${Date.now() - interpretStart}ms`);
       
+      // FIX #19: PHRASE SYNONYM TERM HARMONIZATION
+      // When phrase synonym is applied (e.g., "diaper" → "nappy"), ensure the replacement term
+      // is in mustHaveAll AND searchTerms. GPT might return plural "nappies" but miss singular "nappy".
+      if (phraseSynonymApplied) {
+        const synonymTerms = phraseFixed.split(/\s+/).filter(t => t.length > 2);
+        for (const term of synonymTerms) {
+          // Add to mustHaveAll if not already present
+          const alreadyInMustHave = interpretation.mustHaveAll?.some(
+            t => t.toLowerCase() === term.toLowerCase()
+          );
+          if (!alreadyInMustHave) {
+            if (!interpretation.mustHaveAll) interpretation.mustHaveAll = [];
+            interpretation.mustHaveAll.push(term);
+            console.log(`[Shop Search] PHRASE SYNONYM: Added "${term}" to mustHaveAll`);
+          }
+          // Also add to searchTerms so SQL candidate query finds it
+          if (!interpretation.searchTerms?.some(group => group.includes(term.toLowerCase()))) {
+            if (!interpretation.searchTerms) interpretation.searchTerms = [];
+            interpretation.searchTerms.push([term.toLowerCase()]);
+            console.log(`[Shop Search] PHRASE SYNONYM: Added "${term}" to searchTerms`);
+          }
+        }
+      }
+      
       // CRITICAL FIX: Ensure queryParser-detected character is ALWAYS required in results
       // This prevents "nerf gun" from returning random toys when GPT returns mustMatch: []
       // FIX: Normalize hyphens to prevent "spiderman" AND "spider-man" being required (no product has both!)

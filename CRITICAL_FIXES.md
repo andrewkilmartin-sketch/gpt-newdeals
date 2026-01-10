@@ -203,6 +203,16 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Correct Fix** | Added `minPrice?: number` to context interface |
 | **File** | `server/routes.ts` QueryInterpretation interface ~line 2119 |
 
+### 19. Phrase Synonym Term Harmonization (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "diaper" returned plastic snaps instead of nappy products |
+| **Root Cause** | Phrase synonym "diaper"→"nappy" but GPT returns plural "nappies", mustHaveAll requires singular "nappy" |
+| **Root Cause 2** | SQL candidate search used GPT keywords (plural), post-filter required original (singular) |
+| **Correct Fix** | After phrase synonym, inject replacement term into BOTH mustHaveAll AND searchTerms |
+| **File** | `server/routes.ts` ~line 4109-4131 (after interpretQuery call) |
+| **Test Query** | `diaper` should return nappy bags, nappy pins, swim nappies |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
