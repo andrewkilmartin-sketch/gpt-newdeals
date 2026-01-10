@@ -1363,11 +1363,38 @@ export async function fetchCJPromotions(): Promise<CJPromotion[]> {
       await new Promise(r => setTimeout(r, 500));
     }
     
-    cjPromotionsCache = allPromotions;
-    cjPromotionsCacheTime = Date.now();
-    console.log(`[CJ Promotions] Cached ${allPromotions.length} total promotions`);
+    // FILTER: Remove inappropriate promotions before caching (family platform safety)
+    const safePromotions = allPromotions.filter(p => {
+      const text = ((p.linkName || '') + ' ' + (p.description || '')).toLowerCase();
+      const merchant = (p.advertiserName || '').toLowerCase();
+      
+      // Same blocklist as Awin
+      const blockedTerms = [
+        'bedroom confidence', 'erectile', 'viagra', 'sexual health', 'sexual performance',
+        'libido', 'reclaim your confidence', 'know your status', 'protect your health',
+        'sti test', 'std test', 'shop alcohol', 'alcohol gifts', 'save on gin',
+        'save on wine', 'save on whisky', 'bottle club', 'wine club', 'beer club',
+        'dating site', 'singles near', 'casino', 'betting', 'vape juice', 'e-liquid'
+      ];
+      const blockedMerchants = [
+        'naked wines', 'virgin wines', 'majestic wine', 'bottle club', 'beer hawk',
+        'dating direct', 'manual.co', 'numan', 'hims'
+      ];
+      
+      if (blockedTerms.some(term => text.includes(term))) {
+        console.log(`[CJ Promo Filter] BLOCKED: "${p.linkName?.substring(0, 50)}..." from ${p.advertiserName}`);
+        return false;
+      }
+      if (blockedMerchants.some(m => merchant.includes(m))) return false;
+      return true;
+    });
     
-    return allPromotions;
+    console.log(`[CJ Promotions] Filtered ${allPromotions.length - safePromotions.length} inappropriate promotions`);
+    cjPromotionsCache = safePromotions;
+    cjPromotionsCacheTime = Date.now();
+    console.log(`[CJ Promotions] Cached ${safePromotions.length} total promotions`);
+    
+    return safePromotions;
   } catch (error) {
     console.error('[CJ Promotions] Fetch error:', error);
     return cjPromotionsCache || [];

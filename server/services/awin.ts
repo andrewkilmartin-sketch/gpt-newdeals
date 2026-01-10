@@ -431,6 +431,41 @@ async function fetchAllEnhancedProducts(): Promise<AwinEnhancedProduct[]> {
   return allProducts;
 }
 
+// INAPPROPRIATE PROMOTIONS BLOCKLIST - Family platform safety
+const BLOCKED_PROMOTION_TERMS = [
+  // Sexual health / ED pills
+  'bedroom confidence', 'erectile', 'viagra', 'sexual health', 'sexual performance',
+  'libido', 'reclaim your confidence', 'regain confidence', 'intimate moments',
+  'adult toy', 'erotic', 'sexy lingerie',
+  // STI / Testing
+  'know your status', 'protect your health', 'sti test', 'std test', 'sexual testing',
+  'home testing kit',
+  // Alcohol
+  'shop alcohol', 'alcohol gifts', 'save on gin', 'save on wine', 'save on whisky',
+  'save on rum', 'save on vodka', 'bottle club', 'wine club', 'beer club', 'gin club',
+  'wine subscription', 'beer subscription', 'whisky subscription',
+  // Dating / Adult
+  'dating site', 'singles near', 'dating direct', 'adult singles',
+  // Gambling
+  'casino', 'betting', 'poker', 'slots', 'gambling',
+  // Vaping
+  'vape juice', 'e-liquid', 'nicotine', 'cbd oil'
+];
+const BLOCKED_PROMOTION_MERCHANTS = [
+  'naked wines', 'virgin wines', 'majestic wine', 'bottle club', 'beer hawk',
+  'whisky exchange', 'master of malt', 'the drink shop', 'laithwaites',
+  'dating direct', 'manual.co', 'numan', 'hims', 'roman'
+];
+
+function isInappropriatePromotion(promo: AwinPromotion): boolean {
+  const text = ((promo.description || '') + ' ' + (promo.title || '')).toLowerCase();
+  const merchant = (promo.merchant?.name || '').toLowerCase();
+  
+  if (BLOCKED_PROMOTION_TERMS.some(term => text.includes(term))) return true;
+  if (BLOCKED_PROMOTION_MERCHANTS.some(m => merchant.includes(m))) return true;
+  return false;
+}
+
 // Fetch promotions (vouchers/deals)
 async function fetchPromotions(): Promise<AwinPromotion[]> {
   if (!AWIN_API_KEY || !AWIN_PUBLISHER_ID) return [];
@@ -484,16 +519,26 @@ async function fetchPromotions(): Promise<AwinPromotion[]> {
       }
     }
 
-    promotionsCache = allPromotions;
+    // FILTER: Remove inappropriate promotions before caching (family platform safety)
+    const safePromotions = allPromotions.filter(p => {
+      if (isInappropriatePromotion(p)) {
+        console.log(`[Promo Filter] BLOCKED: "${p.title?.substring(0, 50)}..." from ${p.merchant?.name}`);
+        return false;
+      }
+      return true;
+    });
+    
+    console.log(`Filtered ${allPromotions.length - safePromotions.length} inappropriate promotions`);
+    promotionsCache = safePromotions;
     promotionsCacheTime = Date.now();
-    console.log(`Cached ${allPromotions.length} promotions`);
+    console.log(`Cached ${safePromotions.length} promotions`);
     
     // Index promotions with semantic embeddings (async, non-blocking)
-    indexPromotions(allPromotions).catch(err => {
+    indexPromotions(safePromotions).catch(err => {
       console.error('Failed to index promotions:', err);
     });
     
-    return allPromotions;
+    return safePromotions;
   } catch (error) {
     console.error("Error fetching promotions:", error);
     return promotionsCache || [];

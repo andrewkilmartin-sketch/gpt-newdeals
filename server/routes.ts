@@ -160,9 +160,11 @@ const BLOCKED_MERCHANTS = [
 // Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
 // NORMALIZED: no punctuation, lowercase - matching is done after stripping punctuation
 const KNOWN_FALLBACKS = [
+  // CTO audit findings - these appear 50-300+ times across queries
   'gifting at clarks',
   '10 off organic baby',
   'organic baby kidswear',
+  'organic baby',
   'toys from 1p',
   'poundfun',
   'free delivery',
@@ -171,7 +173,21 @@ const KNOWN_FALLBACKS = [
   'buy one get one',
   'any 2 knitwear',
   'any 2 shirts',
-  'buy 1 get 1'
+  'buy 1 get 1',
+  'treetop challenge',
+  'treetop family discount',
+  'save up to 20 on shopping',
+  'save up to 20 on dining',
+  'save up to 30 off hotels',
+  'save up to 55 off theme parks',
+  'save up to 44 or kids go free',
+  'honor choice',
+  'honor magic',
+  'honor pad',
+  '50 off honor',
+  '30 off honor',
+  'free 5 top up credit',
+  'vitamin planet rewards'
 ];
 
 // Quality intent words - user wants premium, not cheapest
@@ -399,6 +415,53 @@ function filterForFilmContext(results: any[]): any[] {
   });
 }
 
+// Check if query has "watch order" context (movie series, not jewelry watches)
+function hasWatchOrderContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return (q.includes('watch order') || q.includes('order to watch') || 
+          q.includes('watching order') || q.includes('best order'));
+}
+
+// Filter results for watch order queries - prioritize movie/show content
+function filterForWatchOrderContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
+    // Exclude jewelry watches
+    const isJewelryWatch = text.includes('wristwatch') || text.includes('jeweller') ||
+                           text.includes('sekonda') || text.includes('watch winder') ||
+                           text.includes('discount on watches') || text.includes('off watches');
+    if (isJewelryWatch) {
+      console.log(`[Watch Order Context] Excluded jewelry: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
+
+// Check if query has "break" context (chapter breaks, not holiday breaks)
+function hasBreakContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return (q.includes('chapter break') || q.includes('runtime') || 
+          q.includes('toilet break') || q.includes('intermission') ||
+          q.includes('interval'));
+}
+
+// Filter results for break context queries
+function filterForBreakContext(results: any[]): any[] {
+  return results.filter(r => {
+    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
+    // Exclude holiday/travel breaks
+    const isHolidayBreak = text.includes('holiday') || text.includes('hotel') ||
+                           text.includes('easter break') || text.includes('city break') ||
+                           text.includes('off stays') || text.includes('travel');
+    if (isHolidayBreak) {
+      console.log(`[Break Context] Excluded holiday: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
+
 // Check if query has "book" context (children's books, not booking.com)
 function hasBookContext(query: string): boolean {
   const q = query.toLowerCase();
@@ -566,6 +629,18 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (hasFilmContext(query)) {
     console.log(`[Search Quality] Applying film/movie filters for: "${query}"`);
     filtered = filterForFilmContext(filtered);
+  }
+  
+  // PHASE 3: Watch order context - movie series, not jewelry watches
+  if (hasWatchOrderContext(query)) {
+    console.log(`[Search Quality] Applying watch order filters for: "${query}"`);
+    filtered = filterForWatchOrderContext(filtered);
+  }
+  
+  // PHASE 3: Break context - chapter breaks, not holiday breaks
+  if (hasBreakContext(query)) {
+    console.log(`[Search Quality] Applying break context filters for: "${query}"`);
+    filtered = filterForBreakContext(filtered);
   }
   
   // PHASE 3: Gender context
