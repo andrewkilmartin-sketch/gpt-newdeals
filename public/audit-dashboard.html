@@ -759,26 +759,47 @@ paw patrol toys for 3 year old
                 return;
             }
             
-            const headers = [
-                'query', 'verdict', 'dbCount', 'searchCount', 'relevancePercent', 
-                'imagePercent', 'timeMs', 'firstResult', 'category', 'fixAction'
-            ];
+            // Check if any results have AI scoring
+            const hasAiScoring = allResults.some(r => r.search_result?.products?.some(p => p.aiScore !== undefined));
+            
+            // Build headers - include 8 product columns with AI scores if available
+            let headers = ['query', 'verdict', 'dbCount', 'searchCount', 'relevancePercent', 'imagePercent', 'aiAvgScore', 'timeMs'];
+            for (let i = 1; i <= 8; i++) {
+                headers.push(`product${i}`);
+                if (hasAiScoring) {
+                    headers.push(`aiScore${i}`);
+                }
+            }
+            headers.push('category', 'fixAction');
             
             const rows = allResults.map(r => {
                 const verdict = r.verdict || categorizeVerdict(r);
-                const firstProduct = r.search_result?.products?.[0];
-                return [
+                const products = r.search_result?.products || [];
+                
+                let row = [
                     `"${(r.query || '').replace(/"/g, '""')}"`,
                     verdict,
                     r.database_check?.count || 0,
                     r.search_result?.count || 0,
                     Math.round((r.analysis?.relevance_score || 0) * 100),
                     Math.round((r.analysis?.image_percent || 0) * 100),
-                    r.search_result?.time_ms || 0,
-                    `"${(firstProduct?.name || '').replace(/"/g, '""').substring(0, 50)}"`,
-                    r.category || '',
-                    `"${getFixAction(verdict, r)}"`
+                    r.analysis?.ai_avg_score !== undefined ? r.analysis.ai_avg_score.toFixed(1) : '',
+                    r.search_result?.time_ms || 0
                 ];
+                
+                // Add 8 product columns
+                for (let i = 0; i < 8; i++) {
+                    const p = products[i];
+                    row.push(`"${(p?.name || '').replace(/"/g, '""').substring(0, 60)}"`);
+                    if (hasAiScoring) {
+                        row.push(p?.aiScore !== undefined ? (p.aiScore >= 0 ? p.aiScore : 'ERR') : '');
+                    }
+                }
+                
+                row.push(r.category || '');
+                row.push(`"${getFixAction(verdict, r)}"`);
+                
+                return row;
             });
             
             const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
