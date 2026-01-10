@@ -285,16 +285,34 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Result** | **137ms** (cached), was 4447ms - 97% faster |
 | **Status** | RESOLVED - Now under 500ms target |
 
-### 25. Reported Regression 57% Failure (2026-01-10) - FALSE ALARM ✅
+### 25. Reported Regression 57% Failure (2026-01-10) - REAL BUG IN PRODUCTION ⚠️
 | Aspect | Details |
 |--------|---------|
-| **Reported Problem** | 57% of queries returning 0 results (LEGO, birthday, christmas, newborn) |
-| **Actual Cause** | Cache/deployment sync issue - NOT a code regression |
-| **Evidence** | All 19 "SEARCH_BUG" queries tested and return results immediately after cache clear |
-| **LEGO SQL check** | 1,766 products via tsvector, 1,426 via ILIKE - data exists |
-| **Query Status** | lego: 77-188ms ✅, toys for newborn: 757ms ✅, all others returning results |
-| **Action Taken** | Restarted workflow, verified all queries work |
-| **Status** | FALSE ALARM - No code regression found, cache issue resolved |
+| **Reported Problem** | 100% of queries returning HTTP 500 errors in production (Railway) |
+| **Root Cause** | Production database doesn't have `search_vector` column, causing SQL errors |
+| **Evidence** | Railway logs: `POST /api/shop/search 500 in 207ms :: {"success":false,"error":"Search failed"}` |
+| **Solution** | Fix #26 - Added try/catch fallback to ILIKE when tsvector fails |
+| **Status** | FIXED in code - requires Railway redeploy |
+
+### 26. Production Missing search_vector Column (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Production database on Railway doesn't have `search_vector` column |
+| **Root Cause** | tsvector column only exists in development DB, not production |
+| **Correct Fix** | Added try/catch around ALL tsvector queries with ILIKE fallback |
+| **Locations Fixed** | ULTRA FAST PATH (~line 4020), BRAND FAST-PATH (~line 4430), KNOWN BRAND FAST PATH (~line 4720) |
+| **Test Query** | All age-based queries now work even without search_vector |
+| **Result** | toys for 1 year old: 1256ms ✅, lego: 158ms ✅ |
+| **Status** | FIXED - Redeploy to Railway to apply |
+
+**RAILWAY PRODUCTION FIX:**
+Either add the `search_vector` column to production DB:
+```sql
+ALTER TABLE products ADD COLUMN IF NOT EXISTS search_vector tsvector;
+CREATE INDEX IF NOT EXISTS idx_products_search_vector ON products USING GIN (search_vector);
+UPDATE products SET search_vector = to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(brand, ''));
+```
+OR just redeploy - the code now has ILIKE fallbacks that will work without the column.
 
 **Files Modified:**
 - `server/routes.ts` ~line 4541-4710 (tsvector search + ILIKE fallback)

@@ -4014,26 +4014,55 @@ Format: ["id1", "id2", ...]`
         
         // ULTRA FAST: Use tsvector search for "toy" - massively faster than ILIKE
         // FIX #24: Changed from ilike(category, '%toy%') (4+ seconds) to tsvector (milliseconds)
-        const fastResults = await db.select({
-          id: products.id,
-          name: products.name,
-          description: products.description,
-          price: products.price,
-          merchant: products.merchant,
-          brand: products.brand,
-          category: products.category,
-          affiliate_link: products.affiliateLink,
-          image_url: products.imageUrl,
-          in_stock: products.inStock
-        }).from(products)
-          .where(and(
-            isNotNull(products.affiliateLink),
-            // Use tsvector for fast toy search
-            sql`search_vector @@ to_tsquery('english', 'toy | toys | game | games | playset | puzzle')`
-          ))
-          .limit(200);
-        
-        console.log(`[Shop Search] ULTRA FAST: DB query took ${Date.now() - fastQueryStart}ms, found ${fastResults.length} candidates`);
+        // FIX #26: Added try/catch fallback to ILIKE if search_vector column doesn't exist in production
+        let fastResults: any[] = [];
+        try {
+          fastResults = await db.select({
+            id: products.id,
+            name: products.name,
+            description: products.description,
+            price: products.price,
+            merchant: products.merchant,
+            brand: products.brand,
+            category: products.category,
+            affiliate_link: products.affiliateLink,
+            image_url: products.imageUrl,
+            in_stock: products.inStock
+          }).from(products)
+            .where(and(
+              isNotNull(products.affiliateLink),
+              // Use tsvector for fast toy search
+              sql`search_vector @@ to_tsquery('english', 'toy | toys | game | games | playset | puzzle')`
+            ))
+            .limit(200);
+          console.log(`[Shop Search] ULTRA FAST (tsvector): DB query took ${Date.now() - fastQueryStart}ms, found ${fastResults.length} candidates`);
+        } catch (tsvectorError: any) {
+          // Fallback to ILIKE if search_vector column doesn't exist
+          console.log(`[Shop Search] ULTRA FAST: tsvector failed (${tsvectorError.message}), falling back to ILIKE`);
+          fastResults = await db.select({
+            id: products.id,
+            name: products.name,
+            description: products.description,
+            price: products.price,
+            merchant: products.merchant,
+            brand: products.brand,
+            category: products.category,
+            affiliate_link: products.affiliateLink,
+            image_url: products.imageUrl,
+            in_stock: products.inStock
+          }).from(products)
+            .where(and(
+              isNotNull(products.affiliateLink),
+              or(
+                ilike(products.category, '%toy%'),
+                ilike(products.category, '%game%'),
+                ilike(products.name, '%toy%'),
+                ilike(products.name, '%game%')
+              )
+            ))
+            .limit(200);
+          console.log(`[Shop Search] ULTRA FAST (ILIKE fallback): DB query took ${Date.now() - fastQueryStart}ms, found ${fastResults.length} candidates`);
+        }
         
         // Score and filter results by age appropriateness
         const scoredResults = fastResults.map(p => {
@@ -4393,26 +4422,53 @@ Format: ["id1", "id2", ...]`
         const brandFastStart = Date.now();
         
         // Use tsvector search for brand queries (much faster than ILIKE)
+        // FIX #26: Added try/catch fallback to ILIKE if search_vector column doesn't exist in production
         const brandTsQuery = detectedBrand.toLowerCase().split(/\s+/).join(' & ');
-        const brandResults = await db.select({
-          id: products.id,
-          name: products.name,
-          description: products.description,
-          price: products.price,
-          merchant: products.merchant,
-          brand: products.brand,
-          category: products.category,
-          affiliate_link: products.affiliateLink,
-          image_url: products.imageUrl,
-          in_stock: products.inStock
-        }).from(products)
-          .where(and(
-            sql`search_vector @@ to_tsquery('english', ${brandTsQuery})`,
-            products.inStock,
-            isNotNull(products.affiliateLink),
-            sql`${products.imageUrl} NOT ILIKE '%noimage%'`
-          ))
-          .limit(100);
+        let brandResults: any[] = [];
+        try {
+          brandResults = await db.select({
+            id: products.id,
+            name: products.name,
+            description: products.description,
+            price: products.price,
+            merchant: products.merchant,
+            brand: products.brand,
+            category: products.category,
+            affiliate_link: products.affiliateLink,
+            image_url: products.imageUrl,
+            in_stock: products.inStock
+          }).from(products)
+            .where(and(
+              sql`search_vector @@ to_tsquery('english', ${brandTsQuery})`,
+              products.inStock,
+              isNotNull(products.affiliateLink),
+              sql`${products.imageUrl} NOT ILIKE '%noimage%'`
+            ))
+            .limit(100);
+        } catch (tsvectorError: any) {
+          console.log(`[Shop Search] BRAND FAST-PATH: tsvector failed, falling back to ILIKE`);
+          brandResults = await db.select({
+            id: products.id,
+            name: products.name,
+            description: products.description,
+            price: products.price,
+            merchant: products.merchant,
+            brand: products.brand,
+            category: products.category,
+            affiliate_link: products.affiliateLink,
+            image_url: products.imageUrl,
+            in_stock: products.inStock
+          }).from(products)
+            .where(and(
+              or(
+                ilike(products.brand, `%${detectedBrand}%`),
+                ilike(products.name, `%${detectedBrand}%`)
+              ),
+              products.inStock,
+              isNotNull(products.affiliateLink)
+            ))
+            .limit(100);
+        }
         
         // Sort by relevance: brand name in product name first, then brand column
         const brandLower = detectedBrand.toLowerCase();
@@ -4663,24 +4719,50 @@ Format: ["id1", "id2", ...]`
                 const brandFastStart = Date.now();
                 const brandTsquery = brandLower.split(/\s+/).filter(w => w.length > 1).join(' & ');
                 
-                const brandResults = await db.select({
-                  id: products.id,
-                  name: products.name,
-                  description: products.description,
-                  price: products.price,
-                  merchant: products.merchant,
-                  brand: products.brand,
-                  category: products.category,
-                  affiliate_link: products.affiliateLink,
-                  image_url: products.imageUrl,
-                  in_stock: products.inStock
-                }).from(products)
-                  .where(and(
-                    sql`search_vector @@ to_tsquery('english', ${brandTsquery})`,
-                    isNotNull(products.affiliateLink),
-                    ...filterConditions
-                  ))
-                  .limit(100);
+                // FIX #26: Added try/catch fallback to ILIKE if search_vector column doesn't exist
+                let brandResults: any[] = [];
+                try {
+                  brandResults = await db.select({
+                    id: products.id,
+                    name: products.name,
+                    description: products.description,
+                    price: products.price,
+                    merchant: products.merchant,
+                    brand: products.brand,
+                    category: products.category,
+                    affiliate_link: products.affiliateLink,
+                    image_url: products.imageUrl,
+                    in_stock: products.inStock
+                  }).from(products)
+                    .where(and(
+                      sql`search_vector @@ to_tsquery('english', ${brandTsquery})`,
+                      isNotNull(products.affiliateLink),
+                      ...filterConditions
+                    ))
+                    .limit(100);
+                } catch (tsvectorError: any) {
+                  console.log(`[Shop Search] KNOWN BRAND FAST PATH: tsvector failed, falling back to ILIKE`);
+                  brandResults = await db.select({
+                    id: products.id,
+                    name: products.name,
+                    description: products.description,
+                    price: products.price,
+                    merchant: products.merchant,
+                    brand: products.brand,
+                    category: products.category,
+                    affiliate_link: products.affiliateLink,
+                    image_url: products.imageUrl,
+                    in_stock: products.inStock
+                  }).from(products)
+                    .where(and(
+                      or(
+                        ilike(products.brand, `%${brandLower}%`),
+                        ilike(products.name, `%${brandLower}%`)
+                      ),
+                      isNotNull(products.affiliateLink)
+                    ))
+                    .limit(100);
+                }
                 
                 console.log(`[Shop Search] KNOWN BRAND FAST PATH: Found ${brandResults.length} results in ${Date.now() - brandFastStart}ms`);
                 
