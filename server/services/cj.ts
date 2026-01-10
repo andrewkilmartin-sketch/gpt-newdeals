@@ -320,6 +320,43 @@ function deriveBrand(product: CJProduct, searchKeyword: string): string | null {
   return null;
 }
 
+// ALCOHOL BLOCKLIST - Products matching these are never imported (family platform)
+const ALCOHOL_BLOCKLIST = [
+  'wine gift', 'wine hamper', 'wine subscription', 'wine club', 'wine case',
+  'whisky gift', 'whiskey gift', 'gin gift', 'vodka gift', 'rum gift', 'beer gift',
+  'champagne gift', 'prosecco gift', 'spirits gift', 'alcohol gift',
+  'bottle of wine', 'case of wine', 'bottles of wine',
+  'gin 70cl', 'gin 75cl', 'vodka 70cl', 'whisky 70cl', 'whiskey 70cl', 'rum 70cl',
+  'johnnie walker', 'jack daniels', 'absolut vodka', 'smirnoff vodka', 'grey goose',
+  'bacardi rum', 'captain morgan', 'bombay sapphire', 'tanqueray gin', 'hendricks gin',
+  'gordons gin', 'beefeater gin', 'moet chandon', 'veuve clicquot', 'dom perignon',
+  'glenfiddich', 'glenlivet', 'macallan', 'silent pool gin',
+  'craft beer box', 'beer pack', 'lager pack', 'ale pack', 'ipa pack',
+  'wine tasting', 'brewery tour', 'distillery tour'
+];
+const ALCOHOL_MERCHANT_BLOCKLIST = [
+  'naked wines', 'virgin wines', 'majestic wine', 'bottle club', 'beer hawk',
+  'whisky exchange', 'master of malt', 'the drink shop', 'laithwaites',
+  'wine society', 'slurp', 'wine direct', 'beer52', 'flavourly', 'craft gin club'
+];
+
+function isAlcoholProduct(name: string, merchant: string): boolean {
+  const nameLower = name.toLowerCase();
+  const merchantLower = merchant.toLowerCase();
+  
+  // Check merchant blocklist
+  if (ALCOHOL_MERCHANT_BLOCKLIST.some(m => merchantLower.includes(m))) {
+    return true;
+  }
+  
+  // Check product name blocklist
+  if (ALCOHOL_BLOCKLIST.some(term => nameLower.includes(term))) {
+    return true;
+  }
+  
+  return false;
+}
+
 export async function importCJProductsToDatabase(
   keywords: string,
   limit: number = 100
@@ -362,6 +399,13 @@ export async function importCJProductsToDatabase(
           .limit(1);
         
         if (existing.length > 0) {
+          skipped++;
+          continue;
+        }
+        
+        // ALCOHOL FILTER: Skip alcohol products (family platform)
+        if (isAlcoholProduct(product.title || '', product.advertiserName || '')) {
+          console.log(`[CJ] BLOCKED alcohol product: "${product.title?.substring(0, 50)}..."`);
           skipped++;
           continue;
         }

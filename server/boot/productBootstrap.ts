@@ -89,6 +89,35 @@ function parsePrice(priceStr?: string): number | null {
   return isNaN(num) ? null : num;
 }
 
+// ALCOHOL BLOCKLIST - Products matching these are never imported (family platform)
+const ALCOHOL_BLOCKLIST = [
+  'wine gift', 'wine hamper', 'wine subscription', 'wine club', 'wine case',
+  'whisky gift', 'whiskey gift', 'gin gift', 'vodka gift', 'rum gift', 'beer gift',
+  'champagne gift', 'prosecco gift', 'spirits gift', 'alcohol gift',
+  'bottle of wine', 'case of wine', 'bottles of wine',
+  'gin 70cl', 'gin 75cl', 'vodka 70cl', 'whisky 70cl', 'whiskey 70cl', 'rum 70cl',
+  'johnnie walker', 'jack daniels', 'absolut vodka', 'smirnoff vodka', 'grey goose',
+  'bacardi rum', 'captain morgan', 'bombay sapphire', 'tanqueray gin', 'hendricks gin',
+  'gordons gin', 'beefeater gin', 'moet chandon', 'veuve clicquot', 'dom perignon',
+  'glenfiddich', 'glenlivet', 'macallan', 'silent pool gin',
+  'craft beer box', 'beer pack', 'lager pack', 'ale pack', 'ipa pack',
+  'wine tasting', 'brewery tour', 'distillery tour'
+];
+const ALCOHOL_MERCHANT_BLOCKLIST = [
+  'naked wines', 'virgin wines', 'majestic wine', 'bottle club', 'beer hawk',
+  'whisky exchange', 'master of malt', 'the drink shop', 'laithwaites',
+  'wine society', 'slurp', 'wine direct', 'beer52', 'flavourly', 'craft gin club'
+];
+
+function isAlcoholProduct(name: string, merchant: string): boolean {
+  const nameLower = (name || '').toLowerCase();
+  const merchantLower = (merchant || '').toLowerCase();
+  
+  if (ALCOHOL_MERCHANT_BLOCKLIST.some(m => merchantLower.includes(m))) return true;
+  if (ALCOHOL_BLOCKLIST.some(term => nameLower.includes(term))) return true;
+  return false;
+}
+
 async function importProducts(products: AwinEnhancedProduct[]): Promise<number> {
   if (products.length === 0) return 0;
   
@@ -99,6 +128,7 @@ async function importProducts(products: AwinEnhancedProduct[]): Promise<number> 
     const batch = products.slice(i, i + BATCH_SIZE);
     const validProducts = batch
       .filter(p => p.id && p.title && p.link && parsePrice(p.price))
+      .filter(p => !isAlcoholProduct(p.title || '', p.meta?.advertiser_name || ''))
       .map(p => {
         const price = parsePrice(p.price);
         return {

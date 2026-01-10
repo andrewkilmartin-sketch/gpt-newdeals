@@ -85,6 +85,14 @@ Key architectural decisions and features include:
       - GENDER_EXCLUSION_MAP: 16 gender keywords (him/her/boy/girl/son/daughter/etc.) with exclusion lists
     - **Relevance Scorer Updates**: Same expanded blocklists in server/services/relevance-scorer.ts for AI audit scoring
 
+-   **Alcohol Removal (Jan 2026)** - Complete removal of alcohol products from family platform:
+    - Permanently deleted all alcohol products from database (wine gifts, gin bottles, champagne, whisky, etc.)
+    - Added ALCOHOL_BLOCKLIST to both CJ and Awin import pipelines to prevent future imports
+    - ALCOHOL_MERCHANT_BLOCKLIST blocks entire alcohol merchants (Naked Wines, Virgin Wines, Majestic Wine, etc.)
+    - Import filters in: `server/services/cj.ts`, `server/boot/productBootstrap.ts`
+    - Search filters in: `server/routes.ts` (INAPPROPRIATE_TERMS, BLOCKED_MERCHANTS)
+    - Zero alcohol products will appear in search results or be imported in future
+
 ## External Dependencies
 -   **PostgreSQL**: The primary relational database used for all application data persistence.
 -   **Awin API**: Integrated for comprehensive shopping deals, product data feeds, and promotional content.
