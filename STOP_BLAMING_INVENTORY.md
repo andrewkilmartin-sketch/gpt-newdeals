@@ -134,3 +134,103 @@ These must ALL pass before any commit:
 3. Read CRITICAL_FIXES.md before every session
 4. Update CRITICAL_FIXES.md after every fix
 5. Run regression tests before committing
+
+---
+
+## 📋 AGENT MISTAKE LOG - "Inventory Gap" Claims That Were WRONG
+
+This section logs every time the agent claimed "inventory gap" but the products actually existed. This is a learning tool to prevent repeating the same mistakes.
+
+### 2026-01-10: Peppa Pig Books
+
+**What I said:** "Peppa Pig books not found - inventory gap"
+
+**What actually existed:**
+```sql
+SELECT name FROM products WHERE name ILIKE '%peppa%' AND name ILIKE '%book%';
+-- Result: "Personalised Peppa Pig First Year Record Book" (EXISTS!)
+```
+
+**Real problem:** My filters were excluding it because:
+1. Category "Gifts" wasn't in BOOKS_NEGATIVE_CATEGORIES exception list
+2. Wellington boots and T-shirts were being returned instead because "Shoes" category wasn't blocked
+
+**Lesson:** The book existed. My filter logic was broken. I should have run the SQL query FIRST before claiming inventory gap.
+
+---
+
+### 2026-01-10: Vampire Costume
+
+**What I said:** "No vampire costumes in database"
+
+**What actually existed:**
+```sql
+SELECT COUNT(*) FROM products WHERE name ILIKE '%costume%' AND category ILIKE '%dress up%';
+-- Result: 30+ actual costume products
+```
+
+**Real problem:** My costume filter was letting through:
+- Barbie costume dolls (not wearable)
+- Baby buntings (clothing, not costume)
+- Italian swimwear "copricostume" (foreign language)
+
+**Lesson:** Costumes existed. My filter wasn't blocking non-wearable items. SQL check would have shown products existed.
+
+---
+
+### 2026-01-10: LEGO Query Returning Clothing
+
+**What I said:** "Nike x LEGO is valid LEGO inventory"
+
+**What actually existed:**
+```sql
+SELECT COUNT(*) FROM products WHERE brand ILIKE 'lego' AND category NOT ILIKE '%clothing%';
+-- Result: 10,000+ actual LEGO toys
+```
+
+**Real problem:** My search was returning Nike x LEGO clothing collab instead of actual LEGO sets because the toy context filter wasn't excluding clothing categories.
+
+**Lesson:** LEGO toys existed in abundance. I was just returning the wrong products.
+
+---
+
+### Pattern of Mistakes
+
+| Date | Query | I Said | Reality | Root Cause |
+|------|-------|--------|---------|------------|
+| 2026-01-10 | peppa pig books | Inventory gap | Book exists | Filter excluded "Gifts" category |
+| 2026-01-10 | vampire costume | No costumes | 30+ costumes | Filter didn't block dolls/buntings |
+| 2026-01-10 | lego | Nike collab is fine | 10K+ LEGO toys | Didn't filter clothing |
+| 2026-01-10 | dinosaur figures | Sleepsuits are figures | 100+ actual figures | Didn't block "Baby Clothes" category |
+
+---
+
+### Checklist Before Saying "Inventory Gap"
+
+- [ ] Did I run `SELECT COUNT(*) FROM products WHERE name ILIKE '%term%'`?
+- [ ] If count > 0, the problem is MY CODE, not inventory
+- [ ] Did I check what categories/brands the products have?
+- [ ] Did I verify my filters aren't excluding valid products?
+- [ ] Only claim inventory gap if raw SQL returns 0 results
+
+---
+
+## ✅ SUCCESSES - When I Did It Right
+
+### 2026-01-10: Calico Critters → Sylvanian Families
+
+**Initial claim:** "Calico critters not found - might be inventory gap"
+
+**What I did right:**
+```sql
+SELECT name, brand FROM products WHERE brand ILIKE '%sylvanian%' LIMIT 10;
+-- Result: 10+ Sylvanian Families products!
+```
+
+**The actual problem:** "Calico Critters" is the US name, UK uses "Sylvanian Families"
+
+**The fix:** Added PHRASE_SYNONYMS mapping to translate US → UK brand names automatically
+
+**Result:** "calico critters" now returns Sylvanian Families products
+
+**Lesson:** When products seem missing, check if the BRAND NAME differs by region. SQL first, assumptions never.

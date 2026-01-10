@@ -143,6 +143,38 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Note** | Many book queries return 0 due to inventory gap (no books in feed) |
 | **Test Query** | `peppa pig books` should NOT return backpacks |
 
+### 13. Phrase Synonyms for US/UK Brand Names (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "calico critters" returned 0 results (US brand name) |
+| **Root Cause** | Products use UK name "Sylvanian Families", not US name "Calico Critters" |
+| **Wrong Approach** | Expecting users to know UK brand names |
+| **Correct Fix** | PHRASE_SYNONYMS mapping + applyPhraseSynonyms() replaces phrases before search |
+| **File** | `server/routes.ts` PHRASE_SYNONYMS ~line 234-252 |
+| **Also Fixed** | Clear parsedQuery.character after synonym to prevent double-filtering |
+| **Test Query** | `calico critters` should return Sylvanian Families products |
+
+### 14. Costume Filter Improved (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "vampire costume" returned Barbie dolls, baby buntings, Italian swimwear |
+| **Root Cause** | Products named "Barbie Costume Doll" or "copricostume" (Italian swimwear) |
+| **Wrong Approach** | Only filtering obvious clothing keywords |
+| **Correct Fix** | Added COSTUME_NON_WEARABLE_TERMS (doll, figure, barbie, storage) |
+| **File** | `server/routes.ts` ~line 850-890 |
+| **Also Fixed** | Added foreign language indicators (copricostume, bunting, swaddle) |
+| **Test Query** | `vampire costume` should return actual dress-up costumes |
+
+### 15. Toy Context Filter Expanded (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "dinosaur figures" returned dinosaur sleepsuits/pyjamas |
+| **Root Cause** | "Baby Clothes" category not excluded in toy context filter |
+| **Wrong Approach** | Only filtering "clothing" category |
+| **Correct Fix** | Added baby clothes, sleepwear, nightwear, mugs to toy exclusions |
+| **File** | `server/routes.ts` filterForToyContext() ~line 800-820 |
+| **Test Query** | `dinosaur figures` should return toys, not sleepsuits |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK

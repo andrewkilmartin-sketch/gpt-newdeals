@@ -228,6 +228,26 @@ const QUERY_SYNONYMS: { [key: string]: string[] } = {
   'best': ['top', 'popular', 'recommended', 'award winning'],
 };
 
+// PHRASE SYNONYMS - US/UK brand name mappings and common alternatives
+const PHRASE_SYNONYMS: { [key: string]: string } = {
+  'calico critters': 'sylvanian families',  // US name → UK name
+  'calico critter': 'sylvanian families',
+  'thomas the tank engine': 'thomas friends',  // Expand search
+  'thomas tank engine': 'thomas friends',
+};
+
+// Apply phrase synonyms before word-level processing
+function applyPhraseSynonyms(query: string): string {
+  let result = query.toLowerCase();
+  for (const [phrase, replacement] of Object.entries(PHRASE_SYNONYMS)) {
+    if (result.includes(phrase)) {
+      console.log(`[PhraseSynonym] Replaced "${phrase}" with "${replacement}"`);
+      result = result.replace(phrase, replacement);
+    }
+  }
+  return result;
+}
+
 // Function to expand query with synonyms
 function expandQueryWithSynonyms(query: string): string[] {
   const words = query.toLowerCase().split(/\s+/);
@@ -3901,6 +3921,20 @@ Format: ["id1", "id2", ...]`
         console.log(`[Shop Search] TYPO FIX: "${query}" → "${workingQuery}"`);
       }
       
+      // PHRASE SYNONYMS: Apply US/UK brand mappings (e.g., "calico critters" → "sylvanian families")
+      const phraseFixed = applyPhraseSynonyms(workingQuery);
+      let phraseSynonymApplied = false;
+      if (phraseFixed !== workingQuery.toLowerCase()) {
+        console.log(`[Shop Search] PHRASE SYNONYM: "${workingQuery}" → "${phraseFixed}"`);
+        workingQuery = phraseFixed;
+        phraseSynonymApplied = true;
+        // Clear the original character since it was a synonym - we'll use the new phrase
+        if (parsedQuery.character) {
+          console.log(`[Shop Search] Clearing original character "${parsedQuery.character}" after phrase synonym`);
+          parsedQuery.character = null;
+        }
+      }
+      
       // MEDIA SUFFIX FIX: Strip trailing "film", "films", "movie", "movies" for product search
       // "dinosaur film" → "dinosaur", "animated films" → "animated"
       // These queries have products in DB but film/movie suffix breaks search
@@ -4541,7 +4575,9 @@ Format: ["id1", "id2", ...]`
         ]);
         const detectedCharacter = interpretation.attributes?.brand?.toLowerCase();
         
-        let words = query.toLowerCase()
+        // CRITICAL: Use searchQuery (with phrase synonyms applied), NOT original query
+        // This ensures "calico critters" → "sylvanian families" is used for word matching
+        let words = searchQuery.toLowerCase()
           .replace(/[-]/g, ' ')
           .replace(/[^\w\s]/g, ' ')
           .split(/\s+/)
