@@ -4012,8 +4012,8 @@ Format: ["id1", "id2", ...]`
           ageKeywords.push('kids', 'junior', '8+', '9+', '10+', 'tween');
         }
         
-        // ULTRA FAST: Use simple category filter (indexed) - no complex OR chains
-        // Query products in toy-related categories using category LIKE
+        // ULTRA FAST: Use tsvector search for "toy" - massively faster than ILIKE
+        // FIX #24: Changed from ilike(category, '%toy%') (4+ seconds) to tsvector (milliseconds)
         const fastResults = await db.select({
           id: products.id,
           name: products.name,
@@ -4028,8 +4028,8 @@ Format: ["id1", "id2", ...]`
         }).from(products)
           .where(and(
             isNotNull(products.affiliateLink),
-            // Simple category filter - uses index
-            ilike(products.category, '%toy%')
+            // Use tsvector for fast toy search
+            sql`search_vector @@ to_tsquery('english', 'toy | toys | game | games | playset | puzzle')`
           ))
           .limit(200);
         
