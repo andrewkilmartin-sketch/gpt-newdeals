@@ -645,8 +645,65 @@ export class DatabaseStorage implements IStorage {
       'ben holly', 'peter rabbit'
     ];
     
+    // FIX #28: TSVECTOR ULTRA FAST PATH - run BEFORE OpenAI embedding (which can hang)
+    // This provides sub-second results without external API calls
+    let tsvectorResults: Product[] = [];
+    try {
+      const searchTerms = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      if (searchTerms) {
+        const priceFilter = maxPrice && maxPrice > 0 ? `AND price <= ${maxPrice}` : '';
+        const tsvectorQuery = `
+          SELECT id, name, description, merchant, merchant_id, category, brand, price, 
+                 affiliate_link, image_url, image_status, in_stock,
+                 canonical_category, canonical_franchises
+          FROM products 
+          WHERE search_vector @@ plainto_tsquery('english', '${searchTerms.replace(/'/g, "''")}')
+          ${priceFilter}
+          ORDER BY ts_rank(search_vector, plainto_tsquery('english', '${searchTerms.replace(/'/g, "''")}')) DESC
+          LIMIT ${Math.max(limit * 5, 100)}
+        `;
+        const dbResults = await db.execute(sql.raw(tsvectorQuery));
+        if (Array.isArray(dbResults) && dbResults.length > 0) {
+          console.log(`[Storage TSVECTOR] Fast path found ${dbResults.length} products for "${query}"`);
+          tsvectorResults = dbResults.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            merchant: r.merchant,
+            merchantId: r.merchant_id,
+            category: r.category,
+            brand: r.brand,
+            price: r.price,
+            affiliateLink: r.affiliate_link,
+            imageUrl: r.image_url,
+            imageStatus: r.image_status,
+            inStock: r.in_stock,
+            canonicalCategory: r.canonical_category,
+            canonicalFranchises: r.canonical_franchises,
+          }));
+          
+          // FAST RETURN: If tsvector found enough results, apply post-filter and return immediately
+          if (tsvectorResults.length >= limit) {
+            console.log(`[Storage TSVECTOR] Fast return with ${tsvectorResults.length} products`);
+            // Apply mustMatch post-filter if needed
+            if (mustMatchTerm) {
+              const termLower = mustMatchTerm.toLowerCase();
+              tsvectorResults = tsvectorResults.filter(p => {
+                const nameLower = (p.name || '').toLowerCase();
+                const brandLower = (p.brand || '').toLowerCase();
+                return nameLower.includes(termLower) || brandLower.includes(termLower);
+              });
+              console.log(`[Storage TSVECTOR] Post-filter for "${mustMatchTerm}": ${tsvectorResults.length} products`);
+            }
+            return { products: tsvectorResults.slice(0, limit), totalCount: tsvectorResults.length };
+          }
+        }
+      }
+    } catch (tsvectorError) {
+      console.log(`[Storage TSVECTOR] Fast path failed, continuing to semantic search:`, tsvectorError);
+    }
     
-    // Try semantic search first (if embeddings exist)
+    // Try semantic search (if embeddings exist) - SLOWER because it calls OpenAI API
     let semanticResults: any[] = [];
     try {
       // Use expanded query for semantic search
@@ -694,8 +751,12 @@ export class DatabaseStorage implements IStorage {
     // The ilike conditions were causing 18+ second sequential scans on 1.1M rows
     // Post-filtering is applied after fast indexed searches complete
     
-    let keywordResults: Product[] = [];
+    // Use tsvector results from ultra fast path above, if any
+    let keywordResults: Product[] = tsvectorResults;
     const fetchLimitPerPhase = Math.max(limit * 5, 100);
+    
+    // FIX #28: Skip slow ILIKE phases if tsvector already found results
+    if (keywordResults.length < fetchLimitPerPhase) {
     
     // PHASE 1: Exact phrase match WITH remaining tokens (highest priority)
     // CRITICAL FIX: If query has extra words beyond the phrase, require them too!
@@ -806,6 +867,8 @@ export class DatabaseStorage implements IStorage {
       keywordResults.push(...orResults);
       console.log(`[Keyword Phase 3] OR fallback matched ${orResults.length} products`);
     }
+    
+    } // End of FIX #28: Skip slow ILIKE phases if tsvector succeeded
     
     // Merge and score results (semantic + keyword)
     const productMap = new Map<string, { product: Product, score: number }>();

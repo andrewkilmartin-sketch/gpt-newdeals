@@ -158,8 +158,8 @@
     </div>
 
     <script>
-        // Always test Railway production server
-        const API_BASE = 'https://gpt-newdeals-production.up.railway.app';
+        // Auto-detect: use current host (works for both local dev and production)
+        const API_BASE = window.location.origin;
         
         // Real conversational queries from Sunny search quality audit
         const queries = [

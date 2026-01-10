@@ -858,22 +858,29 @@ function detectBrandOrCharacter(query: string): string | null {
 }
 
 // Check if a brand/character exists in our product database
+// FIX #27: Use tsvector for fast lookup instead of ILIKE (was causing 18+ second hangs)
 async function checkBrandExistsInDB(brand: string): Promise<boolean> {
   try {
     const { db } = await import('../db');
     const { products } = await import('@shared/schema');
-    const { or, ilike, sql } = await import('drizzle-orm');
+    const { sql } = await import('drizzle-orm');
     
-    const result = await db.select({ count: sql<number>`count(*)` })
-      .from(products)
-      .where(or(
-        ilike(products.brand, `%${brand}%`),
-        ilike(products.name, `%${brand}%`)
-      ))
-      .limit(1);
-    
-    const count = Number(result[0]?.count || 0);
-    return count > 0;
+    // Use tsvector for fast indexed search
+    const brandTerm = brand.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    try {
+      const result = await db.select({ count: sql<number>`count(*)` })
+        .from(products)
+        .where(sql`search_vector @@ plainto_tsquery('english', ${brandTerm})`)
+        .limit(1);
+      
+      const count = Number(result[0]?.count || 0);
+      console.log(`[checkBrandExistsInDB] tsvector check: "${brand}" -> ${count} products`);
+      return count > 0;
+    } catch (tsvectorError) {
+      // Fallback: Just return true to allow search to proceed (no hang on missing column)
+      console.log(`[checkBrandExistsInDB] tsvector not available, allowing search for "${brand}"`);
+      return true;
+    }
   } catch (error) {
     console.error(`[checkBrandExistsInDB] Error checking brand "${brand}":`, error);
     return true; // On error, allow search to proceed
