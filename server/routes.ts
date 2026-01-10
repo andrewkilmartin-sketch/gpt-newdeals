@@ -46,7 +46,7 @@ import {
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
 // Build version for deployment verification - increment this when making changes
-const BUILD_VERSION = '2026.01.09.v1';
+const BUILD_VERSION = '2026.01.10.v2-agefix';
 const BUILD_DATE = '2026-01-09T00:30:00Z';
 const BUILD_FEATURES = [
   'CRITICAL FIX: storage.searchProducts now filters by detected brand/character',
