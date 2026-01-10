@@ -384,6 +384,32 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 39. LOL Dolls Returns NYX Makeup (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "lol dolls" query returned NYX makeup products instead of toys |
+| **Root Cause** | No exclusion filter for makeup/cosmetics in toy queries |
+| **Fix** | Added `MAKEUP_COSMETICS_TERMS` blocklist and `filterMakeupFromToyQueries()` function |
+| **Terms Blocked** | nyx, makeup, cosmetic, lipstick, mascara, foundation, concealer, eyeshadow, blush, bronzer, moisturiser, serum, skincare, perfume, fragrance |
+| **File** | `server/routes.ts` lines 404-443, 1588-1593 |
+| **Test Query** | `lol dolls` → XXL Pieces LOL Surprise!, Top Trumps LOL (NO NYX makeup) |
+| **Result** | Toy queries no longer return cosmetics products |
+
+---
+
+### 38. Badminton Set Returns 0 Results (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "badminton set" query returned 0 results despite 10+ products in database |
+| **Root Cause** | GPT returned `brand: "null"` (literal string) which was used as a filter, matching nothing |
+| **DB Check** | `SELECT name FROM products WHERE name ILIKE '%badminton%'` → 17 products exist |
+| **Fix** | Added `isValidBrand()` helper to skip invalid brand values (null, "null", undefined, empty) |
+| **File** | `server/routes.ts` lines 393-402, 4709, 5242, 6493 |
+| **Test Query** | `badminton set` → Foldable Badminton Net Set, Decathlon Badminton Easy Set |
+| **Result** | Badminton queries now return products correctly |
+
+---
+
 ### 36. Water Gun Returns Bouncy Castles (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|

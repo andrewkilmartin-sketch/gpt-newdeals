@@ -387,6 +387,58 @@ const KNOWN_TOY_BRANDS = [
   'jurassic world', 'jurassic park', 't-rex', 'dinosaur', 'unicorn'
 ];
 
+// Fix #38: Helper to check if GPT brand is valid (not null, "null", undefined, empty)
+function isValidBrand(brand: any): boolean {
+  if (!brand) return false;
+  if (typeof brand !== 'string') return false;
+  const normalized = brand.toLowerCase().trim();
+  if (normalized === '' || normalized === 'null' || normalized === 'undefined' || normalized === 'none') {
+    return false;
+  }
+  return true;
+}
+
+// Fix #39: Makeup/cosmetics terms to exclude from toy queries
+const MAKEUP_COSMETICS_TERMS = [
+  'nyx', 'makeup', 'cosmetic', 'cosmetics', 'lipstick', 'mascara', 
+  'foundation', 'concealer', 'eyeshadow', 'blush', 'bronzer',
+  'moisturiser', 'moisturizer', 'serum', 'skincare', 'skin care',
+  'nail polish', 'nail varnish', 'perfume', 'fragrance', 'cologne',
+  'eye liner', 'eyeliner', 'lip gloss', 'lipgloss', 'primer'
+];
+
+// Fix #39: Check if query is a toy-related query
+function isToyQuery(query: string): boolean {
+  const q = query.toLowerCase();
+  const toyIndicators = [
+    'toy', 'toys', 'doll', 'dolls', 'figure', 'figures', 'playset',
+    'lol surprise', 'lol dolls', 'barbie', 'action figure'
+  ];
+  // Also check for known toy brands
+  return toyIndicators.some(t => q.includes(t)) || 
+         KNOWN_TOY_BRANDS.some(brand => q.includes(brand));
+}
+
+// Fix #39: Filter out makeup/cosmetics from toy queries
+function filterMakeupFromToyQueries(results: any[], query: string): any[] {
+  if (!isToyQuery(query)) return results;
+  
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const brand = (r.brand || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    const text = name + ' ' + brand + ' ' + desc;
+    
+    for (const term of MAKEUP_COSMETICS_TERMS) {
+      if (text.includes(term)) {
+        console.log(`[Fix #39] Excluded makeup/cosmetics from toy query: "${r.name?.substring(0, 50)}..." (matched: ${term})`);
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
 // Fix #31: Word boundary collision patterns - these substring matches should be rejected
 // e.g., "train" should not match "trainer", "case" should not match "bookcase"
 const WORD_BOUNDARY_COLLISIONS: { [key: string]: string[] } = {
@@ -1528,6 +1580,13 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (hasToyContext(query)) {
     console.log(`[Search Quality] Applying toy context filters for: "${query}"`);
     filtered = filterForToyContext(filtered);
+  }
+  
+  // Fix #39: Exclude makeup/cosmetics from toy queries (lol dolls should not return NYX makeup)
+  const preMakeupCount = filtered.length;
+  filtered = filterMakeupFromToyQueries(filtered, query);
+  if (filtered.length < preMakeupCount) {
+    console.log(`[Fix #39] Makeup filter: ${preMakeupCount} → ${filtered.length} for: "${query}"`);
   }
   
   // P1 BUG 4 FIX: Costume context - exclude t-shirts/hoodies for costume queries
@@ -4651,11 +4710,12 @@ Format: ["id1", "id2", ...]`
             ilike(products.name, `%${filterBrand}%`)
           );
           if (brandCondition) filterConditions.push(brandCondition as any);
-        } else if (interpretation.attributes?.brand) {
+        } else if (interpretation.attributes?.brand && isValidBrand(interpretation.attributes.brand)) {
           // Apply GPT-extracted brand filter (e.g., "star wars lego" → brand: Lego)
           // CRITICAL FIX: Do NOT use brand filter for character queries
           // Characters like "Spiderman" appear in product names, not brand column
           // Real Spider-Man products have brand="Marvel" or "Disney", not "Spiderman"
+          // Fix #38: Also skip if brand is "null" or empty string (GPT sometimes returns these)
           const gptBrand = interpretation.attributes.brand;
           const isCharacterQuery = parsedQuery.character && 
             gptBrand.toLowerCase().replace(/[-\s]/g, '') === parsedQuery.character.toLowerCase().replace(/[-\s]/g, '');
@@ -5183,8 +5243,9 @@ Format: ["id1", "id2", ...]`
               ilike(products.brand, filterBrand),
               ilike(products.name, `%${filterBrand}%`)
             ));
-          } else if (interpretation.attributes?.brand) {
+          } else if (interpretation.attributes?.brand && isValidBrand(interpretation.attributes.brand)) {
             // Apply GPT-extracted brand filter for non-semantic queries
+            // Fix #38: Skip if brand is "null" or empty string
             const gptBrand = interpretation.attributes.brand;
             baseConditions.push(or(
               ilike(products.brand, `%${gptBrand}%`),
@@ -6433,9 +6494,10 @@ ONLY use IDs from the list. Never invent IDs.`
               ilike(productsV2.brand, `%${filterBrand}%`),
               ilike(productsV2.name, `%${filterBrand}%`)
             ));
-          } else if (interpretation.attributes?.brand) {
+          } else if (interpretation.attributes?.brand && isValidBrand(interpretation.attributes.brand)) {
             // Apply GPT-extracted brand filter for queries like "star wars lego under £20"
             // This ensures only Lego products are returned, not generic Star Wars toys
+            // Fix #38: Skip if brand is "null" or empty string
             const brandFilter = interpretation.attributes.brand;
             baseConditions.push(or(
               ilike(productsV2.brand, `%${brandFilter}%`),
