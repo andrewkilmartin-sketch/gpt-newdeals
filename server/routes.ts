@@ -4539,14 +4539,14 @@ Format: ["id1", "id2", ...]`
         };
         
         // =============================================================================
-        // FIX #20: TSVECTOR FAST SEARCH - EXPERIMENTAL
+        // FIX #19: TSVECTOR FAST SEARCH - PostgreSQL Full-Text Search
         // This uses the pre-computed search_vector column with GIN index
-        // Target: <100ms vs 8-15s with ILIKE
-        // Toggle USE_TSVECTOR_SEARCH to enable/disable
-        // BLOCKED: The 'products' table doesn't have search_vector column
-        //          Only 'products_v2' has it. Need to migrate to products_v2 or add column.
+        // Target: <100ms vs 8-15s with ILIKE regex word boundaries
+        // Toggle USE_TSVECTOR_SEARCH to enable/disable for A/B testing
+        // search_vector column added to products table and populated with:
+        //   to_tsvector('english', name || ' ' || brand)
         // =============================================================================
-        const USE_TSVECTOR_SEARCH = false; // DISABLED: products table lacks search_vector
+        const USE_TSVECTOR_SEARCH = true; // ENABLED: Fix #19 tsvector for <500ms search
         
         if (USE_TSVECTOR_SEARCH) {
           // Collect all search terms from all term groups
@@ -4626,6 +4626,82 @@ Format: ["id1", "id2", ...]`
             candidates = allCandidates;
             totalCandidates = candidates.length;
             console.log(`[Shop Search] TSVECTOR: Total ${candidates.length} unique candidates`);
+            
+            // FALLBACK: If tsvector found 0 results, fall back to ILIKE search
+            // This handles products that don't have search_vector populated yet
+            if (candidates.length === 0) {
+              console.log(`[Shop Search] TSVECTOR: 0 results, falling back to ILIKE search`);
+              // Reset for ILIKE fallback (use .length = 0 to clear const array)
+              allCandidates.length = 0;
+              seenIds.clear();
+              
+              // Run ILIKE search as fallback
+              for (const termGroup of interpretation.searchTerms) {
+                const termConditions: ReturnType<typeof and>[] = [];
+                for (const term of termGroup) {
+                  const words = term.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                  if (words.length === 0) continue;
+                  
+                  const condition = and(...words.map(w => {
+                    const variants = [w];
+                    if (MORPH_VARIANTS[w]) {
+                      variants.push(MORPH_VARIANTS[w]);
+                    }
+                    const variantConditions = variants.map(v => ilike(products.name, `%${v}%`));
+                    return or(...variantConditions);
+                  }));
+                  if (condition) termConditions.push(condition as any);
+                }
+                
+                if (termConditions.length === 0) continue;
+                
+                const whereConditions: any[] = [
+                  or(...termConditions),
+                  isNotNull(products.affiliateLink),
+                  ...filterConditions
+                ];
+                
+                if (effectiveMinPrice !== undefined) {
+                  whereConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${effectiveMinPrice}`);
+                }
+                if (effectiveMaxPrice !== undefined) {
+                  whereConditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${effectiveMaxPrice}`);
+                }
+                
+                const fallbackStart = Date.now();
+                const groupResults = await db.select({
+                  id: products.id,
+                  name: products.name,
+                  description: products.description,
+                  price: products.price,
+                  merchant: products.merchant,
+                  brand: products.brand,
+                  category: products.category,
+                  affiliate_link: products.affiliateLink,
+                  image_url: products.imageUrl,
+                  in_stock: products.inStock
+                }).from(products)
+                  .where(and(...whereConditions))
+                  .limit(100);
+                console.log(`[Shop Search] ILIKE FALLBACK: DB query took ${Date.now() - fallbackStart}ms, found ${groupResults.length} results`);
+                
+                for (let i = groupResults.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [groupResults[i], groupResults[j]] = [groupResults[j], groupResults[i]];
+                }
+                
+                for (const p of groupResults.slice(0, 30)) {
+                  if (!seenIds.has(p.id)) {
+                    seenIds.add(p.id);
+                    allCandidates.push(p);
+                  }
+                }
+              }
+              
+              candidates = allCandidates;
+              totalCandidates = candidates.length;
+              console.log(`[Shop Search] ILIKE FALLBACK: Total ${candidates.length} candidates`);
+            }
           }
         } else {
           // OLD ILIKE SEARCH (kept for comparison/rollback)
