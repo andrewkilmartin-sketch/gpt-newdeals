@@ -6850,6 +6850,227 @@ ONLY use IDs from the list. Never invent IDs.`
   });
 
   // ============================================================
+  // BULK AUDIT ENDPOINT - Run 1000 queries with parallel workers
+  // ============================================================
+  app.post("/api/audit/bulk", async (req, res) => {
+    try {
+      const { 
+        batch_size = 10, 
+        workers = 5, 
+        limit = 10,
+        start_index = 0,
+        max_queries = 1000
+      } = req.body;
+      
+      console.log(`[Bulk Audit] Starting bulk audit: batch_size=${batch_size}, workers=${workers}, limit=${limit}, start=${start_index}, max=${max_queries}`);
+      
+      const queriesPath = path.join(process.cwd(), 'data', 'bulk_audit_queries.json');
+      if (!fs.existsSync(queriesPath)) {
+        return res.status(404).json({ error: 'Bulk queries file not found at data/bulk_audit_queries.json' });
+      }
+      
+      const queriesData = JSON.parse(fs.readFileSync(queriesPath, 'utf8'));
+      let allQueries: string[] = queriesData.queries || [];
+      
+      allQueries = allQueries.slice(start_index, start_index + max_queries);
+      console.log(`[Bulk Audit] Loaded ${allQueries.length} queries (starting from index ${start_index})`);
+      
+      const outputPath = path.join(process.cwd(), 'data', `bulk_audit_results_${Date.now()}.json`);
+      const progressPath = path.join(process.cwd(), 'data', 'bulk_audit_progress.json');
+      
+      const port = process.env.PORT || 5000;
+      const results: any[] = [];
+      let passCount = 0, partialCount = 0, failCount = 0, errorCount = 0;
+      let processed = 0;
+      const startTime = Date.now();
+      
+      const runSingleQuery = async (query: string, index: number): Promise<any> => {
+        const queryStart = Date.now();
+        try {
+          const searchResponse = await fetch(`http://localhost:${port}/api/shop/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, limit })
+          });
+          
+          if (!searchResponse.ok) {
+            return { query, index, status: 'ERROR', error: `HTTP ${searchResponse.status}`, timeMs: Date.now() - queryStart };
+          }
+          
+          const searchData = await searchResponse.json();
+          const products = searchData.products || [];
+          
+          const parsed = parseQuery(query);
+          
+          let characterMatches = 0;
+          let ageMatches = 0;
+          let priceMatches = 0;
+          
+          for (const product of products) {
+            const productText = `${product.name || ''} ${product.brand || ''}`.toLowerCase();
+            
+            if (parsed.character) {
+              if (productText.includes(parsed.character.toLowerCase())) {
+                characterMatches++;
+              }
+            }
+            
+            if (parsed.priceMax && product.price !== undefined) {
+              if (product.price <= parsed.priceMax) {
+                priceMatches++;
+              }
+            }
+          }
+          
+          const characterPct = parsed.character ? (products.length > 0 ? (characterMatches / products.length) * 100 : 0) : null;
+          const pricePct = parsed.priceMax ? (products.length > 0 ? (priceMatches / products.length) * 100 : 0) : null;
+          
+          let totalScore = 0;
+          let maxScore = 0;
+          
+          if (characterPct !== null) {
+            maxScore += 40;
+            totalScore += (characterPct / 100) * 40;
+          }
+          if (pricePct !== null) {
+            maxScore += 20;
+            totalScore += (pricePct / 100) * 20;
+          }
+          
+          const finalScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 70;
+          const verdict = finalScore >= 70 ? 'PASS' : finalScore >= 40 ? 'PARTIAL' : 'FAIL';
+          
+          return {
+            query,
+            index,
+            status: verdict,
+            score: finalScore,
+            resultCount: products.length,
+            parsed: {
+              character: parsed.character,
+              age: parsed.ageMin,
+              priceMax: parsed.priceMax,
+              productType: parsed.productType
+            },
+            metrics: {
+              characterPct,
+              pricePct,
+              characterMatches,
+              priceMatches
+            },
+            topResults: products.slice(0, 3).map((p: any) => ({
+              name: p.name?.substring(0, 60),
+              brand: p.brand,
+              price: p.price,
+              merchant: p.merchant
+            })),
+            timeMs: Date.now() - queryStart
+          };
+        } catch (e) {
+          return { query, index, status: 'ERROR', error: String(e), timeMs: Date.now() - queryStart };
+        }
+      };
+      
+      const batches: string[][] = [];
+      for (let i = 0; i < allQueries.length; i += batch_size) {
+        batches.push(allQueries.slice(i, i + batch_size));
+      }
+      
+      console.log(`[Bulk Audit] Processing ${batches.length} batches of ${batch_size} queries each with ${workers} parallel workers`);
+      
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx += workers) {
+        const workerBatches = batches.slice(batchIdx, batchIdx + workers);
+        
+        const batchPromises = workerBatches.map((batch, workerIdx) => {
+          const globalBatchIdx = batchIdx + workerIdx;
+          return Promise.all(
+            batch.map((query, queryIdx) => {
+              const globalIdx = globalBatchIdx * batch_size + queryIdx + start_index;
+              return runSingleQuery(query, globalIdx);
+            })
+          );
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        for (const workerResults of batchResults) {
+          for (const result of workerResults) {
+            results.push(result);
+            processed++;
+            
+            if (result.status === 'PASS') passCount++;
+            else if (result.status === 'PARTIAL') partialCount++;
+            else if (result.status === 'FAIL') failCount++;
+            else errorCount++;
+          }
+        }
+        
+        const progress = {
+          processed,
+          total: allQueries.length,
+          percent: Math.round((processed / allQueries.length) * 100),
+          pass: passCount,
+          partial: partialCount,
+          fail: failCount,
+          errors: errorCount,
+          elapsedMs: Date.now() - startTime,
+          estimatedRemainingMs: processed > 0 ? Math.round(((Date.now() - startTime) / processed) * (allQueries.length - processed)) : 0
+        };
+        
+        fs.writeFileSync(progressPath, JSON.stringify(progress, null, 2));
+        
+        if (processed % 50 === 0 || processed === allQueries.length) {
+          console.log(`[Bulk Audit] Progress: ${processed}/${allQueries.length} (${progress.percent}%) - PASS: ${passCount}, PARTIAL: ${partialCount}, FAIL: ${failCount}, ERRORS: ${errorCount}`);
+        }
+      }
+      
+      const totalTime = Date.now() - startTime;
+      
+      const finalOutput = {
+        summary: {
+          total: results.length,
+          pass: passCount,
+          partial: partialCount,
+          fail: failCount,
+          errors: errorCount,
+          passRate: Math.round((passCount / (results.length - errorCount)) * 100) + '%',
+          totalTimeMs: totalTime,
+          avgTimePerQuery: Math.round(totalTime / results.length),
+          buildVersion: BUILD_VERSION
+        },
+        results
+      };
+      
+      fs.writeFileSync(outputPath, JSON.stringify(finalOutput, null, 2));
+      console.log(`[Bulk Audit] Complete! Results saved to ${outputPath}`);
+      
+      res.json({
+        success: true,
+        outputFile: outputPath,
+        summary: finalOutput.summary
+      });
+      
+    } catch (error) {
+      console.error('[Bulk Audit] Error:', error);
+      res.status(500).json({ error: 'Bulk audit failed', details: String(error) });
+    }
+  });
+  
+  app.get("/api/audit/bulk/progress", async (req, res) => {
+    try {
+      const progressPath = path.join(process.cwd(), 'data', 'bulk_audit_progress.json');
+      if (fs.existsSync(progressPath)) {
+        const progress = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+        res.json(progress);
+      } else {
+        res.json({ status: 'not_started', message: 'No bulk audit in progress' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get progress' });
+    }
+  });
+
+  // ============================================================
   // ADMIN EXPORT ENDPOINT - Download all source code as ZIP
   // ============================================================
   app.get("/api/admin/export", async (req, res) => {
