@@ -35,6 +35,7 @@ We have confirmed these exist in the database:
 - LEGO products
 - Disney products
 - Books (children's books DO exist)
+- **LOL Surprise products (8 products confirmed via tsvector query - NOT an inventory gap)**
 
 If your search returns 0 for these, YOUR SEARCH IS BROKEN.
 

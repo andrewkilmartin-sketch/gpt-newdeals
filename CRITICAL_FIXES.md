@@ -238,11 +238,11 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | spiderman toys | 28000ms | **61ms** | ✅ |
 | hot wheels cars | 10834ms | **105ms** | ✅ |
 | witch costume | 4900ms | **91ms** | ✅ (Wicked Witch first!) |
-| lol dolls | 60s timeout | **102ms** | ✅ (Fix #23) |
-| toys for 5 year old | 3408ms | **1034ms** | ⚠️ speed |
-| dinosaur figures | 8000ms | **100ms** | ⚠️ relevance* |
+| lol dolls | 60s timeout | **55ms** | ✅ (Fix #23) |
+| toys for 5 year old | 3408ms | **137ms** | ✅ (Fix #24) |
+| dinosaur figures | 8000ms | **124ms** | ✅ |
 
-*dinosaur figures returns "LEGO Jurassic World T. rex Dinosaur Figure" which is relevant - test pattern too strict
+**ALL 10/10 REGRESSION TESTS NOW PASS!**
 
 ### 21. Typo Correction Word Boundary Bug (2026-01-10)
 | Aspect | Details |
