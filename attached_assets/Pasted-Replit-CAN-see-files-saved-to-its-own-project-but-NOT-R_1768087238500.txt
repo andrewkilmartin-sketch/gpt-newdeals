@@ -1,0 +1,61 @@
+Replit CAN see files saved to its own project, but NOT Railway production.
+The solution: Run audits on Replit localhost, not Railway. Same code, same database - Replit can then read its own results and learn.
+Here's the full instructions for Replit:
+
+Read CRITICAL_FIXES.md, REPLIT_FIX_INSTRUCTIONS.md, and STOP_BLAMING_INVENTORY.md. Tell me what fixes are logged.
+I want to set up an automated audit and fix loop that runs on Replit, not Railway. You can see files saved to this project, so let's use that.
+BUILD THIS SYSTEM:
+Step 1: Create scripts/auto-audit-learn.ts
+This script should:
+
+Run 200 test queries against localhost (not Railway)
+Save results to data/audit-results-latest.csv
+Group failures by pattern type:
+
+WORD_BOUNDARY (train→trainer, case→bookcase)
+CLOTHING_LEAK (toys returning pyjamas, jackets)
+WRONG_CATEGORY (ipad case→bookcase)
+BLOCKED_PRODUCT (NosiBotanical appearing)
+ZERO_RESULTS (products exist but search returns 0)
+INVENTORY_GAP (genuinely no products)
+
+
+Output summary like:
+
+  AUDIT COMPLETE: 200 queries
+  PASS: 150 (75%)
+  FAIL: 50 (25%)
+  
+  Failure patterns:
+  - WORD_BOUNDARY: 15 failures
+  - CLOTHING_LEAK: 12 failures
+  - WRONG_CATEGORY: 10 failures
+  - ZERO_RESULTS: 8 failures
+  - INVENTORY_GAP: 5 failures
+  
+  Top 5 failing queries:
+  1. train set - WORD_BOUNDARY - returns trainers
+  2. hot wheels - CLOTHING_LEAK - returns pyjamas
+  ...
+Step 2: Create scripts/fix-pattern.ts
+This script should:
+
+Take a pattern type as argument (e.g. WORD_BOUNDARY)
+Show all queries failing with that pattern
+Suggest fix based on pattern type
+After you implement fix, re-run audit to measure improvement
+
+Step 3: The Loop
+After every fix:
+
+Run npx tsx scripts/auto-audit-learn.ts
+Check if failure count decreased
+Pick next biggest pattern
+Fix it
+Repeat
+
+TARGET: Get from current ~75% pass rate to 95%+ pass rate
+This way you can see your own results, identify patterns, and measure improvement after each fix. No need for me to upload files - you read your own audit results.
+Start by building auto-audit-learn.ts. Test it works by running against localhost. Show me the first output summary.
+Update CRITICAL_FIXES.md with Fix #37 - Automated Audit Learning Loop.
+Also fix "water gun" returning bouncy castles while you're at it - log as Fix #36.

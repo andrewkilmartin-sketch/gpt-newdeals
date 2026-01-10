@@ -384,6 +384,19 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 36. Water Gun Returns Bouncy Castles (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "water gun" query returned bouncy castles (£280-335) instead of standalone water pistols |
+| **Root Cause** | Bouncy castle names contain "water gun" (e.g., "Kids Bouncy Castle Slide Pool Water Gun") |
+| **DB Check** | `SELECT name FROM products WHERE name ILIKE '%water gun%'` → 8+ standalone water guns exist (NERF, Peppa Pig) |
+| **Fix** | Added `hasWaterGunContext()` and `filterForWaterGunContext()` to exclude bouncy castles, trampolines, climbing walls |
+| **File** | `server/routes.ts` lines 958-1004, 1524-1528 |
+| **Test Query** | `water gun` → Supersoaker Twister Water Gun (£17.99), Kids Outdoor Water Toy Water Gun Backpack (£15.49) |
+| **Result** | Standalone water guns returned first, bouncy castles excluded |
+
+---
+
 ### 35. Duplicate Quality Filter Application (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|

@@ -953,6 +953,54 @@ function filterForToyContext(results: any[]): any[] {
 }
 
 // =============================================================================
+// Fix #36: WATER GUN CONTEXT FILTER - Exclude bouncy castles for water gun queries
+// When user searches for "water gun", they want standalone water pistols/super soakers
+// NOT bouncy castles that happen to have water guns attached
+// See CRITICAL_FIXES.md - Fix #36
+// =============================================================================
+const WATER_GUN_QUERY_WORDS = ['water gun', 'water guns', 'water pistol', 'water pistols', 'water blaster', 'water blasters'];
+
+// Large play structures that contain water guns but aren't standalone water toys
+const WATER_GUN_EXCLUDE_TERMS = [
+  'bouncy castle', 'bounce house', 'bouncer', 'inflatable castle',
+  'climbing wall', 'trampoline', 'slide pool', 'play structure'
+];
+
+function hasWaterGunContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return WATER_GUN_QUERY_WORDS.some(term => q.includes(term));
+}
+
+function filterForWaterGunContext(results: any[]): any[] {
+  const filtered = results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    const text = name + ' ' + desc;
+    
+    // Exclude large play structures (bouncy castles, etc.)
+    const isPlayStructure = WATER_GUN_EXCLUDE_TERMS.some(term => text.includes(term));
+    
+    // Also exclude by high price - standalone water guns are typically under £50
+    const price = parseFloat(r.price) || 0;
+    const isExpensivePlayEquipment = price > 100 && (text.includes('castle') || text.includes('bouncy') || text.includes('trampoline'));
+    
+    if (isPlayStructure || isExpensivePlayEquipment) {
+      console.log(`[Water Gun Context] Excluded play structure: "${r.name?.substring(0, 50)}..." (£${price})`);
+      return false;
+    }
+    return true;
+  });
+  
+  // SAFETY: If filtering removed ALL results, return original
+  if (filtered.length === 0 && results.length > 0) {
+    console.log(`[Water Gun Context] INVENTORY GAP: All ${results.length} results were play structures, keeping original`);
+    return results;
+  }
+  
+  return filtered;
+}
+
+// =============================================================================
 // P1 BUG 4 FIX: COSTUME CONTEXT FILTER - Exclude clothing for costume queries
 // When user searches for costumes, filter out t-shirts/hoodies with "costume" in graphics
 // See CRITICAL_FIXES.md - Fix #11
@@ -1468,6 +1516,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (genderContext) {
     console.log(`[Search Quality] Applying gender filters (${genderContext}) for: "${query}"`);
     filtered = filterForGenderContext(filtered, genderContext);
+  }
+  
+  // Fix #36: Water gun context - exclude bouncy castles for water gun queries
+  if (hasWaterGunContext(query)) {
+    console.log(`[Search Quality] Applying water gun context filters for: "${query}"`);
+    filtered = filterForWaterGunContext(filtered);
   }
   
   // P0 BUG 2 FIX: Toy context - exclude clothing for toy/equipment queries
