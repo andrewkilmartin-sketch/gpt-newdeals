@@ -150,11 +150,31 @@ const INAPPROPRIATE_TERMS = [
 ];
 
 // PHASE 1: MERCHANT KILL-LIST - Block entire merchants
+// MEGA-FIX 6: Expanded Merchant Blocklist - non-family merchants that pollute results
 const BLOCKED_MERCHANTS = [
+  // ALCOHOL (Critical - 77+ appearances)
   'bottle club', 'the bottle club', 'wine direct', 'naked wines',
   'virgin wines', 'laithwaites', 'majestic wine', 'beer hawk',
   'brewdog', 'whisky exchange', 'master of malt', 'the drink shop',
-  'slimming world', 'weight watchers', 'noom', 'dating direct'
+  'shop alcohol gifts', 'wine subscription', 'gin subscription',
+  'beer subscription', 'whisky subscription', 'rum subscription',
+  'cocktail subscription', 'spirit subscription',
+  // ED PILLS / ADULT HEALTH (Critical - 23 appearances)
+  'bedroom confidence', 'reclaim your bedroom', 'regain confidence',
+  'erectile', 'viagra', 'cialis', 'sildenafil',
+  // STI TESTING (Critical - 10 appearances)
+  'know your status', 'sti test', 'std test', 'sexual health test',
+  // CAR RENTAL (13 appearances - "book" collisions)
+  'booking.com car rental', 'car rental', 'rental car',
+  // WINDOW BLINDS/SHUTTERS (39 appearances - "blind" collisions)
+  '247 blinds', 'blinds 2go', 'blinds direct', 'make my blinds',
+  'english blinds', 'shutters', 'roller blinds', 'venetian blinds',
+  // HOUSE PAINT (30+ appearances - "paint" collisions)
+  'dulux', 'zinsser', 'albany paint', 'emulsion paint', 'eggshell paint',
+  // WEIGHT LOSS / DATING
+  'slimming world', 'weight watchers', 'noom', 'dating direct',
+  // GAMBLING
+  'bet365', 'ladbrokes', 'william hill', 'paddy power', 'betfair'
 ];
 
 // MEGA-FIX 2: Promo-only patterns - generic promos that match everything but help no one
@@ -683,6 +703,179 @@ function reorderForQualityIntent(results: any[]): any[] {
   return [...otherResults, ...discountResults];
 }
 
+// =============================================================================
+// MEGA-FIX 7: KEYWORD COLLISION DETECTION
+// Prevents "book" → car rental, "watch" → jewelry, "blind" → shutters
+// =============================================================================
+const KEYWORD_COLLISION_RULES = [
+  {
+    word: 'book',
+    familyContext: ['token', 'voucher', 'reading', 'story', 'picture', 'kids', 'child', 'children', 'baby', 'bedtime', 'dentist', 'doctor', 'sibling'],
+    blockTerms: ['car rental', 'booking.com', 'book your', 'book now', 'book a', 'book online']
+  },
+  {
+    word: 'watch',
+    familyContext: ['film', 'movie', 'order', 'first', 'kids', 'children', 'mcu', 'marvel', 'disney', 'together'],
+    blockTerms: ['watches', 'watch & watch', 'winder', 'sekonda', 'guess watches', 'casio watch', 'analog watch']
+  },
+  {
+    word: 'blind',
+    familyContext: ['character', 'accessibility', 'representation', 'disability', 'visually', 'story', 'book'],
+    blockTerms: ['blinds', 'shutters', 'window', 'day & night', 'roller blind', 'venetian', '247 blinds']
+  },
+  {
+    word: 'confidence',
+    familyContext: ['child', 'kids', 'building', 'self', 'social', 'school', 'anxiety'],
+    blockTerms: ['bedroom', 'erectile', 'viagra', 'cialis', 'reclaim']
+  },
+  {
+    word: 'bedroom',
+    familyContext: ['kids', 'child', 'sharing', 'decor', 'furniture', 'room', 'sibling', 'new baby'],
+    blockTerms: ['confidence', 'erectile', 'adult', 'romantic']
+  },
+  {
+    word: 'paint',
+    familyContext: ['craft', 'art', 'kids', 'finger', 'face paint', 'poster', 'activity', 'toddler'],
+    blockTerms: ['dulux', 'zinsser', 'albany', 'eggshell', 'emulsion', 'interior paint', 'exterior paint', 'primer']
+  },
+  {
+    word: 'brush',
+    familyContext: ['art', 'paint', 'teeth', 'hair', 'kids', 'toddler', 'activity'],
+    blockTerms: ['decorator', 'roller', 'trade', 'professional', 'paint brush set']
+  },
+  {
+    word: 'training',
+    familyContext: ['potty', 'toilet', 'sleep', 'baby', 'toddler', 'child'],
+    blockTerms: ['gym', 'fitness', 'weight', 'muscle', 'athletic', 'workout']
+  }
+];
+
+function filterKeywordCollisions(query: string, results: any[]): any[] {
+  const q = query.toLowerCase();
+  
+  for (const rule of KEYWORD_COLLISION_RULES) {
+    if (!q.includes(rule.word)) continue;
+    
+    // Check if query has family context
+    const hasFamilyContext = rule.familyContext.some(ctx => q.includes(ctx));
+    if (!hasFamilyContext) continue;
+    
+    // Filter out wrong-category results
+    results = results.filter(r => {
+      const text = ((r.name || '') + ' ' + (r.merchant || '') + ' ' + (r.description || '')).toLowerCase();
+      const hasBlockedTerm = rule.blockTerms.some(block => text.includes(block));
+      if (hasBlockedTerm) {
+        console.log(`[Collision Filter] Blocked "${rule.word}" collision: "${r.name?.substring(0, 50)}..."`);
+        return false;
+      }
+      return true;
+    });
+  }
+  
+  return results;
+}
+
+// =============================================================================
+// MEGA-FIX 8: GAMING QUERY ROUTER
+// Detects gaming queries and filters to gaming category
+// =============================================================================
+const GAMING_KEYWORDS = [
+  'game', 'games', 'gaming', 'xbox', 'playstation', 'ps4', 'ps5', 
+  'nintendo', 'switch', 'console', 'video game', 'board game'
+];
+
+const GAMING_CATEGORY_TERMS = [
+  'video game', 'board game', 'game', 'gaming', 'console', 'playstation', 
+  'xbox', 'nintendo', 'switch', 'pc game', 'puzzle', 'jigsaw', 'card game'
+];
+
+function isGamingQuery(query: string): boolean {
+  const q = query.toLowerCase();
+  return GAMING_KEYWORDS.some(kw => q.includes(kw));
+}
+
+function filterForGamingQuery(results: any[]): any[] {
+  // For gaming queries, prioritize products with gaming terms in name/category
+  const gamingResults: any[] = [];
+  const otherResults: any[] = [];
+  
+  for (const r of results) {
+    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
+    const isGamingProduct = GAMING_CATEGORY_TERMS.some(term => text.includes(term));
+    
+    if (isGamingProduct) {
+      gamingResults.push(r);
+    } else {
+      otherResults.push(r);
+    }
+  }
+  
+  // If we found gaming products, return only those (up to 8)
+  if (gamingResults.length >= 3) {
+    console.log(`[Gaming Router] Found ${gamingResults.length} gaming products, excluding ${otherResults.length} non-gaming`);
+    return gamingResults;
+  }
+  
+  // Not enough gaming products, include all but gaming first
+  return [...gamingResults, ...otherResults];
+}
+
+// =============================================================================
+// MEGA-FIX 9: TYPO TOLERANCE
+// Fixes common misspellings of popular brands/characters
+// =============================================================================
+const TYPO_CORRECTIONS: Record<string, string> = {
+  // LEGO variants
+  'leggo': 'lego', 'legos': 'lego', 'legao': 'lego', 'lgeo': 'lego',
+  // Barbie variants  
+  'barbi': 'barbie', 'barbee': 'barbie', 'barbei': 'barbie', 'brbie': 'barbie',
+  // Peppa Pig variants
+  'peper pig': 'peppa pig', 'pepa pig': 'peppa pig', 'pepper pig': 'peppa pig', 
+  'peppa': 'peppa pig', 'peppapig': 'peppa pig',
+  // Paw Patrol variants
+  'paw partol': 'paw patrol', 'pawpatrol': 'paw patrol', 'paw petrol': 'paw patrol',
+  // Pokemon variants
+  'pokeman': 'pokemon', 'pokémon': 'pokemon', 'pokemons': 'pokemon', 'pokimon': 'pokemon',
+  // Disney variants
+  'disnep': 'disney', 'diseny': 'disney', 'dinsey': 'disney',
+  // Marvel variants
+  'marvle': 'marvel', 'marval': 'marvel',
+  // Batman variants
+  'batmam': 'batman', 'bat man': 'batman', 'batrman': 'batman',
+  // Frozen variants
+  'forzen': 'frozen', 'frozem': 'frozen',
+  // Minecraft variants
+  'mindcraft': 'minecraft', 'mincraft': 'minecraft', 'minecarft': 'minecraft',
+  // Bluey variants
+  'bluee': 'bluey', 'blueey': 'bluey',
+  // Cocomelon variants
+  'coco melon': 'cocomelon', 'cocomelen': 'cocomelon',
+  // Hot Wheels variants
+  'hotwheels': 'hot wheels', 'hot wheel': 'hot wheels',
+  // Harry Potter variants
+  'hary potter': 'harry potter', 'harry poter': 'harry potter', 'harrypotter': 'harry potter'
+};
+
+function correctTypos(query: string): { corrected: string; wasCorrected: boolean; original: string } {
+  let corrected = query.toLowerCase();
+  let wasCorrected = false;
+  
+  for (const [typo, correction] of Object.entries(TYPO_CORRECTIONS)) {
+    if (corrected.includes(typo)) {
+      corrected = corrected.replace(new RegExp(typo, 'gi'), correction);
+      wasCorrected = true;
+      console.log(`[Typo Fix] Corrected "${typo}" → "${correction}" in query`);
+    }
+  }
+  
+  // Preserve original casing where possible
+  if (wasCorrected) {
+    return { corrected, wasCorrected, original: query };
+  }
+  
+  return { corrected: query, wasCorrected: false, original: query };
+}
+
 // MEGA-FIX 2: Filter promo-only results (no specific product)
 function filterPromoOnlyResults(results: any[]): any[] {
   return results.filter(r => {
@@ -787,6 +980,15 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   
   // MEGA-FIX 3: Demote Kids Pass results to end (unless DAYS_OUT)
   filtered = demoteKidsPassResults(filtered, queryIntent);
+  
+  // MEGA-FIX 7: Keyword collision detection (book → not car rental, blind → not shutters)
+  filtered = filterKeywordCollisions(query, filtered);
+  
+  // MEGA-FIX 8: Gaming query routing (prioritize games for gaming queries)
+  if (isGamingQuery(query)) {
+    console.log(`[Gaming Router] Gaming query detected: "${query}"`);
+    filtered = filterForGamingQuery(filtered);
+  }
   
   // PHASE 3: Apply context-specific filters
   if (hasBookContext(query)) {
@@ -3333,15 +3535,22 @@ Format: ["id1", "id2", ...]`
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
       const openaiKey = process.env.OPENAI_API_KEY;
       
+      // MEGA-FIX 9: TYPO TOLERANCE - Fix common misspellings before search
+      const typoResult = correctTypos(query);
+      let workingQuery = typoResult.corrected;
+      if (typoResult.wasCorrected) {
+        console.log(`[Shop Search] TYPO FIX: "${query}" → "${workingQuery}"`);
+      }
+      
       // MEDIA SUFFIX FIX: Strip trailing "film", "films", "movie", "movies" for product search
       // "dinosaur film" → "dinosaur", "animated films" → "animated"
       // These queries have products in DB but film/movie suffix breaks search
-      const { sanitized: searchQuery, stripped: mediaStripped } = sanitizeMediaSuffix(query);
+      const { sanitized: searchQuery, stripped: mediaStripped } = sanitizeMediaSuffix(workingQuery);
       if (mediaStripped) {
-        console.log(`[Shop Search] Media suffix stripped: "${query}" → "${searchQuery}"`);
+        console.log(`[Shop Search] Media suffix stripped: "${workingQuery}" → "${searchQuery}"`);
       }
       
-      console.log(`[Shop Search] Query: "${query}"${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
+      console.log(`[Shop Search] Query: "${query}"${typoResult.wasCorrected ? ` (typo fixed: "${workingQuery}")` : ''}${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
       const searchStartTime = Date.now();
 
       // STEP 1: Interpret the query using GPT (use sanitized query for product search)
