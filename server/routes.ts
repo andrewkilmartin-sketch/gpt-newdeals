@@ -46,7 +46,7 @@ import {
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
 // Build version for deployment verification - increment this when making changes
-const BUILD_VERSION = '2026.01.10.v2-agefix';
+const BUILD_VERSION = '2026.01.10.v3-auditport';
 const BUILD_DATE = '2026-01-09T00:30:00Z';
 const BUILD_FEATURES = [
   'CRITICAL FIX: storage.searchProducts now filters by detected brand/character',
@@ -6389,7 +6389,9 @@ ONLY use IDs from the list. Never invent IDs.`
         try {
           const searchStart = Date.now();
           // Call actual /api/shop/search endpoint internally via HTTP
-          const searchResponse = await fetch(`http://localhost:5000/api/shop/search`, {
+          // FIX: Use PORT env var for production compatibility (Railway uses different ports)
+          const port = process.env.PORT || 5000;
+          const searchResponse = await fetch(`http://localhost:${port}/api/shop/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query, limit })
