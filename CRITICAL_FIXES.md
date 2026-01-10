@@ -384,6 +384,60 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 35. Duplicate Quality Filter Application (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Results dropped from 6 to 2 due to double merchant cap application |
+| **Root Cause** | `applySearchQualityFilters` called twice: pre-rerank (line 5441) AND post-rerank (line 5597) |
+| **Symptom** | "paw patrol toys" returned 6 products, filtered to 4, then filtered again to 2 |
+| **Fix** | Removed duplicate post-rerank filter call at line 5597 |
+| **File** | `server/routes.ts` line 5597 |
+| **Result** | Results now maintain 3-4 products instead of dropping to 2 |
+
+---
+
+### 33. NosiBotanical Spam Product (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | NosiBotanical Nulla Vest appeared in 20+ unrelated queries |
+| **Fix** | Added to KNOWN_FALLBACKS blocklist |
+| **File** | `server/routes.ts` lines 375-379 |
+
+---
+
+### 32. Toy Brand Context Detection (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "Hot Wheels" returned clothing instead of toy cars |
+| **Root Cause** | Toy context filter not triggered for known toy brands |
+| **Fix** | Added KNOWN_TOY_BRANDS list (Hot Wheels, Super Soaker, Nerf, etc.) |
+| **File** | `server/routes.ts` lines 382-391, 860-865 |
+| **Result** | Hot Wheels now returns actual toy cars |
+
+---
+
+### 31. Word Boundary Collision Filter (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "train set" returned trainers, "case" matched bookcase |
+| **Root Cause** | tsvector stemming treats "train" and "trainer" as related |
+| **Fix** | Added WORD_BOUNDARY_COLLISIONS filter to remove false matches |
+| **File** | `server/routes.ts` lines 393-438, 1499-1504 |
+| **Result** | "train set" now returns LEGO trains first |
+
+---
+
+### 30. Filter Relaxation for Merchant Cap (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Results dropped from 8 to 2 when all results from one merchant |
+| **Root Cause** | Merchant cap (max 2) too aggressive when query dominated by one merchant |
+| **Fix** | If count < 6 after merchant cap, raise cap to 4 and retry |
+| **File** | `server/routes.ts` lines 1506-1516 |
+| **Result** | More consistent result counts across queries |
+
+---
+
 ### 29. Production 100% Failure - Missing search_vector Column (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|

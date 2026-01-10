@@ -368,8 +368,71 @@ const KNOWN_FALLBACKS = [
   '50 off honor',
   '30 off honor',
   'free 5 top up credit',
-  'vitamin planet rewards'
+  'vitamin planet rewards',
+  // Fix #33: CTO identified spam products appearing in 20+ unrelated queries
+  'nosibotanical nulla vest',
+  'nosibotanical',
+  'nulla vest',
+  'cotton-blend nosibotanical'
 ];
+
+// Fix #32: Known toy brands that should trigger toy context filters
+const KNOWN_TOY_BRANDS = [
+  'hot wheels', 'hotwheels', 'super soaker', 'nerf', 'barbie', 'lego', 'duplo',
+  'paw patrol', 'peppa pig', 'bluey', 'frozen', 'disney princess', 'marvel',
+  'spider-man', 'spiderman', 'batman', 'avengers', 'transformers', 'pokemon',
+  'pokémon', 'pikachu', 'minecraft', 'roblox', 'fortnite', 'sonic', 'mario',
+  'playmobil', 'sylvanian', 'lol surprise', 'lol dolls', 'gabby dollhouse',
+  'cocomelon', 'hey duggee', 'thomas tank', 'thomas the tank', 'pj masks',
+  'jurassic world', 'jurassic park', 't-rex', 'dinosaur', 'unicorn'
+];
+
+// Fix #31: Word boundary collision patterns - these substring matches should be rejected
+// e.g., "train" should not match "trainer", "case" should not match "bookcase"
+const WORD_BOUNDARY_COLLISIONS: { [key: string]: string[] } = {
+  'train': ['trainer', 'trainers', 'training', 'trainee', 'retrain', 'constraint'],
+  'case': ['bookcase', 'bookcases', 'staircase', 'suitcase', 'pillowcase', 'showcase', 'briefcase'],
+  'set': ['sunset', 'offset', 'reset', 'upset', 'setback', 'subset'],
+  'gun': ['gunmetal', 'begun', 'shotgun'],
+  'water': ['waterproof', 'waterfall', 'underwater', 'watering', 'watercolor', 'freshwater'],
+  'soaker': ['soakers']
+};
+
+// Fix #31: Post-filter to remove results where query terms only match as substrings
+function filterWordBoundaryCollisions(results: any[], query: string): any[] {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const collisionChecks: { word: string; collisions: string[] }[] = [];
+  
+  // Build list of words to check for collisions
+  for (const word of queryWords) {
+    if (WORD_BOUNDARY_COLLISIONS[word]) {
+      collisionChecks.push({ word, collisions: WORD_BOUNDARY_COLLISIONS[word] });
+    }
+  }
+  
+  if (collisionChecks.length === 0) return results;
+  
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    const text = name + ' ' + desc;
+    
+    for (const check of collisionChecks) {
+      // Check if the product contains any collision words
+      for (const collision of check.collisions) {
+        if (text.includes(collision)) {
+          // Verify the original word is NOT present as a whole word
+          const wordBoundaryRegex = new RegExp(`\\b${check.word}\\b`, 'i');
+          if (!wordBoundaryRegex.test(text)) {
+            console.log(`[Word Boundary] Excluded "${r.name?.substring(0, 50)}..." - "${check.word}" only matched as "${collision}"`);
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  });
+}
 
 // Quality intent words - user wants premium, not cheapest
 const QUALITY_INTENT_WORDS = [
@@ -831,10 +894,21 @@ const TOY_QUERY_WORDS = [
 
 function hasToyContext(query: string): boolean {
   const q = query.toLowerCase();
-  return TOY_QUERY_WORDS.some(word => {
+  // Check for toy query words (toys, figures, dolls, etc.)
+  const hasToyWord = TOY_QUERY_WORDS.some(word => {
     const regex = new RegExp(`\\b${word}\\b`, 'i');
     return regex.test(q);
   });
+  if (hasToyWord) return true;
+  
+  // Fix #32: Also trigger for known toy brands (hot wheels, super soaker, nerf, etc.)
+  const hasToyBrand = KNOWN_TOY_BRANDS.some(brand => q.includes(brand));
+  if (hasToyBrand) {
+    console.log(`[Toy Context] Detected toy brand in query: "${query}"`);
+    return true;
+  }
+  
+  return false;
 }
 
 function filterForToyContext(results: any[]): any[] {
@@ -1419,8 +1493,24 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
     filtered = filterForBooksContext(filtered);
   }
   
-  // PHASE 2: Apply merchant caps (max 2 per merchant)
-  filtered = applyMerchantCaps(filtered, 2);
+  // Fix #31: Apply word boundary collision filter (train → not trainer, case → not bookcase)
+  const preBoundaryCount = filtered.length;
+  filtered = filterWordBoundaryCollisions(filtered, query);
+  if (filtered.length < preBoundaryCount) {
+    console.log(`[Word Boundary] Filtered ${preBoundaryCount} → ${filtered.length} for: "${query}"`);
+  }
+  
+  // Fix #30: Apply merchant caps with relaxation - start at 2, raise to 4 if count drops too low
+  const TARGET_MIN_RESULTS = 6;
+  const preMerchantCapCount = filtered.length;
+  let cappedFiltered = applyMerchantCaps(filtered, 2);
+  
+  // FILTER RELAXATION: If merchant cap reduced results below target, try higher cap
+  if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount >= TARGET_MIN_RESULTS) {
+    console.log(`[Filter Relaxation] Merchant cap too aggressive (${cappedFiltered.length} < ${TARGET_MIN_RESULTS}), raising cap to 4`);
+    cappedFiltered = applyMerchantCaps(filtered, 4);
+  }
+  filtered = cappedFiltered;
   
   // PHASE 2: Reorder for quality intent (don't remove, just deprioritize)
   if (hasQualityIntent(query)) {
@@ -5502,12 +5592,8 @@ ONLY use IDs from the list. Never invent IDs.`
         }
       }
 
-      // CRITICAL: Apply search quality filters to remove inappropriate content and fix keyword mismatches
-      const preFilterCount = selectedProducts.length;
-      selectedProducts = applySearchQualityFilters(selectedProducts, query);
-      if (selectedProducts.length < preFilterCount) {
-        console.log(`[Shop Search] Quality filter: ${preFilterCount} → ${selectedProducts.length} results for "${query}"`);
-      }
+      // Fix #35: REMOVED duplicate quality filter - already applied at pre-rerank stage (line 5441)
+      // This was causing results to drop from 6 to 2 due to double merchant cap application
       
       // MEGA-FIX 10: Apply age, gender, character, price, and diversity filters
       // This ensures "toys for newborn" returns baby toys and "toys for teenager" returns teen-appropriate items
