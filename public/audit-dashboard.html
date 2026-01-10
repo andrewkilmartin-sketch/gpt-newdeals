@@ -762,9 +762,9 @@ paw patrol toys for 3 year old
             // Check if any results have AI scoring
             const hasAiScoring = allResults.some(r => r.search_result?.products?.some(p => p.aiScore !== undefined));
             
-            // Build headers - include 8 product columns with AI scores if available
+            // Build headers - include 10 product columns with AI scores if available
             let headers = ['query', 'verdict', 'dbCount', 'searchCount', 'relevancePercent', 'imagePercent', 'aiAvgScore', 'timeMs'];
-            for (let i = 1; i <= 8; i++) {
+            for (let i = 1; i <= 10; i++) {
                 headers.push(`product${i}`);
                 if (hasAiScoring) {
                     headers.push(`aiScore${i}`);
@@ -787,8 +787,8 @@ paw patrol toys for 3 year old
                     r.search_result?.time_ms || 0
                 ];
                 
-                // Add 8 product columns
-                for (let i = 0; i < 8; i++) {
+                // Add 10 product columns
+                for (let i = 0; i < 10; i++) {
                     const p = products[i];
                     row.push(`"${(p?.name || '').replace(/"/g, '""').substring(0, 60)}"`);
                     if (hasAiScoring) {

@@ -5693,8 +5693,8 @@ ONLY use IDs from the list. Never invent IDs.`
           failCount++;
         }
         
-        // Limit products to 8 before AI scoring for alignment (per CTO spec)
-        const limitedProducts = scoredProducts.slice(0, 8);
+        // Limit products to 10 before AI scoring for alignment
+        const limitedProducts = scoredProducts.slice(0, 10);
         
         // Add AI scoring if enabled
         let aiScores: { score: number; reason: string; flagged: boolean }[] = [];
