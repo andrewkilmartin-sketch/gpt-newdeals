@@ -757,6 +757,64 @@ function reorderForQualityIntent(results: any[]): any[] {
 }
 
 // =============================================================================
+// P0 BUG 2 FIX: TOY CONTEXT FILTER - Exclude clothing for toy/equipment queries
+// When user searches for toys/figures/equipment, filter out clothing with character prints
+// See CRITICAL_FIXES.md - Fix #10
+// =============================================================================
+const CLOTHING_INDICATORS = [
+  't-shirt', 'tshirt', 'sweatshirt', 'hoodie', 'dress', 'shirt', 
+  'shorts', 'trousers', 'vest', 'jacket', 'coat', 'jumper', 'sweater',
+  'trainers', 'shoes', 'slides', 'sandals', 'socks', 'pyjamas', 'pajamas',
+  'leggings', 'joggers', 'jeans', 'skirt', 'cardigan', 'polo', 'blouse',
+  'bodysuit', 'romper', 'dungarees', 'onesie', 'nightwear', 'underwear',
+  'snowsuit', 'swimsuit', 'swimming costume', 'bikini', 'trunks'
+];
+
+const TOY_QUERY_WORDS = [
+  'toys', 'toy', 'figures', 'figure', 'playset', 'playsets', 'action figure',
+  'helmet', 'bike helmet', 'scooter', 'slide', 'swing', 'trampoline',
+  'climbing frame', 'paddling pool', 'ball', 'doll', 'dolls', 'teddy',
+  'puzzle', 'puzzles', 'game', 'games', 'lego', 'duplo', 'blocks',
+  'craft', 'crayons', 'paint', 'playdough', 'play-doh', 'stickers'
+];
+
+function hasToyContext(query: string): boolean {
+  const q = query.toLowerCase();
+  return TOY_QUERY_WORDS.some(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'i');
+    return regex.test(q);
+  });
+}
+
+function filterForToyContext(results: any[]): any[] {
+  const filtered = results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    
+    // Check if this is clothing
+    const isClothing = CLOTHING_INDICATORS.some(term => name.includes(term)) ||
+                       category.includes('clothing') || 
+                       category.includes('fashion') ||
+                       category.includes('apparel');
+    
+    if (isClothing) {
+      console.log(`[Toy Context] Excluded clothing: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+  
+  // SAFETY: If filtering removed ALL results, return original (inventory gap, not filter issue)
+  // User asked for toys but we only have clothing with that character - return what we have
+  if (filtered.length === 0 && results.length > 0) {
+    console.log(`[Toy Context] INVENTORY GAP: All ${results.length} results were clothing, keeping original`);
+    return results;
+  }
+  
+  return filtered;
+}
+
+// =============================================================================
 // MEGA-FIX 7: KEYWORD COLLISION DETECTION
 // Prevents "book" → car rental, "watch" → jewelry, "blind" → shutters
 // =============================================================================
@@ -1094,6 +1152,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   if (genderContext) {
     console.log(`[Search Quality] Applying gender filters (${genderContext}) for: "${query}"`);
     filtered = filterForGenderContext(filtered, genderContext);
+  }
+  
+  // P0 BUG 2 FIX: Toy context - exclude clothing for toy/equipment queries
+  if (hasToyContext(query)) {
+    console.log(`[Search Quality] Applying toy context filters for: "${query}"`);
+    filtered = filterForToyContext(filtered);
   }
   
   // PHASE 2: Apply merchant caps (max 2 per merchant)

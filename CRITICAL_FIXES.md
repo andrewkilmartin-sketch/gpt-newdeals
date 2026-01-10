@@ -110,6 +110,17 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **File** | `server/routes.ts` ~line 4039-4051 |
 | **Test Query** | `frozen toys` should return Disney products |
 
+### 10. Toy Queries Return Clothing Instead of Toys (2026-01-10)
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "dinosaur figures" returned snowsuits/sweatshirts with dinosaur prints |
+| **Root Cause** | No distinction between character merchandise clothing vs actual toys |
+| **Wrong Approach** | Relying only on category filtering |
+| **Correct Fix** | `filterForToyContext()` excludes clothing indicators when query has toy context |
+| **File** | `server/routes.ts` ~line 762-818 |
+| **Safety** | If ALL results are clothing (inventory gap), keep them rather than 0 results |
+| **Test Query** | `dinosaur figures` should return toys/puzzles/figures, not snowsuits |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
