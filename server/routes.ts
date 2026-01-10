@@ -57,8 +57,8 @@ const BUILD_FEATURES = [
 // Three-tier: memory → DB persistence for long-term cost savings
 // ============================================================
 import * as crypto from 'crypto';
-import { queryCache as queryCacheTable } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { queryCache as queryCacheTable, merchantNetworks, clickEvents, promotionNetworkMap } from '@shared/schema';
+import { eq, and, gte, lte } from 'drizzle-orm';
 
 interface CachedInterpretation {
   interpretation: QueryInterpretation;
@@ -6624,6 +6624,318 @@ ONLY use IDs from the list. Never invent IDs.`
     } catch (error: any) {
       console.error('[Diagnostic] Image stats error:', error);
       res.status(500).json({ error: 'Stats failed', details: error.message });
+    }
+  });
+
+  // ============================================================
+  // DYNAMIC AFFILIATE ROUTING - /go/:productId endpoint
+  // Redirects to the best affiliate network based on promotions
+  // ============================================================
+  
+  // In-memory cache for network decisions (5 minute TTL)
+  const networkDecisionCache = new Map<string, { network: string; url: string; reason: string; expiry: number }>();
+  const NETWORK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  
+  // Slugify merchant name for routing
+  function slugifyMerchant(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+  
+  // Get best network for a merchant based on active promotions
+  async function getBestNetworkForMerchant(merchantSlug: string, productSource: string): Promise<{ network: string; reason: string; promotionId?: string }> {
+    try {
+      // Check for active promotions in our promotion_network_map
+      const now = new Date();
+      const activePromos = await db.select()
+        .from(promotionNetworkMap)
+        .where(and(
+          eq(promotionNetworkMap.merchantSlug, merchantSlug),
+          lte(promotionNetworkMap.validFrom, now),
+          gte(promotionNetworkMap.validUntil, now)
+        ))
+        .orderBy(sql`discount_value DESC NULLS LAST`)
+        .limit(1);
+      
+      if (activePromos.length > 0) {
+        const promo = activePromos[0];
+        return {
+          network: promo.network,
+          reason: `${promo.discountValue}${promo.discountType === 'percentage' ? '%' : '£'} off promotion`,
+          promotionId: promo.promotionId
+        };
+      }
+      
+      // Check merchant_networks for preferred network
+      const merchantNet = await db.select()
+        .from(merchantNetworks)
+        .where(eq(merchantNetworks.merchantSlug, merchantSlug))
+        .limit(1);
+      
+      if (merchantNet.length > 0 && merchantNet[0].preferredNetwork) {
+        return {
+          network: merchantNet[0].preferredNetwork,
+          reason: merchantNet[0].preferredReason || 'preferred network'
+        };
+      }
+      
+      // Default: use product's original source
+      return {
+        network: productSource || 'awin',
+        reason: 'product source default'
+      };
+    } catch (error) {
+      console.error('[Routing] getBestNetwork error:', error);
+      return { network: productSource || 'awin', reason: 'fallback on error' };
+    }
+  }
+  
+  // /go/:productId - Dynamic affiliate redirect
+  app.get('/go/:productId', async (req, res) => {
+    const startTime = Date.now();
+    const { productId } = req.params;
+    const sessionId = req.cookies?.sessionId || req.ip || 'unknown';
+    const userQuery = req.query.q as string || null;
+    
+    try {
+      // Check cache first
+      const cacheKey = productId;
+      const cached = networkDecisionCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        console.log(`[Routing] CACHE HIT for ${productId}: ${cached.network}`);
+        
+        // Log click asynchronously
+        db.insert(clickEvents).values({
+          productId,
+          merchantSlug: null,
+          networkUsed: cached.network,
+          sessionId,
+          userQuery,
+          redirectUrl: cached.url,
+          responseTimeMs: Date.now() - startTime
+        }).catch(err => console.error('[Routing] Click log error:', err));
+        
+        return res.redirect(302, cached.url);
+      }
+      
+      // Get product from database
+      const product = await db.execute(sql.raw(`
+        SELECT id, name, merchant, affiliate_link, source, merchant_slug
+        FROM products 
+        WHERE id = '${productId.replace(/'/g, "''")}'
+        LIMIT 1
+      `)) as any[];
+      
+      if (!product || product.length === 0) {
+        console.log(`[Routing] Product not found: ${productId}`);
+        return res.redirect(302, '/shop');
+      }
+      
+      const prod = product[0];
+      const merchantSlug = prod.merchant_slug || slugifyMerchant(prod.merchant);
+      
+      // Determine best network
+      const networkDecision = await getBestNetworkForMerchant(merchantSlug, prod.source);
+      
+      // Build redirect URL - CRITICAL: actually switch to the preferred network's link
+      let redirectUrl = prod.affiliate_link; // Default: original URL
+      let actualNetwork = prod.source; // Track which network we actually use
+      
+      // If recommended network differs from product source, try to find alternate
+      if (networkDecision.network !== prod.source) {
+        try {
+          // Look for a product from the same merchant in the preferred network
+          const altProduct = await db.execute(sql.raw(`
+            SELECT affiliate_link, id, name FROM products 
+            WHERE merchant = '${prod.merchant.replace(/'/g, "''")}'
+              AND source = '${networkDecision.network}'
+            LIMIT 1
+          `)) as any[];
+          
+          if (altProduct && altProduct.length > 0) {
+            redirectUrl = altProduct[0].affiliate_link;
+            actualNetwork = networkDecision.network;
+            console.log(`[Routing] SWITCHED ${prod.source} → ${networkDecision.network} for ${prod.merchant}`);
+          } else {
+            console.log(`[Routing] No ${networkDecision.network} alternative found for ${prod.merchant}, using original`);
+          }
+        } catch (altErr) {
+          console.error('[Routing] Alt lookup error:', altErr);
+        }
+      } else {
+        actualNetwork = prod.source;
+      }
+      
+      // Cache the decision (use actualNetwork, not recommended network)
+      networkDecisionCache.set(cacheKey, {
+        network: actualNetwork,
+        url: redirectUrl,
+        reason: networkDecision.reason + (actualNetwork !== networkDecision.network ? ' (no alt)' : ''),
+        expiry: Date.now() + NETWORK_CACHE_TTL
+      });
+      
+      // Prune cache if too large
+      if (networkDecisionCache.size > 5000) {
+        const now = Date.now();
+        for (const [key, value] of networkDecisionCache) {
+          if (value.expiry < now) networkDecisionCache.delete(key);
+        }
+      }
+      
+      const responseTime = Date.now() - startTime;
+      console.log(`[Routing] ${productId} → ${actualNetwork} (${responseTime}ms): ${networkDecision.reason}`);
+      
+      // Log click asynchronously (fire-and-forget)
+      db.insert(clickEvents).values({
+        productId,
+        merchantSlug,
+        networkUsed: actualNetwork, // Log the ACTUAL network used, not just recommended
+        promotionId: networkDecision.promotionId || null,
+        sessionId,
+        userQuery,
+        redirectUrl,
+        responseTimeMs: responseTime
+      }).catch(err => console.error('[Routing] Click log error:', err));
+      
+      res.redirect(302, redirectUrl);
+      
+    } catch (error: any) {
+      console.error('[Routing] Error:', error);
+      
+      // Fallback: try to get original URL
+      try {
+        const fallback = await db.execute(sql.raw(`
+          SELECT affiliate_link FROM products WHERE id = '${productId.replace(/'/g, "''")}'
+        `)) as any[];
+        
+        if (fallback && fallback.length > 0) {
+          return res.redirect(302, fallback[0].affiliate_link);
+        }
+      } catch (e) {
+        console.error('[Routing] Fallback error:', e);
+      }
+      
+      res.redirect(302, '/shop');
+    }
+  });
+  
+  // Admin: View click analytics
+  app.get('/api/routing/stats', async (req, res) => {
+    try {
+      const stats = await db.execute(sql.raw(`
+        SELECT 
+          network_used,
+          COUNT(*) as clicks,
+          AVG(response_time_ms) as avg_response_ms,
+          DATE(clicked_at) as date
+        FROM click_events
+        WHERE clicked_at > NOW() - INTERVAL '7 days'
+        GROUP BY network_used, DATE(clicked_at)
+        ORDER BY date DESC, clicks DESC
+      `));
+      
+      const totals = await db.execute(sql.raw(`
+        SELECT 
+          COUNT(*) as total_clicks,
+          AVG(response_time_ms) as avg_response_ms,
+          COUNT(DISTINCT product_id) as unique_products,
+          COUNT(DISTINCT merchant_slug) as unique_merchants
+        FROM click_events
+      `));
+      
+      res.json({
+        success: true,
+        totals: totals[0] || {},
+        byNetworkAndDate: stats,
+        cacheSize: networkDecisionCache.size
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Admin: Create test promotion for a merchant
+  app.post('/api/routing/test-promotion', async (req, res) => {
+    const { merchantSlug, network, discountValue, discountType, daysValid } = req.body;
+    
+    if (!merchantSlug || !network) {
+      return res.status(400).json({ error: 'merchantSlug and network required' });
+    }
+    
+    try {
+      const now = new Date();
+      const validUntil = new Date(now.getTime() + (daysValid || 7) * 24 * 60 * 60 * 1000);
+      
+      await db.insert(promotionNetworkMap).values({
+        promotionId: `test-${Date.now()}`,
+        merchantSlug,
+        network,
+        discountValue: discountValue || 10,
+        discountType: discountType || 'percentage',
+        validFrom: now,
+        validUntil
+      });
+      
+      // Clear entire cache when promotions change (simple but effective)
+      // Future: Build merchant→productIds index for targeted invalidation
+      const clearedCount = networkDecisionCache.size;
+      networkDecisionCache.clear();
+      
+      res.json({
+        success: true,
+        message: `Created ${discountValue || 10}${discountType === 'percentage' ? '%' : '£'} ${network} promotion for ${merchantSlug}`,
+        validUntil,
+        cacheCleared: clearedCount
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Admin: Find products that exist in both networks
+  app.get('/api/routing/dual-network-products', async (req, res) => {
+    try {
+      // Find merchants with products from both Awin and CJ
+      const dualMerchants = await db.execute(sql.raw(`
+        SELECT 
+          merchant,
+          COUNT(*) FILTER (WHERE source = 'awin') as awin_count,
+          COUNT(*) FILTER (WHERE source = 'cj') as cj_count,
+          COUNT(*) as total
+        FROM products
+        GROUP BY merchant
+        HAVING COUNT(*) FILTER (WHERE source = 'awin') > 0 
+           AND COUNT(*) FILTER (WHERE source = 'cj') > 0
+        ORDER BY total DESC
+        LIMIT 20
+      `));
+      
+      // Get sample products from dual-network merchants
+      const samples: any[] = [];
+      for (const m of (dualMerchants as any[]).slice(0, 5)) {
+        const prods = await db.execute(sql.raw(`
+          SELECT id, name, source, price, affiliate_link
+          FROM products 
+          WHERE merchant = '${m.merchant.replace(/'/g, "''")}'
+          LIMIT 2
+        `));
+        samples.push({
+          merchant: m.merchant,
+          awinCount: m.awin_count,
+          cjCount: m.cj_count,
+          products: prods
+        });
+      }
+      
+      res.json({
+        success: true,
+        dualNetworkMerchants: dualMerchants,
+        sampleProducts: samples
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

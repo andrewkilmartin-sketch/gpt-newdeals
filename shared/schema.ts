@@ -185,6 +185,7 @@ export const products = pgTable("products", {
   canonicalCategory: text("canonical_category"),
   canonicalFranchises: text("canonical_franchises").array(),
   source: varchar("source", { length: 20 }).default("awin"),
+  merchantSlug: varchar("merchant_slug", { length: 100 }), // Normalized merchant name for routing
   lastViewed: timestamp("last_viewed"),
   lastSold: timestamp("last_sold"),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -620,3 +621,81 @@ export const queryCache = pgTable("query_cache", {
 export const insertQueryCacheSchema = createInsertSchema(queryCache).omit({ id: true, createdAt: true, lastAccessedAt: true, hitCount: true });
 export type InsertQueryCache = z.infer<typeof insertQueryCacheSchema>;
 export type QueryCacheEntry = typeof queryCache.$inferSelect;
+
+// ============ DYNAMIC AFFILIATE ROUTING - PHASE 0 ============
+// Merchant mapping between networks for intelligent routing
+
+export const merchantNetworks = pgTable("merchant_networks", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  merchantName: text("merchant_name").notNull(),
+  merchantSlug: varchar("merchant_slug", { length: 100 }).notNull().unique(), // Normalized: "nike-uk"
+  
+  // Awin details
+  awinMerchantId: varchar("awin_merchant_id", { length: 50 }),
+  awinProgramId: varchar("awin_program_id", { length: 50 }),
+  awinBaseUrl: text("awin_base_url"),
+  awinActive: boolean("awin_active").default(true),
+  awinCommissionRate: real("awin_commission_rate"), // 5.00 = 5%
+  
+  // CJ details
+  cjAdvertiserId: varchar("cj_advertiser_id", { length: 50 }),
+  cjWebsiteId: varchar("cj_website_id", { length: 50 }),
+  cjBaseUrl: text("cj_base_url"),
+  cjActive: boolean("cj_active").default(true),
+  cjCommissionRate: real("cj_commission_rate"),
+  
+  // Current winner
+  preferredNetwork: varchar("preferred_network", { length: 20 }).default("awin"),
+  preferredReason: text("preferred_reason"), // "CJ has 10% off until 2026-01-31"
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMerchantNetworkSchema = createInsertSchema(merchantNetworks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMerchantNetwork = z.infer<typeof insertMerchantNetworkSchema>;
+export type MerchantNetwork = typeof merchantNetworks.$inferSelect;
+
+// Click tracking for analytics
+export const clickEvents = pgTable("click_events", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  
+  // What was clicked
+  productId: varchar("product_id", { length: 100 }),
+  merchantSlug: varchar("merchant_slug", { length: 100 }),
+  
+  // Which network won
+  networkUsed: varchar("network_used", { length: 20 }).notNull(), // 'awin', 'cj', 'amazon'
+  promotionId: varchar("promotion_id", { length: 100 }), // If promo was active
+  
+  // User context
+  sessionId: varchar("session_id", { length: 100 }),
+  userQuery: text("user_query"), // What they searched for
+  
+  // Technical
+  redirectUrl: text("redirect_url"),
+  responseTimeMs: integer("response_time_ms"),
+  
+  clickedAt: timestamp("clicked_at").defaultNow(),
+});
+
+export const insertClickEventSchema = createInsertSchema(clickEvents).omit({ id: true, clickedAt: true });
+export type InsertClickEvent = z.infer<typeof insertClickEventSchema>;
+export type ClickEvent = typeof clickEvents.$inferSelect;
+
+// Promotion to network mapping
+export const promotionNetworkMap = pgTable("promotion_network_map", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  promotionId: varchar("promotion_id", { length: 100 }).notNull(),
+  merchantSlug: varchar("merchant_slug", { length: 100 }).notNull(),
+  network: varchar("network", { length: 20 }).notNull(),
+  discountValue: real("discount_value"), // 10.00 = 10% or £10
+  discountType: varchar("discount_type", { length: 20 }), // 'percentage', 'fixed', 'free_shipping'
+  validFrom: timestamp("valid_from"),
+  validUntil: timestamp("valid_until"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPromotionNetworkMapSchema = createInsertSchema(promotionNetworkMap).omit({ id: true, createdAt: true });
+export type InsertPromotionNetworkMap = z.infer<typeof insertPromotionNetworkMapSchema>;
+export type PromotionNetworkMap = typeof promotionNetworkMap.$inferSelect;
