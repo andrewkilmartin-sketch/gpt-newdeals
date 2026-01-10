@@ -4538,6 +4538,98 @@ Format: ["id1", "id2", ...]`
           'activities': 'activity', 'activity': 'activities',
         };
         
+        // =============================================================================
+        // FIX #20: TSVECTOR FAST SEARCH - EXPERIMENTAL
+        // This uses the pre-computed search_vector column with GIN index
+        // Target: <100ms vs 8-15s with ILIKE
+        // Toggle USE_TSVECTOR_SEARCH to enable/disable
+        // BLOCKED: The 'products' table doesn't have search_vector column
+        //          Only 'products_v2' has it. Need to migrate to products_v2 or add column.
+        // =============================================================================
+        const USE_TSVECTOR_SEARCH = false; // DISABLED: products table lacks search_vector
+        
+        if (USE_TSVECTOR_SEARCH) {
+          // Collect all search terms from all term groups
+          const allTerms = new Set<string>();
+          for (const termGroup of interpretation.searchTerms) {
+            for (const term of termGroup) {
+              const words = term.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+              words.forEach((w: string) => allTerms.add(w));
+            }
+          }
+          
+          if (allTerms.size > 0) {
+            // Build tsvector query: all terms must match (AND logic)
+            // Format: 'word1 & word2 & word3'
+            const tsqueryTerms = Array.from(allTerms).map((term: string) => {
+              // Add morph variants with OR logic
+              const variants = [term];
+              if (MORPH_VARIANTS[term]) {
+                variants.push(MORPH_VARIANTS[term]);
+              }
+              return variants.length > 1 
+                ? `(${variants.join(' | ')})` 
+                : term;
+            }).join(' & ');
+            
+            // Use simple terms joined with spaces for plainto_tsquery
+            const plainTerms = Array.from(allTerms).join(' ');
+            console.log(`[Shop Search] TSVECTOR: Query "${plainTerms}"`);
+            
+            const tsvectorStart = Date.now();
+            
+            // Build WHERE conditions with tsvector + filters
+            // Use raw SQL to avoid Drizzle type interpolation issues
+            const tsvectorConditions: any[] = [
+              sql.raw(`search_vector @@ plainto_tsquery('english', '${plainTerms.replace(/'/g, "''")}')`),
+              isNotNull(products.affiliateLink),
+              ...filterConditions
+            ];
+            
+            if (effectiveMinPrice !== undefined) {
+              tsvectorConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${effectiveMinPrice}`);
+            }
+            if (effectiveMaxPrice !== undefined) {
+              tsvectorConditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${effectiveMaxPrice}`);
+            }
+            
+            const tsvectorResults = await db.select({
+              id: products.id,
+              name: products.name,
+              description: products.description,
+              price: products.price,
+              merchant: products.merchant,
+              brand: products.brand,
+              category: products.category,
+              affiliate_link: products.affiliateLink,
+              image_url: products.imageUrl,
+              in_stock: products.inStock
+            }).from(products)
+              .where(and(...tsvectorConditions))
+              .limit(100);
+            
+            console.log(`[Shop Search] TSVECTOR: Found ${tsvectorResults.length} results in ${Date.now() - tsvectorStart}ms`);
+            
+            // Shuffle in memory for variety
+            for (let i = tsvectorResults.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [tsvectorResults[i], tsvectorResults[j]] = [tsvectorResults[j], tsvectorResults[i]];
+            }
+            
+            for (const p of tsvectorResults.slice(0, 50)) {
+              if (!seenIds.has(p.id)) {
+                seenIds.add(p.id);
+                allCandidates.push(p);
+              }
+            }
+            
+            candidates = allCandidates;
+            totalCandidates = candidates.length;
+            console.log(`[Shop Search] TSVECTOR: Total ${candidates.length} unique candidates`);
+          }
+        } else {
+          // OLD ILIKE SEARCH (kept for comparison/rollback)
+        
         for (const termGroup of interpretation.searchTerms) {
           // Build OR conditions for this term group
           const termConditions: ReturnType<typeof and>[] = [];
@@ -4615,6 +4707,7 @@ Format: ["id1", "id2", ...]`
         candidates = allCandidates;
         totalCandidates = candidates.length;
         console.log(`[Shop Search] Semantic search found ${candidates.length} candidates from ${interpretation.searchTerms.length} term groups`);
+        } // End of else block for old ILIKE search
         
       } else {
         // Original keyword search for direct product queries
