@@ -4608,7 +4608,9 @@ Format: ["id1", "id2", ...]`
         // search_vector column added to products table and populated with:
         //   to_tsvector('english', name || ' ' || brand)
         // =============================================================================
-        const USE_TSVECTOR_SEARCH = true; // ENABLED: Fix #19 tsvector for <500ms search
+        // FIX #29: Runtime flag to disable tsvector if column missing in production
+        // This prevents 100% failure rate when deploying to Railway without migration
+        const USE_TSVECTOR_SEARCH = !(global as any).TSVECTOR_DISABLED; // Disabled at runtime if column missing
         
         if (USE_TSVECTOR_SEARCH) {
           // FIX: Only use ORIGINAL query terms for tsvector (not GPT expansions)
@@ -4667,59 +4669,76 @@ Format: ["id1", "id2", ...]`
               tsvectorConditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${effectiveMaxPrice}`);
             }
             
-            const tsvectorResults = await db.select({
-              id: products.id,
-              name: products.name,
-              description: products.description,
-              price: products.price,
-              merchant: products.merchant,
-              brand: products.brand,
-              category: products.category,
-              affiliate_link: products.affiliateLink,
-              image_url: products.imageUrl,
-              in_stock: products.inStock
-            }).from(products)
-              .where(and(...tsvectorConditions))
-              .limit(100);
-            
-            console.log(`[Shop Search] TSVECTOR: Found ${tsvectorResults.length} results in ${Date.now() - tsvectorStart}ms`);
+            // FIX #29: Wrap in try/catch - if search_vector column missing, fall back to ILIKE
+            let tsvectorResults: any[] = [];
+            let tsvectorFailed = false;
+            try {
+              tsvectorResults = await db.select({
+                id: products.id,
+                name: products.name,
+                description: products.description,
+                price: products.price,
+                merchant: products.merchant,
+                brand: products.brand,
+                category: products.category,
+                affiliate_link: products.affiliateLink,
+                image_url: products.imageUrl,
+                in_stock: products.inStock
+              }).from(products)
+                .where(and(...tsvectorConditions))
+                .limit(100);
+              
+              console.log(`[Shop Search] TSVECTOR: Found ${tsvectorResults.length} results in ${Date.now() - tsvectorStart}ms`);
+            } catch (tsvectorError: any) {
+              // FIX #29: Set runtime flag to disable tsvector for future requests
+              if (tsvectorError.message?.includes('search_vector') || tsvectorError.message?.includes('column')) {
+                (global as any).TSVECTOR_DISABLED = true;
+                console.log(`[Shop Search] TSVECTOR DISABLED: Column missing, all future requests will use ILIKE`);
+              }
+              console.log(`[Shop Search] TSVECTOR FAILED: ${tsvectorError.message}, falling back to ILIKE`);
+              tsvectorFailed = true;
+            }
             
             // Sort by relevance: original query terms in product name first
             const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-            tsvectorResults.sort((a, b) => {
-              const aName = a.name?.toLowerCase() || '';
-              const bName = b.name?.toLowerCase() || '';
-              const aScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
-              const bScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
-              return bScore - aScore;
-            });
-            
-            for (const p of tsvectorResults.slice(0, 50)) {
-              if (!seenIds.has(p.id)) {
-                seenIds.add(p.id);
-                allCandidates.push(p);
+            if (tsvectorResults.length > 0) {
+              tsvectorResults.sort((a, b) => {
+                const aName = a.name?.toLowerCase() || '';
+                const bName = b.name?.toLowerCase() || '';
+                const aScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 1 : 0), 0);
+                const bScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 1 : 0), 0);
+                return bScore - aScore;
+              });
+              
+              for (const p of tsvectorResults.slice(0, 50)) {
+                if (!seenIds.has(p.id)) {
+                  seenIds.add(p.id);
+                  allCandidates.push(p);
+                }
               }
+              
+              candidates = allCandidates;
+              totalCandidates = candidates.length;
+              console.log(`[Shop Search] TSVECTOR: Total ${candidates.length} unique candidates`);
             }
             
-            candidates = allCandidates;
-            totalCandidates = candidates.length;
-            console.log(`[Shop Search] TSVECTOR: Total ${candidates.length} unique candidates`);
-            
-            // FALLBACK: If tsvector found 0 results, fall back to ILIKE search
+            // FALLBACK: If tsvector found 0 results OR failed, fall back to ILIKE search
             // This handles products that don't have search_vector populated yet
-            if (candidates.length === 0) {
+            // FIX #29: Also triggers when tsvector query fails (missing column in production)
+            if (candidates.length === 0 || tsvectorFailed) {
               // FIX #23: For known brands, skip slow ILIKE (18s+ per term) and do tsvector brand-only search
               // This fixes "lol dolls" timeout - tsvector finds "lol" products in <100ms
               const brandToSearch = interpretation.attributes?.brand || interpretation.attributes?.character;
               const brandLower = brandToSearch?.toLowerCase();
               
-              if (brandLower && KNOWN_BRANDS_CACHE.has(brandLower)) {
+              if (brandLower && KNOWN_BRANDS_CACHE.has(brandLower) && !tsvectorFailed) {
                 console.log(`[Shop Search] KNOWN BRAND FAST PATH: Skipping ILIKE, searching tsvector for just "${brandLower}"`);
                 
                 const brandFastStart = Date.now();
                 const brandTsquery = brandLower.split(/\s+/).filter(w => w.length > 1).join(' & ');
                 
                 // FIX #26: Added try/catch fallback to ILIKE if search_vector column doesn't exist
+                // FIX #29: Skip if tsvector already failed (column missing)
                 let brandResults: any[] = [];
                 try {
                   brandResults = await db.select({

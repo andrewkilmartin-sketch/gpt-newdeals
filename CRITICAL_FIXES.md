@@ -384,6 +384,46 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 29. Production 100% Failure - Missing search_vector Column (2026-01-10) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Railway production returning 0 results for ALL queries (100% failure) |
+| **Symptom** | "dinosaur toys" DB: 417 products, Returned: 0, Time: 0ms |
+| **Root Cause** | Main tsvector query at line 4670-4682 had NO try/catch wrapper |
+| **Why It Failed** | When search_vector column missing, query throws error and returns nothing |
+| **Why Development Worked** | Dev DB has search_vector column, production doesn't |
+| **Wrong Code** | `const tsvectorResults = await db.select(...).where(tsvector)` with no catch |
+| **Correct Fix** | Wrapped in try/catch + runtime flag `TSVECTOR_DISABLED` + ILIKE fallback |
+| **File** | `server/routes.ts` lines 4675-4703 |
+| **Fallback Logic** | If tsvectorFailed=true OR candidates.length=0, run ILIKE search |
+| **Result** | All queries now return results even without search_vector column |
+| **Status** | FIXED - Requires Railway redeploy |
+
+**Key Code Change:**
+```typescript
+// FIX #29: Wrap in try/catch - if search_vector column missing, fall back to ILIKE
+let tsvectorResults: any[] = [];
+let tsvectorFailed = false;
+try {
+  tsvectorResults = await db.select(...).from(products)
+    .where(and(...tsvectorConditions))
+    .limit(100);
+} catch (tsvectorError: any) {
+  if (tsvectorError.message?.includes('search_vector')) {
+    (global as any).TSVECTOR_DISABLED = true;
+    console.log(`[Shop Search] TSVECTOR DISABLED: Column missing`);
+  }
+  tsvectorFailed = true;
+}
+
+// FALLBACK triggers on failure OR 0 results
+if (candidates.length === 0 || tsvectorFailed) {
+  // Run ILIKE search...
+}
+```
+
+---
+
 ### 27. checkBrandExistsInDB Hanging (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|
