@@ -272,51 +272,56 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
         
       case "search_products": {
         const productQuery = (args.query as string || "").toLowerCase();
-        const productLimit = (args.limit as number) || 8; // Default to 8 for products
-        url = `${BASE_URL}/shopping/awin-link?query=${encodeURIComponent(productQuery)}&limit=${Math.min(productLimit * 3, 30)}`;
+        const productLimit = (args.limit as number) || 8;
         
-        // Fetch more results and filter for relevance
-        const productResponse = await fetch(url);
+        // USE CACHED SEARCH ENDPOINT - populates query_cache for all conversations
+        const cachedUrl = `${BASE_URL}/api/shop/search`;
+        const productResponse = await fetch(cachedUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: productQuery, limit: productLimit })
+        });
         const productData = await productResponse.json();
         
-        if (productData.results && productData.results.length > 0) {
-          // Filter results to only include products that actually match the query
+        // Transform response to match expected format
+        if (productData.products && productData.products.length > 0) {
           const queryWords = productQuery.split(/\s+/).filter((w: string) => w.length > 2);
           
-          const filteredResults = productData.results.filter((product: any) => {
-            const productText = `${product.title || ''} ${product.description || ''} ${product.category || ''}`.toLowerCase();
+          const filteredResults = productData.products.filter((product: any) => {
+            const productText = `${product.name || ''} ${product.description || ''} ${product.category || ''}`.toLowerCase();
+            const hasMatch = queryWords.length === 0 || queryWords.some((word: string) => productText.includes(word));
             
-            // Check if at least one query word appears in the product
-            const hasMatch = queryWords.some((word: string) => productText.includes(word));
-            
-            // Reject products that are clearly wrong category (e.g., LEGO for RC cars)
             if (productQuery.includes('rc') || productQuery.includes('remote control')) {
-              // Must have remote/rc/control in the product, not just "car"
               const hasRemote = productText.includes('remote') || productText.includes('rc ') || productText.includes('r/c');
               if (!hasRemote) return false;
             }
-            
             return hasMatch;
           });
           
-          if (filteredResults.length > 0) {
-            return {
-              ...productData,
-              results: filteredResults.slice(0, productLimit),
-              count: filteredResults.slice(0, productLimit).length,
-              filtered: true
-            };
-          } else {
-            // No relevant results found
-            return {
-              success: true,
-              results: [],
-              count: 0,
-              message: `No ${productQuery} found in our current deals. Try a different search term.`
-            };
-          }
+          // Map to Sunny's expected format
+          return {
+            success: true,
+            results: filteredResults.slice(0, productLimit).map((p: any) => ({
+              title: p.name,
+              description: p.description,
+              price: p.price,
+              currency: p.currency || 'GBP',
+              merchant: p.merchant,
+              link: p.affiliateLink,
+              image: p.imageUrl,
+              category: p.category
+            })),
+            count: Math.min(filteredResults.length, productLimit),
+            cached: true
+          };
         }
-        return productData;
+        
+        return {
+          success: true,
+          results: [],
+          count: 0,
+          message: `No ${productQuery} found in our current deals.`
+        };
       }
         
       case "search_events":
