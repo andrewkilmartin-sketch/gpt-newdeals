@@ -285,6 +285,17 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 | **Result** | **137ms** (cached), was 4447ms - 97% faster |
 | **Status** | RESOLVED - Now under 500ms target |
 
+### 25. Reported Regression 57% Failure (2026-01-10) - FALSE ALARM ✅
+| Aspect | Details |
+|--------|---------|
+| **Reported Problem** | 57% of queries returning 0 results (LEGO, birthday, christmas, newborn) |
+| **Actual Cause** | Cache/deployment sync issue - NOT a code regression |
+| **Evidence** | All 19 "SEARCH_BUG" queries tested and return results immediately after cache clear |
+| **LEGO SQL check** | 1,766 products via tsvector, 1,426 via ILIKE - data exists |
+| **Query Status** | lego: 77-188ms ✅, toys for newborn: 757ms ✅, all others returning results |
+| **Action Taken** | Restarted workflow, verified all queries work |
+| **Status** | FALSE ALARM - No code regression found, cache issue resolved |
+
 **Files Modified:**
 - `server/routes.ts` ~line 4541-4710 (tsvector search + ILIKE fallback)
 - `shared/schema.ts` - search_vector column NOT added to schema (raw SQL only)
