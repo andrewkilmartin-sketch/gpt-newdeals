@@ -3628,7 +3628,11 @@ Format: ["id1", "id2", ...]`
       console.log(`[Shop Search] Query: "${query}"${typoResult.wasCorrected ? ` (typo fixed: "${workingQuery}")` : ''}${mediaStripped ? ` (sanitized: "${searchQuery}")` : ''}, limit: ${safeLimit}, offset: ${safeOffset}, hasFilters: ${hasFilters}`);
       const searchStartTime = Date.now();
 
-      // ULTRA FAST PATH: Age-based toy queries bypass GPT entirely for <500ms response
+      // ============================================================================
+      // CRITICAL FIX: ULTRA FAST PATH - DO NOT REMOVE OR MODIFY
+      // See CRITICAL_FIXES.md - "Age Query Timeout" fix (2026-01-10)
+      // This bypasses GPT for age-based queries, reducing 10-22s to <500ms
+      // ============================================================================
       // Pattern: "toys for X year old", "gifts for X year old boy/girl"
       const ageOnlyMatch = query.toLowerCase().match(/^(toys?|gifts?|presents?)\s+(for\s+)?(\d+)\s*(year\s*old|yr\s*old|yo)?(\s+(boy|girl))?$/i);
       if (ageOnlyMatch && !hasFilters) {
@@ -3796,7 +3800,11 @@ Format: ["id1", "id2", ...]`
       // This prevents returning random products when the brand doesn't exist
       const detectedBrand = interpretation.attributes?.brand || interpretation.attributes?.character;
       
-      // PERFORMANCE: Skip brand check for known brands (massive list to avoid 120s+ DB scans)
+      // ============================================================================
+      // CRITICAL FIX: KNOWN BRANDS CACHE - DO NOT REMOVE
+      // See CRITICAL_FIXES.md - "Brand Validation Slowdown" fix (2026-01-09)
+      // Skipping DB validation for known brands saves 2-5 seconds per query
+      // ============================================================================
       const knownBrandLower = detectedBrand?.toLowerCase();
       const KNOWN_BRANDS_CACHE = new Set([
         // Major toy brands
