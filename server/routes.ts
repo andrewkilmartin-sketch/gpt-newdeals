@@ -503,7 +503,7 @@ function filterForBreakContext(results: any[]): any[] {
 // WATER_GUN_QUERY_WORDS, WATER_GUN_EXCLUDE_TERMS, hasWaterGunContext, filterForWaterGunContext,
 // COSTUME_QUERY_WORDS, COSTUME_CLOTHING_INDICATORS, COSTUME_NON_WEARABLE_TERMS, COSTUME_POSITIVE_CATEGORIES,
 // hasCostumeContext, FilterResult, filterForCostumeContext, BOOKS_QUERY_PATTERNS, BOOKS_BLOCK_INDICATORS,
-// BOOKS_NEGATIVE_CATEGORIES, hasBooksContext, filterForBooksContext
+// BOOKS_NEGATIVE_CATEGORIES
 
 // Interface needed for local costume context handling
 interface FilterResult {
@@ -903,9 +903,9 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   }
   
   // P1 BUG 5 FIX: Books context - exclude bags/backpacks for book queries
-  if (hasBooksContext(query)) {
+  if (hasBookContext(query)) {
     console.log(`[Search Quality] Applying books context filters for: "${query}"`);
-    filtered = filterForBooksContext(filtered);
+    filtered = filterForBookContext(filtered);
   }
   
   // Fix #31: Apply word boundary collision filter (train → not trainer, case → not bookcase)
