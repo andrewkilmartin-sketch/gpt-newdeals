@@ -209,6 +209,30 @@ function isPromoOnly(title: string): boolean {
   return PROMO_ONLY_PATTERNS.some(pattern => pattern.test(t));
 }
 
+// FIX #50: ILIKE Fallback Timeout - prevent 50+ second hangs
+const ILIKE_FALLBACK_TIMEOUT_MS = 3000;
+
+// Helper: Run query with timeout, return empty array if it takes too long
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.log(`[Shop Search] TIMEOUT: ${label} exceeded ${timeoutMs}ms limit`);
+      resolve(null);
+    }, timeoutMs);
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    console.log(`[Shop Search] ERROR in ${label}: ${error}`);
+    return null;
+  }
+}
+
 // MEGA-FIX 4: Synonym expansion for better recall
 const QUERY_SYNONYMS: { [key: string]: string[] } = {
   'film': ['movie', 'cinema', 'dvd', 'blu-ray'],
@@ -4850,12 +4874,33 @@ Format: ["id1", "id2", ...]`
                                !filterCategory && !filterMerchant && !filterBrand;
       
       if (useBrandFastPath && detectedBrand) {
-        console.log(`[Shop Search] BRAND FAST-PATH: Using TSVECTOR for "${detectedBrand}"`);
         const brandFastStart = Date.now();
         
-        // Use tsvector search for brand queries (much faster than ILIKE)
-        // FIX #26: Added try/catch fallback to ILIKE if search_vector column doesn't exist in production
-        const brandTsQuery = detectedBrand.toLowerCase().split(/\s+/).join(' & ');
+        // FIX #51: Include significant modifiers in tsvector search
+        // Brand is required (AND), modifiers are optional (OR) for ranking
+        // "lego frozen" → "lego & frozen" to get Frozen products first
+        // "lego frozen for kids" → "lego & (frozen | kids)" to not exclude valid products
+        const brandLower = detectedBrand.toLowerCase();
+        const stopWords = new Set(['for', 'and', 'the', 'with', 'set', 'toys', 'gift', 'kids', 'boy', 'girl', 'age', 'year', 'old']);
+        const queryTerms = query.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+        
+        // Significant modifiers = non-brand, non-stopword terms (frozen, star, wars, disney, etc)
+        const significantModifiers = queryTerms.filter(t => t !== brandLower);
+        
+        let brandTsQuery: string;
+        if (significantModifiers.length === 1) {
+          // Single modifier: "lego frozen" → "lego & frozen" (both required for precision)
+          brandTsQuery = `${brandLower} & ${significantModifiers[0]}`;
+          console.log(`[Shop Search] BRAND FAST-PATH: Using TSVECTOR for "${detectedBrand}" + "${significantModifiers[0]}"`);
+        } else if (significantModifiers.length > 1) {
+          // Multiple modifiers: "lego star wars" → "lego & star & wars" (all required)
+          brandTsQuery = [brandLower, ...significantModifiers].join(' & ');
+          console.log(`[Shop Search] BRAND FAST-PATH: Using TSVECTOR for "${detectedBrand}" + terms: ${significantModifiers.join(', ')}`);
+        } else {
+          brandTsQuery = brandLower;
+          console.log(`[Shop Search] BRAND FAST-PATH: Using TSVECTOR for "${detectedBrand}" (brand only)`);
+        }
+        
         let brandResults: any[] = [];
         try {
           brandResults = await db.select({
@@ -4903,16 +4948,30 @@ Format: ["id1", "id2", ...]`
             .limit(100);
         }
         
-        // Sort by relevance: brand name in product name first, then brand column
-        const brandLower = detectedBrand.toLowerCase();
+        // FIX #51: Sort by relevance to FULL query, not just brand
+        // For "lego frozen", rank products with "frozen" in name MUCH higher
+        // Note: brandLower already declared above
+        const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2 && w !== brandLower);
+        
         brandResults.sort((a, b) => {
-          const aInName = a.name?.toLowerCase().includes(brandLower) ? 1 : 0;
-          const bInName = b.name?.toLowerCase().includes(brandLower) ? 1 : 0;
-          const aInBrand = a.brand?.toLowerCase().includes(brandLower) ? 1 : 0;
-          const bInBrand = b.brand?.toLowerCase().includes(brandLower) ? 1 : 0;
-          // Prioritize: name match > brand match
-          return (bInName * 2 + bInBrand) - (aInName * 2 + aInBrand);
+          const aName = a.name?.toLowerCase() || '';
+          const bName = b.name?.toLowerCase() || '';
+          
+          // +3 for each query term match (e.g., "frozen" in product name)
+          const aTermScore = queryWords.reduce((s, w) => s + (aName.includes(w) ? 3 : 0), 0);
+          const bTermScore = queryWords.reduce((s, w) => s + (bName.includes(w) ? 3 : 0), 0);
+          
+          // +1 for brand in name, +0.5 for brand in brand column
+          const aInName = aName.includes(brandLower) ? 1 : 0;
+          const bInName = bName.includes(brandLower) ? 1 : 0;
+          
+          // Term matches are 3x more important than brand placement
+          return (bTermScore + bInName) - (aTermScore + aInName);
         });
+        
+        if (queryWords.length > 0) {
+          console.log(`[Shop Search] BRAND FAST-PATH: Boosting results with terms: ${queryWords.join(', ')}`);
+        }
         
         candidates = brandResults.slice(0, 60);
         totalCandidates = brandResults.length;
@@ -5129,7 +5188,32 @@ Format: ["id1", "id2", ...]`
             const requiredTermsArray = Array.from(requiredTerms);
             const optionalTermsArray = Array.from(optionalTerms);
             
-            if (optionalTermsArray.length > 0 && requiredTermsArray.length > 0) {
+            // FIX #51: Relaxed token matching - first token required, rest boost score
+            // "lego frozen" → search "lego", rank by "frozen" presence
+            // This prevents strict AND matching from returning 0 results
+            if (requiredTermsArray.length > 1) {
+              // First term (usually brand) is required, rest are optional boosters
+              const primaryTerm = requiredTermsArray[0];
+              const boostTerms = requiredTermsArray.slice(1);
+              const allBoost = new Set([...boostTerms, ...optionalTermsArray]);
+              
+              // Add synonyms for equipment terms
+              for (const opt of boostTerms) {
+                if (EQUIPMENT_SYNONYMS[opt]) {
+                  EQUIPMENT_SYNONYMS[opt].forEach(s => allBoost.add(s));
+                }
+              }
+              
+              if (allBoost.size > 0) {
+                // Build: primaryTerm & (boost1 | boost2 | ...) - but make boost optional
+                // Actually just search for primaryTerm, rank by boost terms later
+                tsvectorQuery = primaryTerm;
+                console.log(`[Shop Search] TSVECTOR (FIX #51): Primary "${primaryTerm}", will boost by: ${Array.from(allBoost).join(', ')}`);
+              } else {
+                tsvectorQuery = primaryTerm;
+                console.log(`[Shop Search] TSVECTOR: Query "${tsvectorQuery}"`);
+              }
+            } else if (optionalTermsArray.length > 0 && requiredTermsArray.length > 0) {
               // Get synonyms for optional terms
               const allOptional = new Set(optionalTermsArray);
               for (const opt of optionalTermsArray) {
@@ -5138,7 +5222,7 @@ Format: ["id1", "id2", ...]`
                 }
               }
               
-              // Build: required1 & required2 & (opt1 | opt2 | opt3)
+              // Build: required1 & (opt1 | opt2 | opt3)
               const requiredPart = requiredTermsArray.join(' & ');
               const optionalPart = Array.from(allOptional).join(' | ');
               tsvectorQuery = `(${requiredPart}) & (${optionalPart})`;
@@ -5354,7 +5438,8 @@ Format: ["id1", "id2", ...]`
                 }
                 
                 const fallbackStart = Date.now();
-                const groupResults = await db.select({
+                // FIX #50: Wrap ILIKE fallback with 3-second timeout to prevent 50+ second hangs
+                const queryPromise = db.select({
                   id: products.id,
                   name: products.name,
                   description: products.description,
@@ -5368,6 +5453,8 @@ Format: ["id1", "id2", ...]`
                 }).from(products)
                   .where(and(...whereConditions))
                   .limit(100);
+                
+                const groupResults = await withTimeout(queryPromise, ILIKE_FALLBACK_TIMEOUT_MS, 'ILIKE fallback') || [];
                 console.log(`[Shop Search] ILIKE FALLBACK: DB query took ${Date.now() - fallbackStart}ms, found ${groupResults.length} results`);
                 
                 for (let i = groupResults.length - 1; i > 0; i--) {

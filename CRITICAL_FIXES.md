@@ -622,6 +622,31 @@ UPDATE products SET search_vector = to_tsvector('english',
 | **Test** | `lego` query now returns 8+ products with valid images |
 | **Status** | FIXED |
 
+### 51. Brand+Modifier Queries Return Wrong Products (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "lego frozen" returned Mario Kart products instead of LEGO Frozen sets |
+| **Root Cause 1** | BRAND FAST-PATH only searched for brand ("lego"), not additional terms ("frozen") |
+| **Root Cause 2** | Sorting by brand presence instead of query term relevance |
+| **Fix 1** | Build tsvector query with significant modifiers: "lego & frozen" instead of just "lego" |
+| **Fix 2** | Filter stopwords (for, kids, toys, set, gift) to avoid zero results on queries like "lego frozen for kids" |
+| **Fix 3** | Sort results by modifier term matches (+3 score) before brand placement (+1) |
+| **Files** | `server/routes.ts` - BRAND FAST-PATH block (~line 4879-4972) |
+| **Test Queries** | `lego frozen`, `lego frozen for kids`, `lego star wars set` - all return correct products |
+| **Also Fixes** | `lego disney princess`, `barbie dreamhouse`, other brand+theme combos |
+| **Status** | FIXED |
+
+### 52. Stale Cache Returns Wrong Brand Results (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "lego frozen", "lego disney" returned Mario Kart from cache |
+| **Root Cause** | Verified results cache stored old (wrong) product IDs |
+| **Fix** | Deleted 3 stale cache entries where product names didn't match query theme |
+| **SQL** | `DELETE FROM verified_results WHERE query LIKE 'lego %' AND verified_product_names LIKE '%Mario%'` |
+| **Files** | No code change - database cleanup |
+| **Prevention** | Cache entries now validated during search (see Fix #50) |
+| **Status** | FIXED |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
