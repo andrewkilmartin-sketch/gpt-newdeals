@@ -384,6 +384,21 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 
 ---
 
+### 42. Automated Audit Learning Loop (2026-01-11) - IMPLEMENTED ✅
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | Systematically measure search quality and identify failure patterns after each fix cycle |
+| **Script** | `scripts/quick-audit.ts` - runs 90 priority queries in ~3 minutes |
+| **Full Script** | `scripts/auto-audit-learn.ts` - runs 174 comprehensive queries |
+| **Output** | `data/audit-results-latest.csv` - detailed results per query |
+| **Metrics** | Pass rate, failure patterns (ZERO_RESULTS, LOW_RESULTS, WORD_BOUNDARY, CLOTHING_LEAK, TIMEOUT) |
+| **Category Breakdown** | core, brand, character, age, price, product_type, word_boundary, edge_case, seasonal |
+| **Baseline Results** | 92.2% pass rate (83/90), Core 10: 100%, Brand: 95%, Character: 100%, Age: 100% |
+| **Top Failures** | LOW_RESULTS (4), TIMEOUT (3) - mostly edge cases like "kinetic sand", "science kit" |
+| **Usage** | `npx tsx scripts/quick-audit.ts` after any search logic change |
+
+---
+
 ### 41. Diversity Constraint + Sport Equipment Age Filter (2026-01-10) - FIXED ✅
 | Aspect | Details |
 |--------|---------|
