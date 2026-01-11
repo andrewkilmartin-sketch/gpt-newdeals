@@ -29,3 +29,4 @@ export * from './utilities';
 export { registerCJRoutes } from './cj-routes';
 export { registerVoiceRoutes } from './voice-routes';
 export { registerMovieRoutes } from './movie-routes';
+export { registerUpsellRoutes } from './upsell-routes';
