@@ -4,6 +4,31 @@
 
 ---
 
+## LATEST FIXES
+
+### 58-60. Category-Based Promotion Matching (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | School shoes and other category searches showed no promotions |
+| **Symptom** | "school shoes" returned M&S products with `promotion: null` |
+| **Root Cause** | Promotion matching only worked by merchant name or brand keywords, not product category |
+| **Solution** | Added 3-tier promotion matching: merchant → brand → category |
+| **Categories** | school, shoes, clothing, toys, books, baby, outdoor, sports, electronics, home |
+| **Files** | `server/services/awin.ts` (lines 107-120, 151-165, 351-395), `server/routes.ts` (lines 6216-6291) |
+| **Result** | "school shoes" now shows "Peppersmith Student Discount" promotion |
+
+**New Functions Added:**
+- `extractCategoriesFromPromotion()` - Extracts category keywords from promo title/description
+- `getAllCategoryPromotions()` - Returns promotions indexed by category
+- `getCategoryKeywordsForQuery()` - Maps search query to relevant category keywords
+
+**Promotion Matching Priority:**
+1. Merchant match (exact merchant name)
+2. Brand match (product brand/name contains brand keyword)
+3. Category match (query contains category keyword like "school", "shoes")
+
+---
+
 ## 🔴 LESSONS LEARNED - CODE BUGS, NOT DEPLOYMENT
 
 **ACKNOWLEDGMENT (2026-01-10):** Multiple production failures were incorrectly attributed to "deployment issues", "Railway caching", or "user environment" when they were actually **code bugs**:

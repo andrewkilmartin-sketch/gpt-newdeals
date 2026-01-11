@@ -411,9 +411,61 @@ WHERE query ILIKE '%frozen%';
 
 ---
 
+## 9. Session Documentation Requirements
+
+### ⚠️ MANDATORY: End of Every Session
+
+At the end of EVERY work session, update this document with:
+
+1. **What was fixed** - List fix numbers and brief description
+2. **What broke** - Any regressions or new issues introduced
+3. **Current pass rate** - Latest audit results (sample size + percentage)
+4. **Next priorities** - What should be tackled next session
+
+### Session Log Template
+
+```markdown
+### Session: YYYY-MM-DD
+
+**Fixed:**
+- Fix #XX: Description
+
+**Broke:**
+- None / Issue description
+
+**Pass Rate:** XX% (N-query sample)
+
+**Next Priorities:**
+1. Priority item
+2. Priority item
+```
+
+---
+
 ## Document Maintenance
 
 **Last Updated:** 2026-01-11
-**Fixes Logged:** #1-57
-**Pass Rate:** 82.6% (500-query audit), 87% (100-query sample)
+**Fixes Logged:** #1-60
+**Pass Rate:** 83% (500-query audit)
 **Next Priority:** Fix birthday present LOW_RESULTS (#58), party bag timeout (#59), hit 90% pass rate
+
+---
+
+## Session Log
+
+### Session: 2026-01-11
+
+**Fixed:**
+- Fix #57: Brand check tsvector optimization (56s → 252ms, 220x speedup)
+- Fix #58-60: Category-based promotion matching for school shoes, footwear, clothing queries
+
+**Broke:**
+- None
+
+**Pass Rate:** 83% (500-query audit) - up from 59.3% baseline
+
+**Next Priorities:**
+1. Fix remaining LOW_RESULTS (Marvel sub-characters, Barbie accessories)
+2. Fix ZERO_RESULTS for costume queries (no inventory)
+3. Complete full 1,701 query audit (keeps timing out)
+4. Hit 90% pass rate target

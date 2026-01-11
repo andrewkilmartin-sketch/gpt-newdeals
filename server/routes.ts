@@ -6210,9 +6210,11 @@ ONLY use IDs from the list. Never invent IDs.`
         return true;
       };
       
-      // Get brand-based promotions for matching product names/brands
-      const { getAllBrandPromotions } = await import('./services/awin');
+      // Get brand-based and category-based promotions for matching
+      const { getAllBrandPromotions, getAllCategoryPromotions, getCategoryKeywordsForQuery } = await import('./services/awin');
       const brandPromotions = await getAllBrandPromotions();
+      const categoryPromotions = await getAllCategoryPromotions();
+      const queryCategoryKeywords = getCategoryKeywordsForQuery(query);
       
       // List of known brand keywords to check in product names
       const BRAND_KEYWORDS = [
@@ -6264,6 +6266,22 @@ ONLY use IDs from the list. Never invent IDs.`
               if (relevantBrandPromo) {
                 promotion = relevantBrandPromo;
                 break; // Use first matching brand promotion
+              }
+            }
+          }
+        }
+        
+        // 3. If no brand promotion, try category-based matching (e.g., "Back to School" for school shoes)
+        if (!promotion && queryCategoryKeywords.length > 0) {
+          for (const categoryKeyword of queryCategoryKeywords) {
+            const categoryPromos = categoryPromotions.get(categoryKeyword);
+            if (categoryPromos && categoryPromos.length > 0) {
+              const relevantCategoryPromo = categoryPromos.find(promo =>
+                isPromotionRelevant(promo.promotionTitle, query, p.category || '')
+              );
+              if (relevantCategoryPromo) {
+                promotion = relevantCategoryPromo;
+                break; // Use first matching category promotion
               }
             }
           }

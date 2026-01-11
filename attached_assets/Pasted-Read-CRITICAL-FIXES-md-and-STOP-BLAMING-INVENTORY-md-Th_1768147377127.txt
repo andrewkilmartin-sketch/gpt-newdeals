@@ -1,0 +1,65 @@
+Read CRITICAL_FIXES.md and STOP_BLAMING_INVENTORY.md.
+
+Three GLOBAL issues affecting all searches, not just LEGO:
+
+ISSUE 1: Same product from multiple retailers showing as duplicates
+
+This affects ALL brands - same product appears multiple times from different merchants at different prices.
+
+Create GLOBAL deduplication by SKU/model number:
+
+function dedupeByProduct(results) {
+  const dominated = new Set();
+  
+  for (let i = 0; i < results.length; i++) {
+    for (let j = 0; j < results.length; j++) {
+      if (i === j) continue;
+      const a = results[i];
+      const b = results[j];
+      
+      // Check if same product (SKU in brackets, or very similar name)
+      const skuA = extractSKU(a.name);
+      const skuB = extractSKU(b.name);
+      const sameSKU = skuA && skuB && skuA === skuB;
+      const sameName = similarName(a.name, b.name); // 90%+ match
+      
+      if (sameSKU || sameName) {
+        // Keep cheaper one, mark expensive one as dominated
+        if (a.price > b.price) {
+          dominated.add(i);
+        }
+      }
+    }
+  }
+  
+  return results.filter((_, i) => !dominated.has(i));
+}
+
+function extractSKU(name) {
+  const match = name.match(/\((\d{5,})\)/); // Match numbers in brackets like (5002111)
+  return match ? match[1] : null;
+}
+
+Apply this to ALL search results before returning.
+
+ISSUE 2: Results not sorted by best value
+
+GLOBAL fix - sort ALL results by price ascending (cheapest first) or by discount percentage descending (best deals first).
+
+results.sort((a, b) => a.price - b.price);
+
+ISSUE 3: Non-products appearing in product searches
+
+GLOBAL exclusion list when query contains "toy", "toys", "set", "sets", "gift", "gifts":
+
+const NON_PRODUCT_EXCLUSIONS = [
+  'book', 'notebook', 'pocket book', 'diary', 'journal', 'calendar', 'annual',
+  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd',
+  'poster', 'print', 'wall art', 'sticker', 'decal'
+];
+
+Apply to ALL searches, not just specific brands.
+
+Log as Fix #60 (global SKU deduplication), Fix #61 (global price sorting), Fix #62 (global non-product exclusion).
+
+These fixes apply to every search - LEGO, Disney, Paw Patrol, everything.

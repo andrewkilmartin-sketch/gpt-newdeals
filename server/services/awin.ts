@@ -101,6 +101,24 @@ const KNOWN_BRANDS = [
   'toys', 'games', 'puzzles', 'crafts', 'outdoor', 'garden'
 ];
 
+// Category keywords for matching promotions to product types
+// Maps search terms → promo keywords that indicate relevant offers
+const CATEGORY_PROMO_KEYWORDS: Record<string, string[]> = {
+  'school': ['school', 'uniform', 'back to school', 'education', 'student'],
+  'shoes': ['footwear', 'shoes', 'trainers', 'sneakers', 'boots'],
+  'clothing': ['clothing', 'fashion', 'apparel', 'wear', 'clothes'],
+  'toys': ['toys', 'games', 'play', 'fun'],
+  'books': ['books', 'reading', 'stationery'],
+  'baby': ['baby', 'nursery', 'newborn', 'infant'],
+  'outdoor': ['outdoor', 'garden', 'summer', 'camping'],
+  'sports': ['sports', 'fitness', 'active', 'gym'],
+  'electronics': ['electronics', 'tech', 'gadgets', 'devices'],
+  'home': ['home', 'furniture', 'decor', 'homeware'],
+};
+
+// Promotions indexed by category for category-based matching
+let promotionsByCategory: Map<string, AwinPromotion[]> = new Map();
+
 // Normalize merchant name for matching (removes UK/EU suffixes, spaces, special chars)
 function normalizeMerchantName(name: string): string {
   return name
@@ -127,7 +145,24 @@ function extractBrandsFromPromotion(title: string, description?: string): string
   return foundBrands;
 }
 
-// Build index of promotions by advertiser name AND by brand keywords
+// Extract categories from promotion title/description
+function extractCategoriesFromPromotion(title: string, description?: string): string[] {
+  const text = `${title} ${description || ''}`.toLowerCase();
+  const foundCategories: string[] = [];
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_PROMO_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        foundCategories.push(category);
+        break;
+      }
+    }
+  }
+  
+  return foundCategories;
+}
+
+// Build index of promotions by advertiser name, brand keywords, AND category
 async function buildPromotionsIndex(): Promise<void> {
   const promotions = await fetchPromotions();
   const now = Date.now();
@@ -139,6 +174,7 @@ async function buildPromotionsIndex(): Promise<void> {
   
   promotionsByMerchant.clear();
   promotionsByBrand.clear();
+  promotionsByCategory.clear();
   
   for (const promo of promotions) {
     if (!promo.advertiser?.name) continue;
@@ -158,10 +194,19 @@ async function buildPromotionsIndex(): Promise<void> {
       }
       promotionsByBrand.get(brand)!.push(promo);
     }
+    
+    // Index by category keywords found in title/description
+    const categories = extractCategoriesFromPromotion(promo.title, promo.description);
+    for (const category of categories) {
+      if (!promotionsByCategory.has(category)) {
+        promotionsByCategory.set(category, []);
+      }
+      promotionsByCategory.get(category)!.push(promo);
+    }
   }
   
   promotionsIndexTime = now;
-  console.log(`[Promotions] Built index: ${promotionsByMerchant.size} merchants, ${promotionsByBrand.size} brands, ${promotions.length} total promotions`);
+  console.log(`[Promotions] Built index: ${promotionsByMerchant.size} merchants, ${promotionsByBrand.size} brands, ${promotionsByCategory.size} categories, ${promotions.length} total promotions`);
 }
 
 // Product promotion metadata to attach to search results
@@ -298,6 +343,53 @@ export async function getAllBrandPromotions(): Promise<Map<string, ProductPromot
   
   console.log(`[Promotions] Brand index: ${result.size} brands with active promotions`);
   return result;
+}
+
+// Get all category-based promotions indexed by category keyword
+// This allows matching "Back to School" promo to school shoes, uniforms, etc.
+export async function getAllCategoryPromotions(): Promise<Map<string, ProductPromotion[]>> {
+  await buildPromotionsIndex();
+  
+  const result = new Map<string, ProductPromotion[]>();
+  const now = new Date();
+  
+  // Add Awin category promotions
+  for (const [categoryKeyword, promos] of promotionsByCategory) {
+    const activePromos = promos
+      .filter(p => new Date(p.endDate) > now && p.status === 'active')
+      .map(p => ({
+        promotionTitle: p.title,
+        voucherCode: p.voucher?.code,
+        expiresAt: p.endDate?.split('T')[0],
+        promotionType: p.type,
+        advertiserId: p.advertiser.id,
+        source: 'awin' as const
+      }));
+    
+    if (activePromos.length > 0) {
+      result.set(categoryKeyword, activePromos);
+    }
+  }
+  
+  console.log(`[Promotions] Category index: ${result.size} categories with active promotions`);
+  return result;
+}
+
+// Get category keywords that match a search query
+export function getCategoryKeywordsForQuery(query: string): string[] {
+  const queryLower = query.toLowerCase();
+  const matchedCategories: string[] = [];
+  
+  for (const [category, keywords] of Object.entries(CATEGORY_PROMO_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (queryLower.includes(keyword) || keyword.includes(queryLower.split(' ')[0])) {
+        matchedCategories.push(category);
+        break;
+      }
+    }
+  }
+  
+  return matchedCategories;
 }
 
 // Known advertisers with Enhanced Feeds (discovered through API testing)
