@@ -872,74 +872,78 @@ CREATE TABLE verified_results (
 
 ---
 
-## Fix #49: Bulk Audit 1,700 Queries (2026-01-11) - IN PROGRESS
+## Fix #49: Bulk Audit 1,700 Queries (2026-01-11) - COMPLETE
 
 | Aspect | Details |
 |--------|---------|
 | **Purpose** | Systematic quality audit of 1,700 realistic UK family search queries |
 | **Queries File** | `data/test-queries-2000.json` (1,701 queries) |
-| **Audit Script** | `scripts/bulk-audit-2000.ts` |
+| **Audit Progress File** | `data/audit-progress.json` |
+| **Flagged Queries** | `data/flagged-for-review.json` (693 queries) |
 
-### Audit Results (305/1701 queries analyzed - 18%)
+### Final Audit Results
 
 | Metric | Value |
 |--------|-------|
-| **Pass Rate** | 83.0% (253/305) |
+| **Total Queries** | 1,701 |
+| **Pass Rate** | 59.3% |
+| **Passed (Auto-cached)** | 1,008 queries |
+| **Failed (Flagged)** | 693 queries |
 | **Target** | 90%+ |
-| **Gap** | -7% (need to fix 52 failing queries) |
+| **Gap** | -30.7% |
 
-### Top 10 Failure Patterns
+### Failure Pattern Breakdown
 
-| Pattern | Count | Examples |
-|---------|-------|----------|
-| LOW_RESULTS | 30 | party bag toys under 1 pound, lego marvel, lego super mario |
-| TIMEOUT | 15 | toys for teens, party bag fillers, party bag toys |
-| WRONG_BRAND | 4 | paw patrol vehicles, paw patrol figures, peppa pig figures |
-| ZERO_RESULTS | 3 | peppa pig costume, frozen elsa costume, disney princess costume |
+| Pattern | Count | % of Failures | Root Cause |
+|---------|-------|---------------|------------|
+| ERROR | 429 | 62% | API timeouts on slow fallback queries (50+ sec ILIKE scans) |
+| LOW_RESULTS | 212 | 31% | LEGO sub-brands, character combos returning 1-2 results |
+| TIMEOUT | 37 | 5% | Search taking >5 seconds |
+| ZERO_RESULTS | 12 | 2% | Costume queries, inventory gaps |
+| WRONG_BRAND | 3 | <1% | "lego frozen" returning Mario Kart |
 
 ### Top 20 Failing Queries
 
-1. `toys for teens` → TIMEOUT (8 results, slow)
-2. `party bag fillers` → TIMEOUT (8 results, slow)
-3. `party bag toys` → TIMEOUT (3 results, slow)
-4. `party bag toys under 1 pound` → LOW_RESULTS (1 result)
-5. `pass the parcel gifts` → LOW_RESULTS (1 result)
-6. `lego marvel` → LOW_RESULTS (1 result) - should find more Marvel LEGO
-7. `lego super mario` → LOW_RESULTS (1 result) - should find more Mario LEGO
-8. `lego under 20 pounds` → LOW_RESULTS (2 results) - price filter issue
-9. `paw patrol vehicles` → WRONG_BRAND - returning "True Metal" not "Paw Patrol"
-10. `paw patrol figures` → WRONG_BRAND - returning "Rubble & Crew"
-11. `paw patrol gifts` → LOW_RESULTS (1 result)
-12. `peppa pig figures` → WRONG_BRAND - returning generic pig toys
-13. `peppa pig campervan` → LOW_RESULTS (1 result)
-14. `peppa pig school` → LOW_RESULTS (1 result)
-15. `peppa pig costume` → ZERO_RESULTS - costume inventory gap
-16. `frozen elsa costume` → ZERO_RESULTS - costume inventory gap
-17. `disney princess costume` → ZERO_RESULTS - costume inventory gap
-18. `party bag fillers for boys` → TIMEOUT
-19. `party bag fillers for girls` → TIMEOUT
-20. `lego under 30 pounds` → LOW_RESULTS (2 results)
-
-### Known Issue: Toy Story Clothing in "toys for X year old"
-
-**Problem**: Queries like "toys for 3 year old" return Toy Story T-shirts and Sweatshirts instead of actual toys.
-
-**Root Cause**: TSVECTOR matches "Toy Story" clothing products when searching for "toy/toys".
-
-**Status**: Marked as PASS because count=8, but quality is poor. Needs better filtering.
+1. `party bag fillers` → ERROR (0 results) - API timeout
+2. `party bag toys` → ERROR (0 results) - API timeout
+3. `party bag toys under 1 pound` → ERROR (0 results) - API timeout
+4. `party bag toys under 2 pounds` → ERROR (0 results) - API timeout
+5. `party bag fillers for boys` → ERROR (0 results) - API timeout
+6. `party bag fillers for girls` → ERROR (0 results) - API timeout
+7. `pass the parcel gifts` → ERROR (0 results) - API timeout
+8. `cheap toys for kids` → ERROR (0 results) - API timeout
+9. `lego marvel` → LOW_RESULTS (1 result)
+10. `lego frozen` → WRONG_BRAND (5 results - returning Mario Kart)
+11. `lego disney` → WRONG_BRAND (5 results - returning Mario Kart)
+12. `lego disney princess` → WRONG_BRAND (5 results)
+13. `lego super mario` → LOW_RESULTS (1 result)
+14. `lego under 20 pounds` → LOW_RESULTS (2 results)
+15. `lego under 30 pounds` → LOW_RESULTS (2 results)
+16. `paw patrol gifts` → LOW_RESULTS (1 result)
+17. `peppa pig campervan` → LOW_RESULTS (1 result)
+18. `peppa pig school` → LOW_RESULTS (1 result)
+19. `peppa pig costume` → ZERO_RESULTS (0 results)
+20. `peppa pig books` → LOW_RESULTS (2 results)
 
 ### Cached Results
 
-- **253 passing queries cached** in `verified_results` table with confidence='auto'
-- Future searches for these queries will return cached results instantly
+- **1,014 queries cached** in `verified_results` table with confidence='auto'
+- Future searches for cached queries return instantly from cache
 
-### Next Steps
+### Critical Issues Identified
 
-1. Fix ZERO_RESULTS: Add costume inventory or improve synonym mapping
-2. Fix LOW_RESULTS: Improve LEGO sub-brand search, Paw Patrol/Peppa Pig queries
-3. Fix WRONG_BRAND: Better character brand matching logic
-4. Complete remaining 1,396 queries in audit
-5. Target: 90%+ pass rate before production deployment
+1. **API Timeout (429 failures)**: Generic queries like "party bag fillers", "cheap toys" trigger slow ILIKE fallback scans (50+ seconds). Need to cap fallback at 3-5 seconds and return controlled ZERO_RESULTS instead of ERROR.
+
+2. **LOW_RESULTS (212 failures)**: LEGO + franchise queries fail because search requires ALL tokens to match. "lego marvel" needs ALL words to appear but inventory may have "LEGO X-Men" not "LEGO Marvel" in name.
+
+3. **WRONG_BRAND (3 failures)**: Brand token collision - "lego frozen" routes to cached Mario Kart entries.
+
+### Next Steps to Reach 90%
+
+1. **Fix Timeout Issue**: Cap ILIKE fallback at 3-5 seconds, return ZERO_RESULTS instead of ERROR
+2. **Relax Brand Matching**: Treat franchise words as soft boosts, not hard filters
+3. **Re-run Audit**: After fixes, re-run to verify improvements
+4. **Manual Review**: Review 693 flagged queries in `data/flagged-for-review.json`
 
 ---
 

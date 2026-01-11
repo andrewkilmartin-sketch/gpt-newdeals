@@ -1,0 +1,4160 @@
+[
+  {
+    "query": "party bag fillers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "party bag toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "party bag toys under 1 pound",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "party bag toys under 2 pounds",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "party bag fillers for boys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "party bag fillers for girls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pass the parcel gifts",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cheap toys for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lego marvel",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Marvel X-men X-jet 76281, Multi"
+  },
+  {
+    "query": "lego frozen",
+    "verdict": "WRONG_BRAND",
+    "resultCount": 5,
+    "topProduct": "LEGO® Super Mario™: Mario Kart™ – Wario & King Boo Figures and 2 Karts 72038"
+  },
+  {
+    "query": "lego disney",
+    "verdict": "WRONG_BRAND",
+    "resultCount": 5,
+    "topProduct": "LEGO® Super Mario™: Mario Kart™ – Wario & King Boo Figures and 2 Karts 72038"
+  },
+  {
+    "query": "lego disney princess",
+    "verdict": "WRONG_BRAND",
+    "resultCount": 5,
+    "topProduct": "LEGO® Super Mario™: Mario Kart™ – Wario & King Boo Figures and 2 Karts 72038"
+  },
+  {
+    "query": "lego super mario",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO® Super Mario™: Mario Kart™ – Wario & King Boo Figures and 2 Karts 72038"
+  },
+  {
+    "query": "lego under 20 pounds",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO NINJAGO 500-Piece Puzzle"
+  },
+  {
+    "query": "lego under 30 pounds",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO NINJAGO 500-Piece Puzzle"
+  },
+  {
+    "query": "paw patrol gifts",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Jungle Pups Figure Gift Pack"
+  },
+  {
+    "query": "peppa pig campervan",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Wooden Campervan"
+  },
+  {
+    "query": "peppa pig school",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Wooden School Bus"
+  },
+  {
+    "query": "peppa pig costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "peppa pig books",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Personalised Peppa Pig First Year Record Book"
+  },
+  {
+    "query": "bluey playhouse",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Bluey Bluey's Family House 11203, Multi"
+  },
+  {
+    "query": "bluey for 3 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "M&S Adaptive Bluey™ Ribbed Pyjamas (1-8 Yrs) Ivory Mix"
+  },
+  {
+    "query": "hey duggee toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Personalised Hey Duggee Tree Ball Runner"
+  },
+  {
+    "query": "hey duggee figures",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Tonies Hey Duggee"
+  },
+  {
+    "query": "hey duggee gifts",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Personalised Hey Duggee Tree Ball Runner"
+  },
+  {
+    "query": "bing bunny toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bing figures",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "teletubbies toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "teletubbies figures",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "in the night garden toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "in the night garden iggle piggle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "postman pat toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fireman sam toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas the tank engine",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas train set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas trackmaster",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas wooden railway",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thomas and friends",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frozen toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frozen dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frozen costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Frozen 2 Anna Dress Up Costume   Medium"
+  },
+  {
+    "query": "frozen elsa costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frozen anna costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Frozen 2 Anna Dress Up Costume   Medium"
+  },
+  {
+    "query": "disney princess dress up",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Disney Princess Cinderella And Prince Charming'S Castle (Jun"
+  },
+  {
+    "query": "disney princess costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "moana doll",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO ǀ Disney Princess Moana’s Island Fun Building Toy 43260"
+  },
+  {
+    "query": "rapunzel doll",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Princess Doll Rapunzel"
+  },
+  {
+    "query": "cinderella toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO ǀ Disney Princess Cinderella’s Dress Building Toy 43266"
+  },
+  {
+    "query": "cinderella costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Cinderella"
+  },
+  {
+    "query": "jasmine toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "43208 Disney Princess Jasmine And Mulan's Adventure"
+  },
+  {
+    "query": "snow white toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Disney Princess Snow White's Jewelry Box"
+  },
+  {
+    "query": "sleeping beauty toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Sleeping Beauty"
+  },
+  {
+    "query": "aurora costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "tiana toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO ǀ Disney Princess Mini Belle & Tiana with Castle 43291"
+  },
+  {
+    "query": "princess and the frog toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "encanto costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "luca toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Lucas and the Capoeira Circle"
+  },
+  {
+    "query": "turning red toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "The Art of Turning Red"
+  },
+  {
+    "query": "elemental toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Ninjago Kai's Elemental Fire Mech"
+  },
+  {
+    "query": "mickey mouse toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Disney Minnie&#146;s Pet Hotel Mickey Mouse Clubhouse 43274, Multi"
+  },
+  {
+    "query": "minnie mouse toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Disney Minnie&#146;s Pet Hotel Mickey Mouse Clubhouse 43274, Multi"
+  },
+  {
+    "query": "donald duck toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "goofy toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy story jessie",
+    "verdict": "TIMEOUT",
+    "resultCount": 2,
+    "topProduct": "Tonies Disney - Toy Story 3 & 4: Jessie"
+  },
+  {
+    "query": "toy story forky",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "Toy Story 4 Forky Talkin´ Trash Sweatshirt"
+  },
+  {
+    "query": "woody doll",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Barbie Toy Story 3 Barbie Loves Woody Doll"
+  },
+  {
+    "query": "cars mater",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Tonies Disney - Cars 2: Mater"
+  },
+  {
+    "query": "finding dory toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Tonies Disney: Finding Dory"
+  },
+  {
+    "query": "nemo toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dory toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "monsters university toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mike wazowski toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sulley toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "incredibles toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Tonies Character Bundle - Disney Cars | Toy Story | The Incredibles"
+  },
+  {
+    "query": "wall-e toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ratatouille toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "spiderman costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "spiderman bedding",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "miles morales toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "miles morales costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "spider-verse toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "batman bedroom",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Super Heroes Batman Forever Batmobile 76304, Multi"
+  },
+  {
+    "query": "superman toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Lego LEGO® DC Superman Mech vs. Lex Luthor Toy Set 76302 (7+ Yrs)"
+  },
+  {
+    "query": "flash toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "flash costume",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "World of Eric Carle (TM) Spanish-English Flash Cards"
+  },
+  {
+    "query": "dc toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dc figures",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "LEGO DC Batman&#58; Batman Construction Figure &#38; The Bat-pod Bike 76273, Multi"
+  },
+  {
+    "query": "superhero toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Superhero Puzzle Eraser Set Pack of 5 Figures"
+  },
+  {
+    "query": "superhero cape",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "marvel legends",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Marvel: Black Panther: The Intergalactic Empire of Wakanda"
+  },
+  {
+    "query": "avengers costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hulk costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Marvel Avengers Titan Hero Deluxe Hulk - 30 cm"
+  },
+  {
+    "query": "iron man costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Cutie în ediție limitată MARVEL Iron Man"
+  },
+  {
+    "query": "iron man mask",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Marvel Avengers Iron Man Figure - 15 cm"
+  },
+  {
+    "query": "iron man helmet",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Iron Man Helmet 3D Puzzle"
+  },
+  {
+    "query": "captain america costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "thor toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Super Heroes Avengers&#58; Endgame Thor Vs. Chitauri 76322, Multi"
+  },
+  {
+    "query": "thor costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Marvel Avengers Titan Hero Series Movie Thor"
+  },
+  {
+    "query": "black panther toy",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "Black Panther Nakia Poster Cotton Boyfriend T-Shirt"
+  },
+  {
+    "query": "black panther costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ant man toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "scarlet witch toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Scarlet Witch The West Coast Avengers Marvel 6.25 Inch Figure Hasbro F5884"
+  },
+  {
+    "query": "guardians of the galaxy toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Marvel Guardians Of The Galaxy Baby Rocket's Ship Set 76254, Multi"
+  },
+  {
+    "query": "rocket raccoon toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "star lord toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "gamora toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "drax toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "shang chi toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "black adam toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lol omg dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lol omg",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bratz dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "rainbow high dolls",
+    "verdict": "TIMEOUT",
+    "resultCount": 1,
+    "topProduct": "Rainbow Dolls - MGA Rainbow High"
+  },
+  {
+    "query": "shadow high dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "monster high dolls",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Monster High Cleo De Nile Doll"
+  },
+  {
+    "query": "enchantimals",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "enchantimals dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby dolls for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Gabby's Dollhouse Crafting With Baby Box"
+  },
+  {
+    "query": "baby dolls for toddlers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby annabell",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby annabell doll",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby annabell clothes",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby annabell accessories",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby born accessories",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Little Lena 36cm Doll With Accessories"
+  },
+  {
+    "query": "cry babies",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Giant Floor Puzzle - Cry Babies"
+  },
+  {
+    "query": "cry babies dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reborn dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reborn baby dolls",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "realistic baby dolls",
+    "verdict": "TIMEOUT",
+    "resultCount": 4,
+    "topProduct": "Disney Princess Comfy Squad Ariel Doll"
+  },
+  {
+    "query": "dolls pushchair",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dolls buggy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Roma Polly Umbrella Dolls Buggy"
+  },
+  {
+    "query": "dolls stroller",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dolls cot",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Dolls Wooden Cot"
+  },
+  {
+    "query": "dolls car seat",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Cupcake Doll Car Seat"
+  },
+  {
+    "query": "dolls clothes",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dolls outfits",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sylvanian families house",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Doll's House Sylvanian Families The Treehouse"
+  },
+  {
+    "query": "sylvanian families cosy cottage",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Red Roof Cosy Cottage"
+  },
+  {
+    "query": "sylvanian families campervan",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Family Campervan"
+  },
+  {
+    "query": "sylvanian families car",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Family Cruising Car"
+  },
+  {
+    "query": "sylvanian families figures",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Hamburger Stand With Figure And Accessories"
+  },
+  {
+    "query": "sylvanian families hedgehog family",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Hedgehog Family"
+  },
+  {
+    "query": "sylvanian families elephant family",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "5376 Elephant Family"
+  },
+  {
+    "query": "sylvanian families bedroom",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "5338 Children's Bedroom Set"
+  },
+  {
+    "query": "sylvanian families kitchen",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Kitchen Island"
+  },
+  {
+    "query": "sylvanian families bathroom",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Country Bathroom Set"
+  },
+  {
+    "query": "sylvanian families school",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sylvanian families shop",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Bakery Shop Starter Set"
+  },
+  {
+    "query": "playmobil animals",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Discover The Planet Animal Rescue Quad"
+  },
+  {
+    "query": "playmobil knights",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "70391 Knights Novelmore Mobile Fortress"
+  },
+  {
+    "query": "playmobil pirates",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "71531 Pirates Skull Island"
+  },
+  {
+    "query": "playmobil hospital",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "70052 City Life Hospital Emergecy Balance Racer"
+  },
+  {
+    "query": "playmobil school",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "70983 City Life School Bus"
+  },
+  {
+    "query": "playmobil zoo",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "70348 Family Fun Zoo Viewing Platform Extension"
+  },
+  {
+    "query": "playmobil aquarium",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "9063 Family Fun Aquarium Enclosure"
+  },
+  {
+    "query": "playmobil dinosaurs",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "playmobil fairies",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "70599 Special Plus Fairy Stilt Walker"
+  },
+  {
+    "query": "playmobil princess",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "schleich animals",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Schleich Pura Raza Española Young Horse 13924"
+  },
+  {
+    "query": "schleich dinosaurs",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Schleich Dinosaurs Dart Set"
+  },
+  {
+    "query": "schleich wild life",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Schleich 14825 Wild Life Lioness"
+  },
+  {
+    "query": "hot wheels cars",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Hot Wheels Real Riders 4 Model Set Going to the Races 1:64 Scale GMH39 956E"
+  },
+  {
+    "query": "matchbox",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy car garage",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Super Mario: Mario Kart – Toad’s Garage Toy Set 72035"
+  },
+  {
+    "query": "die cast cars",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Star Wars Die Cast Car (One at Random)"
+  },
+  {
+    "query": "monster truck toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "grave digger toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Technic Monster Jam Grave Digger Fire and Ice 42219"
+  },
+  {
+    "query": "jcb toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bruder digger",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fire engine for toddler",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO® DUPLO® Town F1® Team Race Cars & Drivers Building Toy for Family Fun 10445"
+  },
+  {
+    "query": "police car for toddler",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cement mixer toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO City Cement Mixer Construction Toy for Kids 60478"
+  },
+  {
+    "query": "garbage truck toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "60386 City Recycling Truck Bin Lorry"
+  },
+  {
+    "query": "bin lorry toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "60386 City Recycling Truck Bin Lorry"
+  },
+  {
+    "query": "wooden railway",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "100 PCS Kids Wooden Train Track Railway Set Activity Table W/ Rolling Drawer"
+  },
+  {
+    "query": "brio train",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "brio train set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "brio railway",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "brio for 2 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "electric train set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hornby train set",
+    "verdict": "TIMEOUT",
+    "resultCount": 5,
+    "topProduct": "Flying Scotsman Train Set, none"
+  },
+  {
+    "query": "thomas percy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Tonies Thomas the Tank Engine All Engines Go - Percy"
+  },
+  {
+    "query": "thomas toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "superhero action figures",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Superhero Puzzle Eraser Set Pack of 5 Figures"
+  },
+  {
+    "query": "remote control dinosaur",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "RED5 Velociraptor Remote Control Dinosaur"
+  },
+  {
+    "query": "jurassic park toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Lego LEGO® Jurassic Park Triceratops Research Set 76959 (8+ Yrs)"
+  },
+  {
+    "query": "indominus rex toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Jurassic World: Indominus Rex vs. Ankylosaurus Set (75941)"
+  },
+  {
+    "query": "pokemon cards",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "TCG Palafin Ex Box 4 Booster Packs 3 Foil Cards & 1 Oversize Foil Card"
+  },
+  {
+    "query": "pokemon trading cards",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Paradox Clash Trading Card Tin"
+  },
+  {
+    "query": "pikachu toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Pikachu Plush With Sunglasses Soft Toy"
+  },
+  {
+    "query": "eevee toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Pikachu, Eevee and Co."
+  },
+  {
+    "query": "eevee plush",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Pikachu, Eevee and Co."
+  },
+  {
+    "query": "charizard toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "TCG: Charizard Ex Premium Collection"
+  },
+  {
+    "query": "mewtwo toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "POP! Vinyl: Pokemon   Mewtwo 10 SuperSized"
+  },
+  {
+    "query": "knuckles toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "amy rose toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mario plush",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Giant 61Cm  Plush (Solid Mario)"
+  },
+  {
+    "query": "luigi toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Super Mario: Mario Kart – Baby Mario vs. Baby Luigi 72034"
+  },
+  {
+    "query": "princess peach toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "yoshi toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Yoshi Pipe Frame Mario Kart Hot Wheels 1:64 GRN19"
+  },
+  {
+    "query": "donkey kong toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "link figure",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Hasbro Transformers Takara Tomy Missing Link C-07 Arcee Prototype Collectible Action Figure, 15+"
+  },
+  {
+    "query": "kirby toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Nintendo Kirby Plush Cuties Mystery Plush"
+  },
+  {
+    "query": "kirby plush",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Nintendo Kirby Plush Cuties Mystery Plush"
+  },
+  {
+    "query": "minecraft plush",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Minecraft 8  Basic Plush Random Assortment (1 Mystery Plush)"
+  },
+  {
+    "query": "among us toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "M&S Pure Cotton Among Us™ Mock Sleeve Top (6-16 Yrs) Red Mix"
+  },
+  {
+    "query": "fall guys toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nintendo switch games",
+    "verdict": "TIMEOUT",
+    "resultCount": 1,
+    "topProduct": "Nedis Gaming Starter Kit | Compatible with: Nintendo Switch (OLED) | 13-in-1"
+  },
+  {
+    "query": "nintendo switch games for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "xbox games for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "playstation games for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ps5 games for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 3,
+    "topProduct": "Adidas Pure Game Eau de Toilette 100ml Spray"
+  },
+  {
+    "query": "nerf gun for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nerf gun for 8 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nerf bullets",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "N Series Pinpoint Blaster With 18 Foam Bullets"
+  },
+  {
+    "query": "nerf vest",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "water gun for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Kids Outdoor Water Toy Water Gun Backpack"
+  },
+  {
+    "query": "water pistol",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Pistola Water Pistol"
+  },
+  {
+    "query": "super soaker for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lightsaber for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "darth vader toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "75368 Star Wars Darth Vader Mech"
+  },
+  {
+    "query": "darth vader costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Darth Vader and Friends"
+  },
+  {
+    "query": "baby yoda toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Star Wars: Imperial Light Cruiser Baby Yoda Set (75315)"
+  },
+  {
+    "query": "stormtrooper costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "r2d2 toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Star Wars R2D2 Thermoelectric Mini Fridge in White"
+  },
+  {
+    "query": "bb8 toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "foam sword",
+    "verdict": "TIMEOUT",
+    "resultCount": 5,
+    "topProduct": "Papo Lion Knight Sword Foam Toy, 3 to 8 Years, Multi-colour (20001)"
+  },
+  {
+    "query": "knight sword",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "LEGO DREAMZzz Mateo and Z-Blob the Knight Battle Mech 71485"
+  },
+  {
+    "query": "pirate sword",
+    "verdict": "TIMEOUT",
+    "resultCount": 5,
+    "topProduct": "Disney’s Pirates of The Caribbean 1-5 4K Ultra HD"
+  },
+  {
+    "query": "cap gun",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pirate costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "knight costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "teddy bear for baby",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "giant teddy bear",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "build a bear",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "build a bear workshop",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "squishmallows 12 inch",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "squishmallows 16 inch",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "squishmallows large",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jellycat bashful bunny",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jellycat rabbit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jellycat dragon",
+    "verdict": "TIMEOUT",
+    "resultCount": 2,
+    "topProduct": "Huge Bashful Dragon Soft Plush"
+  },
+  {
+    "query": "jellycat unicorn",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jellycat cat",
+    "verdict": "TIMEOUT",
+    "resultCount": 1,
+    "topProduct": "Napping Nipper Cat Soft Plush"
+  },
+  {
+    "query": "jellycat dog",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jellycat for baby",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ty plush",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "unicorn bedroom",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Premier Housewares Kids Unicorn Night Light White Ceramic Gold Coloured Horn"
+  },
+  {
+    "query": "unicorn toys for 5 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO CREATOR Magical Unicorn 31140"
+  },
+  {
+    "query": "cat soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Mog the Forgetful Cat 10 Soft Toy Grey/White"
+  },
+  {
+    "query": "lion soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "The Puppet Company Wilberry Mini Lion Soft Toy"
+  },
+  {
+    "query": "monkey soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "M&S Plush Monkey Toy (0+ Mths) Brown Mix"
+  },
+  {
+    "query": "panda soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "TY Beanie Bouncer Checkers The Panda Soft Toy"
+  },
+  {
+    "query": "penguin soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Arsenal Penguin Soft Toy, Multicolor"
+  },
+  {
+    "query": "owl soft toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dragon soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Zog The Dragon 9-inch Plush Soft Toy Orange"
+  },
+  {
+    "query": "sloth soft toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "llama soft toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fox soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Early Learning Centre Fox Soft Toy"
+  },
+  {
+    "query": "tiger soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "The Tiger Who Came To Tea 10.5 Soft Toy"
+  },
+  {
+    "query": "sheep soft toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "vidaXL Standing Plush Toy Sheep White XXL, White"
+  },
+  {
+    "query": "slime kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fluffy slime",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "glitter slime",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "kinetic sand for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Kids Sandbox Sand Pit with Cover Children Sand PlayStation for 3-7 Years"
+  },
+  {
+    "query": "magic sand",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Wooden Sandbox 124 x 123cm Large Sand Box"
+  },
+  {
+    "query": "play doh set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "play doh kitchen",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "play doh ice cream",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "play doh animals",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "play doh for 2 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "play doh for 3 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "playdough",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "playdough set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "moon sand",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "modelling clay",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "air dry clay",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "polymer clay",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pottery clay for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "arts and crafts",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "arts and crafts for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "craft kit for 5 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO DOTS: Rainbow Bracelet with Charms Toy Crafts Set (41953)"
+  },
+  {
+    "query": "craft supplies for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO DOTS: Hedwig™ Pencil Holder (41809)"
+  },
+  {
+    "query": "acrylic paint set for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "watercolour paint set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "paint by numbers for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "Costway Kid&#39;s Double Sided Boards Easel Magnetic Painting Art-pink, Pink"
+  },
+  {
+    "query": "crayola",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "crayola crayons",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "crayola markers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "felt tip pens",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sketch pad for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "COSTWAY 2-in-1 Double-sided Kids Art Easel with Stool and Paper Roll Holder-Green, Green"
+  },
+  {
+    "query": "charm bracelet kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO DOTS Ultimate Party Kit 41806, Multi"
+  },
+  {
+    "query": "necklace making kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sewing machine for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO Nintendo Animal Crossing Able Sisters Clothing Shop 77055, Multi"
+  },
+  {
+    "query": "cross stitch for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "weaving kit for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Kids' Kiwi Ii Walking Trousers - Blue, Blue"
+  },
+  {
+    "query": "hama beads",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hama beads set",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Nike Air Jordan 1 Low SE Craft Older Kids' Shoes - Grey"
+  },
+  {
+    "query": "perler beads",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "aquabeads",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "aquabeads set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "iron on beads",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fuse beads",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "Craft Factory Round Pearl Beads Cream"
+  },
+  {
+    "query": "reusable stickers",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Fun Reusable Foil Minnie Mouse Stickers (Pack of 29)"
+  },
+  {
+    "query": "scratch art for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Scratch Art Gift Set"
+  },
+  {
+    "query": "origami for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Adidas Minecraft Oversized Short Tee Set Unisex Tracksuits - Green - Size 6 - 7 Years - Poly Mesh"
+  },
+  {
+    "query": "tie dye for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "science kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "science kit for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "science kit for 5 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "science kit for 8 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chemistry set",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Clementoni My First Chemistry Set, Multi"
+  },
+  {
+    "query": "chemistry set for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "volcano experiment",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Living on the Volcano : The Secrets of Surviving as a Football Manager"
+  },
+  {
+    "query": "crystal growing kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "slime science kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bath bomb kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "soap making kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lip balm making kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Debenhams 12 Days Of Bellamianta Advent Calendar"
+  },
+  {
+    "query": "perfume making kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "circuit kit for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "snap circuits",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "magnet kit for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Who's That Monster? Magnetic Travel Game"
+  },
+  {
+    "query": "magnetic toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "magna tiles",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "magnatiles",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "magnetic building blocks",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "microscope for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "microscope for 8 year old",
+    "verdict": "TIMEOUT",
+    "resultCount": 3,
+    "topProduct": "Lego LEGO® City Police Mobile Crime Lab Truck Toy (7+ Yrs)"
+  },
+  {
+    "query": "bug catcher for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "insect kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ant farm",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fossil kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Ivy and Bean Break the Fossil Record"
+  },
+  {
+    "query": "archaeology kit for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "anatomy model for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "human body for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Sleuth & Solve: Human Body : 20 Mind-Twisting Mysteries"
+  },
+  {
+    "query": "solar system for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "11037 Classic Creative Space Planets"
+  },
+  {
+    "query": "planets for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Technic Surface Space Loader Lt78 Set 42178, Multi"
+  },
+  {
+    "query": "coding toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "coding for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Book Nooks : Inspired Ideas for Cozy Reading Corners and Stylish Book Displays"
+  },
+  {
+    "query": "coding robot",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Boost Creative Toolbox Robot Coding Robotics Kit (17101)"
+  },
+  {
+    "query": "programmable robot",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Gigged : The Gig Economy, the End of the Job and the Future of Work"
+  },
+  {
+    "query": "robot kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Boost Creative Toolbox Robot Coding Robotics Kit (17101)"
+  },
+  {
+    "query": "robot building kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Boost Creative Toolbox Robot Coding Robotics Kit (17101)"
+  },
+  {
+    "query": "stem toys for 5 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "stem toys for 8 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "engineering kit for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 4,
+    "topProduct": "LEGO Speed Champions McLaren W1 Toy Car Model Kit 77257"
+  },
+  {
+    "query": "construction kit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "meccano",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "meccano set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "knex",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "knex set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "geomag",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "marble run",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "marble run for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "gravitrax",
+    "verdict": "TIMEOUT",
+    "resultCount": 1,
+    "topProduct": "Construction set Ravensburger Gravitrax Junior Multicolour"
+  },
+  {
+    "query": "educational toys for 5 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "alphabet toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Alphabet Lotto"
+  },
+  {
+    "query": "abc toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "ABC Sticker Colouring Book"
+  },
+  {
+    "query": "phonics toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "number toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "maths toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Magic Maths Game"
+  },
+  {
+    "query": "times tables toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Orchard Times Tables Heroes Game"
+  },
+  {
+    "query": "leapfrog toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "leapfrog tablet",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "vtech toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "vtech tablet",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "tablet for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Portable iPad Mini 1st Gen with Kids Case - High Performance Tablet | Wowcher"
+  },
+  {
+    "query": "baby toys 0-3 months",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby toys 0-6 months",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby toys 3-6 months",
+    "verdict": "TIMEOUT",
+    "resultCount": 3,
+    "topProduct": "Kids Toddler Ride-on Toy Pedal Digger Pretend Play Construction Car"
+  },
+  {
+    "query": "baby toys 6-9 months",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO NINJAGO: Fire Fang Snake Toy for Kids (70674)"
+  },
+  {
+    "query": "baby toys 9-12 months",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "HOMCOM Ottoman Toy Box Storage Foldable Faux Leather Cube Seat PU Faux Leather Brown, Brown"
+  },
+  {
+    "query": "sensory toys for autism",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fidget toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pop it fidget",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Vader Graffiti Pop Art T-Shirt"
+  },
+  {
+    "query": "stress toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Dumpling Stress Toy"
+  },
+  {
+    "query": "teething toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "teething rings",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sophie the giraffe",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby rattle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "rattle for baby",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby gym",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Gym King Kids Script Relaxed Fit Jogger - Baby Pink 11-12"
+  },
+  {
+    "query": "tummy time mat",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Baby Play Mat 7-in-1 Tummy Time Infant Toddler Activit Mat w/ 5 Detachable Toys"
+  },
+  {
+    "query": "baby activity centre",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jumperoo",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "stacking cups",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Trixie Bath Stacking Cups - Mr Lion"
+  },
+  {
+    "query": "stacking rings",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nesting toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "shape sorter toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Personalised Picnic Wooden Shape Sorter"
+  },
+  {
+    "query": "shape sorting toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Shape Sorting Cube Classic Toy"
+  },
+  {
+    "query": "posting box",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "wooden building blocks",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "wooden stacking toys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Orange Tree Toys Peter Rabbit Wooden Stacking Cubes"
+  },
+  {
+    "query": "mega bloks",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mega blocks",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "kids drum kit",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Kids Drum Kit with Stool Jazz Drum Set with Bass Drum Musical Instrument Toy"
+  },
+  {
+    "query": "karaoke machine for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Sonic the Hedgehog Tails’ Adventure Boat Toy Set 76997"
+  },
+  {
+    "query": "baby xylophone",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "tambourine for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "harmonica for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "outdoor toys for toddlers",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Wooden 2 in 1 Sand Pit for Toddlers with 6 Seats, Toys, Outdoor Use - Blue"
+  },
+  {
+    "query": "outdoor toys for garden",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Kids Wooden Playhouse, Outdoor Garden Toys with Door, Bench, Flowerpot"
+  },
+  {
+    "query": "14ft trampoline",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby swing outdoor",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Outdoor  Swing Set Metal Backyard Playground Covered Playhouse Fort"
+  },
+  {
+    "query": "climbing frame with swing",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "slide",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway Inflatable Bounce Castle with Slide and 680W Blower"
+  },
+  {
+    "query": "paddling pool for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Kids Spaceship Paddling Pool"
+  },
+  {
+    "query": "paddling pool for toddlers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "paddling pool large",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "paddling pool with slide",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "swimming pool for garden",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sand pit with lid",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "16-Piece Sand and Water Play Table Sand Pit Beach Toy Set 2 in 1 Outdoor Activities Playset with Lid and Accessories for 3 Years Old"
+  },
+  {
+    "query": "sandpit with lid",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sand pit for toddlers",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Wooden 2 in 1 Sand Pit for Toddlers with 6 Seats, Toys, Outdoor Use - Blue"
+  },
+  {
+    "query": "sandpit toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bucket and spade",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Sunnylife Silicone Bucket & Spade Set Apple Sorbet Multi"
+  },
+  {
+    "query": "bubble machine for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bubble gun",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Inflatable Water Slide  Water Park Bounce Castle Jumping W/Climbing Wall"
+  },
+  {
+    "query": "bubble blower",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Early Learning Centre Clownfish Bubble Blower"
+  },
+  {
+    "query": "giant bubbles",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "60379 City Exploration Deep Sea Submarine"
+  },
+  {
+    "query": "bubble wand",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bubbles for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "6V Kids Bubble Car Electric Motor Kids Ride on Motorcycle with Bubble Maker"
+  },
+  {
+    "query": "frisbee",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frisbee for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "boomerang for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Super Mario Big Spike’s Cloudtop Challenge Exp Set (71409)"
+  },
+  {
+    "query": "football goal",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Homcom Football Goal Folding Outdoor With All Weather Net Kids Adults 6'x3', Black"
+  },
+  {
+    "query": "pop up football goal",
+    "verdict": "TIMEOUT",
+    "resultCount": 5,
+    "topProduct": "Early Learning Centre Pop Up Football Goal"
+  },
+  {
+    "query": "rugby ball",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Warmies Large Microwaveable Plush Rugby Ball in White"
+  },
+  {
+    "query": "rugby ball for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mini rugby ball",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "netball",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Homcom Adjustable Basketball Hoop Stand W&#47; Wheels And Weight Base 1.6-2.1M Black, Black"
+  },
+  {
+    "query": "netball for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cricket set",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Decathlon Cricket Set - Cst 500 - All Weather, Ultralight, Plastic"
+  },
+  {
+    "query": "kwik cricket",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "badminton set for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Homcom Foldable Badminton Net For Kids Adults Indoor And Outdoor"
+  },
+  {
+    "query": "badminton racket for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "golf clubs for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway 3-in-1 Toddler Basketball Hoop Set Stand with 5 Adjustable Height Levels-Green, Green"
+  },
+  {
+    "query": "mini golf set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "croquet set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "skipping rope for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Nedis Smartlife Bluetooth Skipping Exercise Fitness Rope LED / App Counter Adult & Kids"
+  },
+  {
+    "query": "hula hoop",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hula hoop for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Nike Pro Men's Dri-FIT Tight Sleeveless Fitness Top - White - Polyester/Elastane"
+  },
+  {
+    "query": "pogo stick",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pogo stick for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "space hopper",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Arsenal Space Hopper, Multicolor"
+  },
+  {
+    "query": "bouncy hopper",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "stilts for kids",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Disney  Toy Story You Are The Chosen One  men's Sweatshirt in Blue"
+  },
+  {
+    "query": "egg and spoon race",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Angelina Ballerina and the Fancy Dress Day"
+  },
+  {
+    "query": "sack race",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bike for 2 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "bike for 3 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "bike for 4 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "bike for 5 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "bike for 6 year old",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "bike with stabilisers",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Decathlon 20\" And 24\" Bike Stabilisers"
+  },
+  {
+    "query": "wooden balance bike",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway 12 Inch Balance Bike No Pedal Training Bicycle With Adjustable Handle And Seat-pink, Pink"
+  },
+  {
+    "query": "strider bike",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "maxi micro scooter",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "skateboard for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Decathlon Kids' 2 X 3-Piece Skating Skateboard Scooter Protective Gear 100"
+  },
+  {
+    "query": "skateboard for beginners",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mini skateboard",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Decathlon Mini Plastic Skateboard Play 500"
+  },
+  {
+    "query": "penny board",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "roller skates for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "roller skates for girls",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO DREAMZzz Izzie and Bunchu the Bunny Toy 71453"
+  },
+  {
+    "query": "roller skates for boys",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO DREAMZzz Izzie and Bunchu the Bunny Toy 71453"
+  },
+  {
+    "query": "quad skates",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Decathlon Roller Skates Quad 100"
+  },
+  {
+    "query": "roller blades",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "inline skates for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "adjustable roller skates",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ice skates for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "helmet for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Decathlon Kids' Cycling Helmet Liner 500"
+  },
+  {
+    "query": "bike helmet for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "scooter helmet",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "LEGO Friends Surfing Dogs and Scooter Adventure Set 42641"
+  },
+  {
+    "query": "elbow pads",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Elbow Pads Pack of 2"
+  },
+  {
+    "query": "elbow pads for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway 240cm PU Leather Folding Gymnastics Mat-Pin & Black, Pink"
+  },
+  {
+    "query": "wrist guards",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "protective gear for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Decathlon Kids' 2 X 3-Piece Skating Skateboard Scooter Protective Gear 100"
+  },
+  {
+    "query": "plastic play food",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy fruit and veg",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Shopping List Extras Fruit and Veg"
+  },
+  {
+    "query": "play pots and pans",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy till",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Supermarket Till Checkout & Accessories"
+  },
+  {
+    "query": "play money",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "shopping trolley toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Shopping Grocery Trolley & Bag"
+  },
+  {
+    "query": "toy shopping trolley",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Shopping Grocery Trolley & Bag"
+  },
+  {
+    "query": "ice cream shop toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Personalised Table Top Ice Cream Shop Toy FSC®"
+  },
+  {
+    "query": "cleaning toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy vacuum",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy hoover",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy broom",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Room On The Broom Witch With Broom 15 Soft Toy"
+  },
+  {
+    "query": "toy ironing board",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "LEGO Marvel Avengers Helicarrier Toy (76153)"
+  },
+  {
+    "query": "laundry set toy",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Costway Kids Washer Playset Toy Washing Machine with Laundry Detergent-Blue, Blue"
+  },
+  {
+    "query": "tool set for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway Wooden Tool Workbench with Play Tools Set and Large Storage Space for Kids Toddlers"
+  },
+  {
+    "query": "kids tool set",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Costway Wooden Tool Workbench with Play Tools Set and Large Storage Space for Kids Toddlers"
+  },
+  {
+    "query": "toy drill",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Personalised Drill Wooden Toy FSC®"
+  },
+  {
+    "query": "toy hammer",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "LEGO® ǀ Marvel Iron Man & War Machine vs. Hammer Drones Building Toy 76320"
+  },
+  {
+    "query": "black and decker toy",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "toy stethoscope",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nurse costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "doctor costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "vet toys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "vet set for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "vet costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dentist set for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dressing up",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fancy dress for kids",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Rubies Child  Costume Kit"
+  },
+  {
+    "query": "princess costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Princess Leia Costume Dress"
+  },
+  {
+    "query": "fairy costume",
+    "verdict": "TIMEOUT",
+    "resultCount": 2,
+    "topProduct": "Rubies Professor McGonagall Adult Dress Up Costume"
+  },
+  {
+    "query": "pirate costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cowboy costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "police costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Early Learning Centre Police Officer Costume"
+  },
+  {
+    "query": "doctor costume",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Rubies 4-8 Years Slytherin Robe Dress Up Costume"
+  },
+  {
+    "query": "nurse costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chef costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "builder costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "animal costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "unicorn costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Early Learning Centre Unicorn Dress Up Costume"
+  },
+  {
+    "query": "vampire costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "zombie costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "skeleton costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ghost costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pumpkin costume",
+    "verdict": "ZERO_RESULTS",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "halloween costume for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "halloween costume for boys",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "halloween costume for girls",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Rubies 5-6 Years Luna Lovegood Dress Up Costume"
+  },
+  {
+    "query": "world book day costume",
+    "verdict": "TIMEOUT",
+    "resultCount": 6,
+    "topProduct": "Rubies 7-8 Years Tiger Dress Up Costume"
+  },
+  {
+    "query": "nativity costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "christmas costume",
+    "verdict": "TIMEOUT",
+    "resultCount": 8,
+    "topProduct": "Rubies 7-8 Years Twig Dress Up Costume"
+  },
+  {
+    "query": "elf costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "santa costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reindeer costume",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "angel costume",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 1,
+    "topProduct": "Palace Costume : Inside Hollywood’s Best Kept Fashion Secret"
+  },
+  {
+    "query": "board games for teenagers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "uno cards",
+    "verdict": "LOW_RESULTS",
+    "resultCount": 2,
+    "topProduct": "Uno Minecraft Card Game"
+  },
+  {
+    "query": "happy families",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "monopoly junior",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "monopoly for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "scrabble",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "scrabble junior",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cluedo junior",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "game of life",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "game of life junior",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "risk",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "trivial pursuit",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "trivial pursuit family",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hungry hippos",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "hungry hungry hippos",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "connect 4",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "connect four",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "guess who",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "operation",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "operation game",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "buckaroo",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "kerplunk",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "mousetrap",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frustration",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pop up pirate",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "crocodile dentist",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pie face",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dont wake dad",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jenga",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jenga giant",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "giant jenga",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "twister",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ludo",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "snakes and ladders",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chess set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chess set for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "draughts",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "checkers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dominoes",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dominoes for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bingo for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "yahtzee",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "battleship",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "battleships",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "headbanz",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "charades for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pictionary",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "articulate",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "codenames",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ticket to ride",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "catan",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "settlers of catan",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pandemic",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "exploding kittens",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "cards against humanity family",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jigsaw puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jigsaw puzzle for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 2 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 3 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 4 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 5 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 6 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle for 8 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "floor puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "floor puzzle for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "giant floor puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "wooden puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "wooden puzzle for toddlers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chunky puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "peg puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "100 piece puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "200 piece puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "500 piece puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "1000 piece puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "3d puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle ball",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "ravensburger puzzle",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for babies",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for toddlers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 1 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 2 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 3 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 4 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 5 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 6 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 7 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 8 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 9 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "books for 10 year old",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "board books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "board books for babies",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "touch and feel books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "lift the flap books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "baby books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "first words books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "picture books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "picture books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "story books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "story books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bedtime stories",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "bedtime books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "nursery rhymes book",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "fairy tale books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "classic fairy tales",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chapter books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "chapter books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "early readers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "beginner readers",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "phonics books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reading books for reception",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reading books for year 1",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "reading books for year 2",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "biff chip and kipper",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "oxford reading tree",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "roald dahl books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "roald dahl collection",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "david walliams books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "david walliams collection",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "jeff kinney books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "diary of a wimpy kid",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dog man books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "captain underpants",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "tom gates books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "harry potter books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "harry potter box set",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "percy jackson books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "beast quest books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "horrible histories books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "horrible science books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "guinness world records",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "guinness book of records",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "minecraft books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "pokemon books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "star wars books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "marvel books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "disney books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "peppa pig books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "paw patrol books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "frozen books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "princess books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "unicorn books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dinosaur books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "animal books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "space books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "science books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "history books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "geography books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "encyclopaedia for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "atlas for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "dictionary for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "wordsearch for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "crossword for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sudoku for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "activity books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "activity books for kids",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "colouring books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "sticker books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  },
+  {
+    "query": "puzzle books",
+    "verdict": "ERROR",
+    "resultCount": 0,
+    "topProduct": null
+  }
+]
