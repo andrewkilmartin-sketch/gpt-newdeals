@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "partial": 0,
+    "fail": 0,
+    "errors": 0,
+    "passRate": "100%",
+    "totalTimeMs": 5383,
+    "avgTimePerQuery": 5383,
+    "buildVersion": 92
+  },
+  "results": [
+    {
+      "query": "disney princess toys",
+      "index": 0,
+      "status": "PASS",
+      "score": 100,
+      "resultCount": 7,
+      "parsed": {
+        "character": "disney",
+        "age": null,
+        "priceMax": null,
+        "productType": null
+      },
+      "metrics": {
+        "characterPct": 100,
+        "pricePct": null,
+        "characterMatches": 7,
+        "priceMatches": 0
+      },
+      "topResults": [
+        {
+          "name": "Disney Princess Comfy Squad Ariel Doll",
+          "brand": "Disney",
+          "price": 10.09,
+          "merchant": "Babubas UK"
+        },
+        {
+          "name": "LEGO ǀ Disney Princess Moana’s Island Fun Building Toy 43260",
+          "brand": "LEGO",
+          "price": 14.99,
+          "merchant": "Zavvi UK"
+        },
+        {
+          "name": "LEGO ǀ Disney Princess Ariel’s Magical Mini Palace Toy 43285",
+          "brand": "LEGO",
+          "price": 17.99,
+          "merchant": "Zavvi UK"
+        }
+      ],
+      "timeMs": 5383
+    }
+  ]
+}

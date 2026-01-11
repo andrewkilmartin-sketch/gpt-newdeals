@@ -609,12 +609,16 @@ export function registerAuditRoutes(app: Express): void {
           // FIX #70: Auto-cache PASS results to verified_results table
           // FIX #72: Use production database when target_db_url is provided
           // FIX #73: Use static imports to avoid dynamic import issues on production
+          // FIX #74: Added explicit logging to debug production caching
+          console.log(`[Audit Cache Debug] query="${query}" verdict=${verdict} products=${products.length} dbReady=${!!db}`);
+          
           if (verdict === 'PASS' && products.length >= 3) {
             try {
               const normalizedQuery = query.toLowerCase().trim();
               
               // Use production database if provided, otherwise use local db
               const targetDb = productionDb || db;
+              console.log(`[Audit Cache] Attempting insert for "${normalizedQuery}" using ${productionDb ? 'productionDb' : 'local db'}`);
               
               await targetDb.insert(verifiedResults).values({
                 query: normalizedQuery,
@@ -624,10 +628,12 @@ export function registerAuditRoutes(app: Express): void {
                 confidence: 'auto'
               }).onConflictDoNothing();
               
-              console.log(`[Audit Cache] Saved verified results for "${normalizedQuery}"${productionDb ? ' (PRODUCTION)' : ''}`);
+              console.log(`[Audit Cache] SUCCESS: Saved "${normalizedQuery}"${productionDb ? ' (PRODUCTION DB)' : ' (LOCAL DB)'}`);
             } catch (cacheError) {
-              console.error(`[Audit Cache] Failed to cache "${query}":`, cacheError);
+              console.error(`[Audit Cache] FAILED to cache "${query}":`, cacheError);
             }
+          } else {
+            console.log(`[Audit Cache] SKIPPED: "${query}" - verdict=${verdict}, products=${products.length}`);
           }
           
           return {
