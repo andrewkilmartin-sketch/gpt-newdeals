@@ -1,10 +1,28 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+
+function getSessionId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  let sessionId = localStorage.getItem('sunny_session_id');
+  if (!sessionId) {
+    sessionId = 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    localStorage.setItem('sunny_session_id', sessionId);
+  }
+  return sessionId;
+}
+
+function detectDevice(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  const ua = navigator.userAgent;
+  if (/mobile/i.test(ua)) return 'mobile';
+  if (/tablet/i.test(ua)) return 'tablet';
+  return 'desktop';
+}
 
 function CopyCodeButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -170,6 +188,45 @@ export default function ShopSearch() {
   const [searchTime, setSearchTime] = useState<number | null>(null);
   const [dealsOnly, setDealsOnly] = useState<DealOnly[]>([]);
   const [dealsMessage, setDealsMessage] = useState<string | null>(null);
+  
+  const pageLoadTime = useRef<number>(Date.now());
+  
+  useEffect(() => {
+    pageLoadTime.current = Date.now();
+  }, [searchQuery]);
+
+  const trackAndRedirect = async (
+    product: Product,
+    position: number,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e.preventDefault();
+    
+    try {
+      await fetch('/api/track/click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: getSessionId(),
+          query: searchQuery || '',
+          product_id: product.id,
+          product_name: product.name,
+          product_price: product.price,
+          product_merchant: product.merchant,
+          position: position + 1,
+          products_shown_count: products.length,
+          products_shown_ids: products.map(p => p.id),
+          time_on_page_ms: Date.now() - pageLoadTime.current,
+          destination_url: product.affiliateLink,
+          device_type: detectDevice()
+        })
+      });
+    } catch (err) {
+      console.error('[Click tracking error]', err);
+    }
+    
+    window.open(product.affiliateLink, '_blank', 'noopener,noreferrer');
+  };
 
   const performSearch = async (searchText: string, appliedFilters: ActiveFilters = {}, offset = 0) => {
     if (!searchText.trim()) return;
@@ -579,18 +636,15 @@ export default function ShopSearch() {
                         </span>
                       </div>
                       
-                      <a
-                        href={product.affiliateLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Button 
+                        className="w-full" 
+                        size="sm"
                         data-testid={`link-buy-${product.id}`}
-                        className="block"
+                        onClick={(e) => trackAndRedirect(product, index, e)}
                       >
-                        <Button className="w-full" size="sm">
-                          Buy Now
-                          <ExternalLink className="w-3 h-3 ml-1" />
-                        </Button>
-                      </a>
+                        Buy Now
+                        <ExternalLink className="w-3 h-3 ml-1" />
+                      </Button>
                     </div>
                     
                     {product.brand && product.brand !== product.merchant && (
