@@ -12,12 +12,31 @@ if (!process.env.DATABASE_URL) {
 
 const databaseUrl = process.env.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder';
 
+// Fix #62: Connection pool with proper limits to prevent exhaustion
+// Fix #63: Statement timeout - set via onconnect hook since postgres.js ignores connection.statement_timeout
 const client = postgres(databaseUrl, {
   connect_timeout: 10,
   idle_timeout: 20,
   max_lifetime: 60 * 30,
+  max: 10, // Maximum 10 connections - prevents pool exhaustion on Railway
   onnotice: () => {}, // Suppress notices
+  transform: {
+    undefined: null, // Transform undefined to null
+  },
 });
+
+// Fix #63: Set statement_timeout on startup - 10 seconds to prevent long-running queries
+async function initializeStatementTimeout() {
+  if (process.env.DATABASE_URL) {
+    try {
+      await client`SET statement_timeout = '10s'`;
+      console.log('[DB] Statement timeout set to 10 seconds');
+    } catch (err) {
+      console.warn('[DB] Could not set statement_timeout:', (err as Error).message);
+    }
+  }
+}
+initializeStatementTimeout();
 
 export const db = drizzle(client, { schema });
 

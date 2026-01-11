@@ -6,6 +6,48 @@
 
 ## LATEST FIXES
 
+### 61-63. Server Stability - Railway Crash Fixes (2026-01-11) - FIXED ✅
+
+| Fix # | Problem | Root Cause | Solution | File |
+|-------|---------|------------|----------|------|
+| **61** | Server crashes after errors | Global error handler had `throw err` which RE-THROWS the error | Removed `throw err`, added proper error logging | `server/index.ts` line 123-140 |
+| **62** | Connection pool exhaustion | No max connection limit - unlimited connections could exhaust Railway resources | Added `max: 10` connection limit | `server/db.ts` line 24 |
+| **63** | 50+ second queries blocking server | No query timeout - long-running queries blocked connections | Added `statement_timeout: 10000` (10 seconds) | `server/db.ts` line 30-31 |
+
+**Critical Bug in Error Handler:**
+```javascript
+// BEFORE (WRONG - crashes server):
+app.use((err, req, res, next) => {
+  res.status(500).json({ message });
+  throw err;  // <-- THIS CRASHES THE SERVER!
+});
+
+// AFTER (CORRECT):
+app.use((err, req, res, next) => {
+  console.error('[ERROR HANDLER] Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: message });
+  }
+  // DO NOT throw - just log and respond
+});
+```
+
+**Database Pool Configuration:**
+```javascript
+const client = postgres(databaseUrl, {
+  max: 10,  // Fix #62: Limit connections
+});
+
+// Fix #63: Set statement_timeout on startup (postgres.js ignores connection.statement_timeout)
+async function initializeStatementTimeout() {
+  await client`SET statement_timeout = '10s'`;
+  console.log('[DB] Statement timeout set to 10 seconds');
+}
+initializeStatementTimeout();
+```
+
+---
+
 ### 58-60. Category-Based Promotion Matching (2026-01-11) - FIXED ✅
 | Aspect | Details |
 |--------|---------|

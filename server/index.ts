@@ -117,12 +117,23 @@ app.use((req, res, next) => {
   
   await registerRoutes(httpServer, app);
 
+  // Fix #61: Global error handler - catch ALL errors without crashing server
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    
+    // Log the error but DO NOT re-throw - that crashes the server!
+    console.error('[ERROR HANDLER] Unhandled error:', {
+      status,
+      message,
+      stack: err.stack?.split('\n').slice(0, 5).join('\n')
+    });
 
-    res.status(status).json({ message });
-    throw err;
+    // Only send response if not already sent - preserve existing API contract
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
+    // DO NOT throw err - this was causing server crashes!
   });
 
   // importantly only setup vite in development and after
