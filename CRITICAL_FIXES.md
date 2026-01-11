@@ -647,6 +647,30 @@ UPDATE products SET search_vector = to_tsvector('english',
 | **Prevention** | Cache entries now validated during search (see Fix #50) |
 | **Status** | FIXED |
 
+### 53. Costume Queries Blocked by Toy Context Filter (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "frozen costume", "elsa costume" returned 0 results |
+| **Root Cause** | Toy context filter ran BEFORE costume filter and removed all clothing (costumes ARE clothing) |
+| **Symptom** | "frozen" detected as toy brand → all clothing excluded → actual costumes removed |
+| **Fix** | Skip toy context filter when `hasCostumeContext(query)` is true |
+| **Code** | `if (hasToyContext(query) && !hasCostumeContext(query)) { filterForToyContext() }` |
+| **Files** | `server/routes.ts` (~line 1700) |
+| **Test** | `frozen costume` now returns 5+ results including "Frozen 2 Anna Dress Up Costume" |
+| **Status** | FIXED |
+
+### 56. Costume Queries Return T-Shirts Instead of Actual Costumes (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Even after Fix #53, costume queries returned Frozen t-shirts instead of actual costumes |
+| **Root Cause** | TSVECTOR search only required brand term ("frozen"), not costume terms |
+| **Result** | Top 50 results were all t-shirts/sweatshirts, costume filter left 1 result |
+| **Fix** | For costume queries, require brand AND costume term: `"frozen & (costume | dress | outfit | fancy)"` |
+| **Code** | Added costume-specific branch in TSVECTOR query building |
+| **Files** | `server/routes.ts` (~line 5212-5222) |
+| **Test** | `frozen costume` now returns "Frozen 2 Anna Dress Up Costume", "Frozen Swimming Costume" |
+| **Status** | FIXED |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
