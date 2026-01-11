@@ -26,3 +26,6 @@ export * from './cache';
 export * from './categories';
 export * from './interpreter';
 export * from './utilities';
+export { registerCJRoutes } from './cj-routes';
+export { registerVoiceRoutes } from './voice-routes';
+export { registerMovieRoutes } from './movie-routes';

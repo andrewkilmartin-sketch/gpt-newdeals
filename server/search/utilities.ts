@@ -62,7 +62,7 @@ export function sanitizeMediaSuffix(query: string): { sanitized: string; strippe
   return { sanitized: query, stripped: false };
 }
 
-export const PROMO_ONLY_PATTERNS = [
+const PROMO_ONLY_REGEX_PATTERNS = [
   /^\d+% off/i,
   /^up to \d+% off/i,
   /^save \d+%/i,
@@ -82,7 +82,7 @@ export const PROMO_ONLY_PATTERNS = [
 export function isPromoOnly(title: string): boolean {
   if (!title) return false;
   const t = title.trim();
-  return PROMO_ONLY_PATTERNS.some(pattern => pattern.test(t));
+  return PROMO_ONLY_REGEX_PATTERNS.some(pattern => pattern.test(t));
 }
 
 export const ILIKE_FALLBACK_TIMEOUT_MS = 3000;
