@@ -1,0 +1,11 @@
+{
+  "processed": 150,
+  "total": 500,
+  "percent": 30,
+  "pass": 123,
+  "partial": 1,
+  "fail": 7,
+  "errors": 19,
+  "elapsedMs": 518652,
+  "estimatedRemainingMs": 1210188
+}
