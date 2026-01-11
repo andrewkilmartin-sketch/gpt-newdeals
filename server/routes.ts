@@ -273,6 +273,17 @@ const PHRASE_SYNONYMS: { [key: string]: string } = {
   'stem toy': 'educational toy',
   'science kit': 'experiment',      // Kit → broader term
   'science kits': 'experiment',
+  
+  // FIX #45: US/UK term mappings
+  'stuffed animals': 'plush soft toy',  // US term → UK inventory terms
+  'stuffed animal': 'plush soft toy',
+  
+  // FIX #45e: Price intent queries → remove price words (handled by PRICE_STOPWORDS)
+  // Note: These don't need synonyms, just price word filtering
+  
+  // FIX #45f: Generic quality/value terms that need no synonym
+  // 'cheap toys' → 'toys' (handled by PRICE_STOPWORDS removing 'cheap')
+  // 'budget toys' → 'toys' (handled by PRICE_STOPWORDS removing 'budget')
 };
 
 // Apply phrase synonyms before word-level processing
@@ -957,6 +968,8 @@ const TOY_QUERY_WORDS = [
 
 function hasToyContext(query: string): boolean {
   const q = query.toLowerCase();
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  
   // Check for toy query words (toys, figures, dolls, etc.)
   const hasToyWord = TOY_QUERY_WORDS.some(word => {
     const regex = new RegExp(`\\b${word}\\b`, 'i');
@@ -967,6 +980,17 @@ function hasToyContext(query: string): boolean {
   // Fix #32: Also trigger for known toy brands (hot wheels, super soaker, nerf, etc.)
   const hasToyBrand = KNOWN_TOY_BRANDS.some(brand => q.includes(brand));
   if (hasToyBrand) {
+    // FIX #45: For single-word franchise queries (e.g., "frozen", "moana"),
+    // DON'T apply toy context filter - user might want any merchandise
+    // Only apply if query has explicit toy intent words (toys, gift, for kids)
+    const toyIntentWords = ['toy', 'toys', 'gift', 'gifts', 'for kids', 'for children', 'figure', 'figures', 'doll', 'dolls', 'plush', 'lego'];
+    const hasToyIntent = toyIntentWords.some(tw => q.includes(tw));
+    
+    if (words.length <= 1 && !hasToyIntent) {
+      console.log(`[Toy Context] Skipping filter for single-word franchise "${query}" (no explicit toy intent)`);
+      return false;
+    }
+    
     console.log(`[Toy Context] Detected toy brand in query: "${query}"`);
     return true;
   }
@@ -4872,6 +4896,14 @@ Format: ["id1", "id2", ...]`
             'equipment', 'accessories', 'supplies', 'gear', 'complete'
           ]);
           
+          // FIX #45: Price-related stopwords should NOT be searched in product names
+          // "toys under 10 pounds" should search for "toys", not "toys & under & pounds"
+          const PRICE_STOPWORDS = new Set([
+            'under', 'over', 'below', 'above', 'less', 'more', 'than', 'between',
+            'pounds', 'pound', 'quid', 'gbp', 'price', 'priced', 'cheap', 'budget',
+            'affordable', 'expensive', 'cost', 'costs', 'costing', 'spend', 'spending'
+          ]);
+          
           // Add query words - use synonym-replaced query if phrase synonym was applied
           // FIX #44: "stem toys" → uses "educational toys" terms, not "stem toys" terms
           const queryToUse = phraseSynonymApplied ? phraseFixed : query;
@@ -4880,6 +4912,14 @@ Format: ["id1", "id2", ...]`
           const optionalTerms = new Set<string>();
           
           originalWords.forEach((w: string) => {
+            // FIX #45: Skip price-related words - they're not in product names
+            if (PRICE_STOPWORDS.has(w)) {
+              return;
+            }
+            // Also skip pure numbers (price amounts)
+            if (/^\d+$/.test(w)) {
+              return;
+            }
             if (OPTIONAL_QUALIFIERS.has(w)) {
               optionalTerms.add(w);
             } else {
@@ -4952,6 +4992,21 @@ Format: ["id1", "id2", ...]`
               isNotNull(products.affiliateLink),
               ...filterConditions
             ];
+            
+            // FIX #45g: For toy queries, exclude clothing categories to prevent Toy Story t-shirts
+            // dominating results when searching for actual toys
+            const TOY_RELATED_WORDS = ['toy', 'toys', 'plaything', 'playthings'];
+            const queryIsToyFocused = tsvectorQuery.split(/[&|() ]+/).some(term => 
+              TOY_RELATED_WORDS.includes(term.trim().toLowerCase())
+            );
+            if (queryIsToyFocused) {
+              // Exclude clothing categories - these often contain "Toy Story" merchandise
+              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%t-shirt%'`);
+              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%sweatshirt%'`);
+              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%hoodie%'`);
+              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%clothing%'`);
+              console.log(`[Shop Search] TSVECTOR: Added clothing category exclusions for toy query`);
+            }
             
             if (effectiveMinPrice !== undefined) {
               tsvectorConditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${effectiveMinPrice}`);

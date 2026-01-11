@@ -715,10 +715,70 @@ npx tsx scripts/click-analysis-daily.ts
 - `science kit` → `experiment` (kit → broader term)
 - Note: `fidget toys` NOT remapped (we have fidget products in inventory)
 
-**Remaining Failures (3):**
-- `frozen` - Disney franchise, needs character detection
-- `toys under 10 pounds` - Price filter needs debugging
-- `stuffed animals` - US term, may need `plush` synonym
+---
+
+## Fix #45: Three Query Fixes + Automated Audit (2026-01-11)
+
+### 45a: Frozen Query Fix
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "frozen" returned 1 result - toy context filter excluded all Frozen merchandise |
+| **Root Cause** | Single-word franchise queries triggered aggressive clothing filter |
+| **Solution** | Skip toy context filter for single-word franchise queries without explicit toy intent |
+
+**Code Location:** `server/routes.ts` ~line 975: `hasToyContext()` now checks for single-word queries
+
+### 45b: Stuffed Animals Fix
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "stuffed animals" returned 2 results - US term not in UK inventory |
+| **Solution** | Added phrase synonym: `stuffed animals` → `plush soft toy` |
+
+**Code Location:** `server/routes.ts` PHRASE_SYNONYMS map
+
+### 45c: Toys Under £10 Fix
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "toys under 10 pounds" returned 1 result ("Murder in Paradise"!) |
+| **Root Cause** | TSVECTOR searched for `toys & under & pounds` - literal word match |
+| **Solution** | Added PRICE_STOPWORDS to filter out price-related words from TSVECTOR |
+
+**Code Location:** `server/routes.ts` ~line 4897: `PRICE_STOPWORDS` set
+
+**Pass Rate Improvement:** 96.7% → 100% (achieved!)
+
+---
+
+## Automated Audit System (Fix #45d)
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Scheduled Audit | `scripts/scheduled-audit.ts` | Runs 90 priority queries, saves timestamped results |
+| Audit Scheduler | `scripts/audit-scheduler.ts` | Runs audit every 6 hours automatically |
+| Alert System | Logs to `data/audit-alerts.log` | Triggers when pass rate < 90% |
+| History Storage | `data/audit-history/` | Timestamped JSON files for tracking |
+
+**Usage:**
+```bash
+# Run single audit
+npx tsx scripts/scheduled-audit.ts
+
+# Start 6-hour scheduler (runs in background)
+npx tsx scripts/audit-scheduler.ts
+```
+
+**Alert Threshold:** < 90% pass rate triggers warning to console + `data/audit-alerts.log`
+
+### 45g: Toy Query Clothing Exclusion
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "cheap toys"/"budget toys" returned 1 result - Toy Story clothing dominated TSVECTOR results |
+| **Root Cause** | TSVECTOR for "toys" matched Toy Story t-shirts/hoodies which Toy Context filter then removed |
+| **Solution** | Added clothing category exclusions (t-shirt, sweatshirt, hoodie, clothing) for toy-focused queries |
+
+**Code Location:** `server/routes.ts` ~line 5005: `TOY_RELATED_WORDS` + category exclusions
+
+**Final Pass Rate:** 100% (90/90 priority queries)
 
 ---
 

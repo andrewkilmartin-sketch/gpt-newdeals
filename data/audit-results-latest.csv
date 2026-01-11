@@ -1,91 +1,91 @@
 query,category,result_count,passed,failure_pattern,response_time_ms
-"train set",core,8,true,,1557
-"hot wheels",core,6,true,,878
-"water gun",core,4,true,,427
-"paw patrol toys",core,6,true,,137
-"lol dolls",core,5,true,,116
-"badminton set",core,8,true,,2475
-"ipad case for kids",core,1,true,,403
-"super soaker",core,4,true,,246
-"birthday present 5 year old",core,6,true,,1942
-"stocking fillers under 5 pounds",core,8,true,,13481
-"lego",brand,8,true,,52
-"lego set",brand,8,true,,35
-"disney toys",brand,8,true,,53
-"marvel toys",brand,8,true,,41
-"barbie",brand,6,true,,31
-"peppa pig",brand,8,true,,19
-"pokemon",brand,8,true,,20
-"nerf gun",brand,5,true,,12
-"harry potter",brand,8,true,,44
-"frozen",brand,1,false,LOW_RESULTS,23
-"spiderman",brand,7,true,,22
-"star wars",brand,6,true,,51
-"minecraft",brand,8,true,,26
-"sonic",brand,6,true,,18
-"mario",brand,8,true,,21
-"bluey toys",brand,5,true,,16
-"transformers",brand,8,true,,248
-"avengers",brand,6,true,,26
-"toy story",brand,6,true,,23
-"fortnite",brand,8,true,,16
-"hulk toys",character,8,true,,14
-"elsa",character,6,true,,144
-"batman",character,8,true,,31
-"pikachu",character,8,true,,18
-"iron man",character,6,true,,37
-"moana",character,8,true,,23
-"chase paw patrol",character,8,true,,1754
-"buzz lightyear",character,6,true,,22
-"woody",character,6,true,,22
-"lightning mcqueen",character,6,true,,17
-"toys for 3 year old",age,8,true,,26
+"train set",core,8,true,,691
+"hot wheels",core,6,true,,475
+"water gun",core,4,true,,215
+"paw patrol toys",core,6,true,,45
+"lol dolls",core,5,true,,129
+"badminton set",core,8,true,,100
+"ipad case for kids",core,1,true,,251
+"super soaker",core,4,true,,6053
+"birthday present 5 year old",core,6,true,,1454
+"stocking fillers under 5 pounds",core,6,true,,69
+"lego",brand,8,true,,97
+"lego set",brand,8,true,,32
+"disney toys",brand,8,true,,457
+"marvel toys",brand,8,true,,575
+"barbie",brand,7,true,,476
+"peppa pig",brand,8,true,,140
+"pokemon",brand,8,true,,553
+"nerf gun",brand,5,true,,73
+"harry potter",brand,8,true,,755
+"frozen",brand,8,true,,563
+"spiderman",brand,8,true,,755
+"star wars",brand,6,true,,656
+"minecraft",brand,8,true,,711
+"sonic",brand,8,true,,781
+"mario",brand,8,true,,587
+"bluey toys",brand,5,true,,46
+"transformers",brand,8,true,,8301
+"avengers",brand,6,true,,50
+"toy story",brand,8,true,,91
+"fortnite",brand,8,true,,25
+"hulk toys",character,8,true,,15
+"elsa",character,6,true,,39
+"batman",character,8,true,,47
+"pikachu",character,8,true,,23
+"iron man",character,6,true,,62
+"moana",character,8,true,,58
+"chase paw patrol",character,8,true,,1684
+"buzz lightyear",character,6,true,,36
+"woody",character,6,true,,21
+"lightning mcqueen",character,6,true,,37
+"toys for 3 year old",age,8,true,,38
 "gifts for 5 year old boy",age,8,true,,16
-"toys for 7 year old girl",age,8,true,,14
-"baby toys",age,8,true,,43
-"toddler toys",age,8,true,,50
-"newborn gifts",age,8,true,,29
-"toys for 10 year old",age,8,true,,18
-"first birthday gift",age,8,true,,44
-"christmas gift 8 year old",age,4,true,,1001
-"teenager gift",age,8,true,,23
-"toys under 10 pounds",price,1,false,LOW_RESULTS,13
-"gifts under 20",price,8,true,,29
-"cheap toys",price,8,true,,1777
-"stocking fillers under 3 pounds",price,8,true,,12659
-"party bag fillers",price,8,true,,12814
-"budget toys",price,8,true,,4793
-"affordable gifts",price,6,true,,21
-"gifts under 50",price,8,true,,31
-"premium lego",price,8,true,,41
-"luxury toys",price,8,true,,35
-"board games",product_type,8,true,,42
-"puzzle",product_type,8,true,,9350
-"stuffed animals",product_type,2,false,LOW_RESULTS,22
-"dolls house",product_type,8,true,,55
-"action figures",product_type,7,true,,38
-"building blocks",product_type,8,true,,200
-"remote control car",product_type,8,true,,1617
-"scooter for kids",product_type,7,true,,1472
-"teddy bear",product_type,8,true,,54
-"toy car",product_type,8,true,,53
-"soft toy",product_type,8,true,,51
-"plush toy",product_type,8,true,,45
-"toy dinosaur",product_type,6,true,,54
-"play doh",product_type,8,true,,185
-"slime",product_type,8,true,,18
-"craft kit",product_type,8,true,,65
-"science kit",product_type,8,true,,1039
-"outdoor toys",product_type,8,true,,63
-"garden toys",product_type,8,true,,43
-"football",product_type,8,true,,46
-"toy train",word_boundary,8,true,,44
-"duplo",edge_case,8,true,,28
-"lego duplo",edge_case,8,true,,19
-"lego technic",edge_case,8,true,,20
-"fidget toys",edge_case,8,true,,13424
-"sensory toys",edge_case,8,true,,106
-"educational toys",edge_case,8,true,,44
-"stem toys",edge_case,5,true,,15
-"kinetic sand",edge_case,8,true,,70
-"advent calendar",seasonal,8,true,,49
+"toys for 7 year old girl",age,8,true,,15
+"baby toys",age,8,true,,46
+"toddler toys",age,8,true,,53
+"newborn gifts",age,8,true,,51
+"toys for 10 year old",age,8,true,,20
+"first birthday gift",age,8,true,,52
+"christmas gift 8 year old",age,4,true,,1147
+"teenager gift",age,8,true,,42
+"toys under 10 pounds",price,8,true,,1517
+"gifts under 20",price,8,true,,75
+"cheap toys",price,8,true,,25
+"stocking fillers under 3 pounds",price,3,true,,24
+"party bag fillers",price,8,true,,10727
+"budget toys",price,8,true,,20
+"affordable gifts",price,8,true,,19
+"gifts under 50",price,8,true,,18
+"premium lego",price,8,true,,25
+"luxury toys",price,8,true,,30
+"board games",product_type,8,true,,35
+"puzzle",product_type,8,true,,9254
+"stuffed animals",product_type,8,true,,59
+"dolls house",product_type,8,true,,47
+"action figures",product_type,7,true,,33
+"building blocks",product_type,8,true,,38
+"remote control car",product_type,8,true,,2325
+"scooter for kids",product_type,7,true,,1431
+"teddy bear",product_type,8,true,,48
+"toy car",product_type,8,true,,29
+"soft toy",product_type,8,true,,20
+"plush toy",product_type,8,true,,25
+"toy dinosaur",product_type,8,true,,59
+"play doh",product_type,8,true,,222
+"slime",product_type,8,true,,20
+"craft kit",product_type,8,true,,72
+"science kit",product_type,8,true,,984
+"outdoor toys",product_type,8,true,,72
+"garden toys",product_type,8,true,,53
+"football",product_type,8,true,,53
+"toy train",word_boundary,8,true,,56
+"duplo",edge_case,8,true,,52
+"lego duplo",edge_case,8,true,,50
+"lego technic",edge_case,8,true,,41
+"fidget toys",edge_case,8,true,,12888
+"sensory toys",edge_case,8,true,,79
+"educational toys",edge_case,8,true,,42
+"stem toys",edge_case,5,true,,20
+"kinetic sand",edge_case,8,true,,62
+"advent calendar",seasonal,8,true,,52
