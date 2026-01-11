@@ -67,6 +67,40 @@ CREATE INDEX IF NOT EXISTS idx_products_category_trgm ON products_v2 USING gin (
 
 ## SOLVED BUGS - DO NOT REINTRODUCE
 
+### 57. Brand Check ILIKE Taking 50-60 Seconds (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Brand existence check caused 429 audit failures (62% of all failures) |
+| **Symptom** | Pass rate dropped from 89% to 39% during full audit due to timeouts |
+| **Root Cause** | `checkBrandExistsInDB()` at line 4804-4810 used ILIKE on 1.1M products without index |
+| **Wrong Code** | `WHERE ilike(brand, '%term%') OR ilike(name, '%term%')` |
+| **Correct Fix** | Use tsvector: `WHERE search_vector @@ plainto_tsquery('english', term)` |
+| **File** | `server/routes.ts` ~line 4803-4837 |
+| **Fallback** | If tsvector fails (column missing), falls back to ILIKE with logging |
+| **Performance** | Brand check: 252ms (was 56,000ms - 220x improvement) |
+| **Result** | Audit pass rate: 82.6% (was 59%), timeouts reduced from 429 to 11 |
+
+**Before Fix #57:**
+| Metric | Value |
+|--------|-------|
+| Pass Rate | 59.3% |
+| Timeout/Error | 429 queries (62% of failures) |
+| Brand check time | 50-60 seconds |
+
+**After Fix #57:**
+| Metric | Value |
+|--------|-------|
+| Pass Rate | 82.6% |
+| Timeout/Error | 11 queries (2% of failures) |
+| Brand check time | 252ms |
+
+**Remaining Issues (not timeouts):**
+- LOW_RESULTS: 75 queries (birthday present, LEGO sub-brands)
+- ZERO_RESULTS: 6 queries (costume variants)
+- Party bag queries still timeout (ILIKE fallback triggered)
+
+---
+
 ### 1. Substring Matching Disaster (2026-01-10)
 | Aspect | Details |
 |--------|---------|
