@@ -608,6 +608,20 @@ UPDATE products SET search_vector = to_tsvector('english',
 ) WHERE search_vector IS NULL;
 ```
 
+### 50. No Image Bug & Empty Cache Skip (2026-01-11) - FIXED ✅
+| Aspect | Details |
+|--------|---------|
+| **Problem 1** | 7,835 products had broken "noimage.gif" URLs, appearing in results |
+| **Problem 2** | Cache returned 0 products for valid queries like "lego" |
+| **Root Cause 1** | Bulk imports included placeholder images from Waterstones/M&S |
+| **Root Cause 2** | Cache stored empty product ID arrays but valid names |
+| **Fix 1** | Mark products with noimage URLs: `UPDATE products SET image_status = 'broken' WHERE LOWER(image_url) LIKE '%noimage%'` |
+| **Fix 2** | Add `NOT ILIKE '%noimage%'` filter to all search paths |
+| **Fix 3** | Skip cache if `productIds.length === 0` before returning results |
+| **Files** | `server/routes.ts` - cache logic (~line 4262-4325) and search filters |
+| **Test** | `lego` query now returns 8+ products with valid images |
+| **Status** | FIXED |
+
 ---
 
 ## BLOCKED CONTENT - DO NOT UNBLOCK
