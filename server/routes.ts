@@ -4260,9 +4260,14 @@ Format: ["id1", "id2", ...]`
           const cached = await db.select().from(verifiedResults).where(eq(verifiedResults.query, normalizedQuery)).limit(1);
           
           if (cached.length > 0 && cached[0].verifiedProductIds) {
+            const productIds = JSON.parse(cached[0].verifiedProductIds);
+            
+            // FIX #50: Skip cache if product IDs array is empty
+            if (productIds.length === 0) {
+              console.log(`[Shop Search] CACHE SKIP: Empty product IDs for "${query}"`);
+            } else {
             console.log(`[Shop Search] CACHE HIT: Returning verified results for "${query}"`);
             
-            const productIds = JSON.parse(cached[0].verifiedProductIds);
             const productNames = cached[0].verifiedProductNames ? JSON.parse(cached[0].verifiedProductNames) : [];
             
             // Fetch the actual products by ID
@@ -4314,6 +4319,7 @@ Format: ["id1", "id2", ...]`
               },
               cached: true
             });
+            }
           }
         } catch (cacheError) {
           console.log(`[Shop Search] Cache check failed (non-fatal): ${cacheError}`);
@@ -4891,7 +4897,8 @@ Format: ["id1", "id2", ...]`
                 ilike(products.name, `%${detectedBrand}%`)
               ),
               products.inStock,
-              isNotNull(products.affiliateLink)
+              isNotNull(products.affiliateLink),
+              sql`${products.imageUrl} NOT ILIKE '%noimage%'`
             ))
             .limit(100);
         }
@@ -5286,7 +5293,8 @@ Format: ["id1", "id2", ...]`
                         ilike(products.brand, `%${brandLower}%`),
                         ilike(products.name, `%${brandLower}%`)
                       ),
-                      isNotNull(products.affiliateLink)
+                      isNotNull(products.affiliateLink),
+                      sql`${products.imageUrl} NOT ILIKE '%noimage%'`
                     ))
                     .limit(100);
                 }
