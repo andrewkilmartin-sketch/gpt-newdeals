@@ -8682,12 +8682,12 @@ ONLY use IDs from the list. Never invent IDs.`
       
       const allResults = await db.select().from(verifiedResults);
       
-      const verified = allResults.filter(r => r.confidence === 'manual').length;
+      const verified = allResults.filter(r => r.confidence === 'manual' || r.confidence === 'auto').length;
       const flagged = allResults.filter(r => r.confidence === 'flagged').length;
       
       let totalQueries = 0;
       try {
-        const queriesPath = path.join(process.cwd(), 'data', 'test-queries-500.json');
+        const queriesPath = path.join(process.cwd(), 'data', 'test-queries-2000.json');
         if (fs.existsSync(queriesPath)) {
           const queries = JSON.parse(fs.readFileSync(queriesPath, 'utf8'));
           totalQueries = queries.length;

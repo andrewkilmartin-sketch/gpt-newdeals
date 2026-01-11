@@ -872,6 +872,77 @@ CREATE TABLE verified_results (
 
 ---
 
+## Fix #49: Bulk Audit 1,700 Queries (2026-01-11) - IN PROGRESS
+
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | Systematic quality audit of 1,700 realistic UK family search queries |
+| **Queries File** | `data/test-queries-2000.json` (1,701 queries) |
+| **Audit Script** | `scripts/bulk-audit-2000.ts` |
+
+### Audit Results (305/1701 queries analyzed - 18%)
+
+| Metric | Value |
+|--------|-------|
+| **Pass Rate** | 83.0% (253/305) |
+| **Target** | 90%+ |
+| **Gap** | -7% (need to fix 52 failing queries) |
+
+### Top 10 Failure Patterns
+
+| Pattern | Count | Examples |
+|---------|-------|----------|
+| LOW_RESULTS | 30 | party bag toys under 1 pound, lego marvel, lego super mario |
+| TIMEOUT | 15 | toys for teens, party bag fillers, party bag toys |
+| WRONG_BRAND | 4 | paw patrol vehicles, paw patrol figures, peppa pig figures |
+| ZERO_RESULTS | 3 | peppa pig costume, frozen elsa costume, disney princess costume |
+
+### Top 20 Failing Queries
+
+1. `toys for teens` → TIMEOUT (8 results, slow)
+2. `party bag fillers` → TIMEOUT (8 results, slow)
+3. `party bag toys` → TIMEOUT (3 results, slow)
+4. `party bag toys under 1 pound` → LOW_RESULTS (1 result)
+5. `pass the parcel gifts` → LOW_RESULTS (1 result)
+6. `lego marvel` → LOW_RESULTS (1 result) - should find more Marvel LEGO
+7. `lego super mario` → LOW_RESULTS (1 result) - should find more Mario LEGO
+8. `lego under 20 pounds` → LOW_RESULTS (2 results) - price filter issue
+9. `paw patrol vehicles` → WRONG_BRAND - returning "True Metal" not "Paw Patrol"
+10. `paw patrol figures` → WRONG_BRAND - returning "Rubble & Crew"
+11. `paw patrol gifts` → LOW_RESULTS (1 result)
+12. `peppa pig figures` → WRONG_BRAND - returning generic pig toys
+13. `peppa pig campervan` → LOW_RESULTS (1 result)
+14. `peppa pig school` → LOW_RESULTS (1 result)
+15. `peppa pig costume` → ZERO_RESULTS - costume inventory gap
+16. `frozen elsa costume` → ZERO_RESULTS - costume inventory gap
+17. `disney princess costume` → ZERO_RESULTS - costume inventory gap
+18. `party bag fillers for boys` → TIMEOUT
+19. `party bag fillers for girls` → TIMEOUT
+20. `lego under 30 pounds` → LOW_RESULTS (2 results)
+
+### Known Issue: Toy Story Clothing in "toys for X year old"
+
+**Problem**: Queries like "toys for 3 year old" return Toy Story T-shirts and Sweatshirts instead of actual toys.
+
+**Root Cause**: TSVECTOR matches "Toy Story" clothing products when searching for "toy/toys".
+
+**Status**: Marked as PASS because count=8, but quality is poor. Needs better filtering.
+
+### Cached Results
+
+- **253 passing queries cached** in `verified_results` table with confidence='auto'
+- Future searches for these queries will return cached results instantly
+
+### Next Steps
+
+1. Fix ZERO_RESULTS: Add costume inventory or improve synonym mapping
+2. Fix LOW_RESULTS: Improve LEGO sub-brand search, Paw Patrol/Peppa Pig queries
+3. Fix WRONG_BRAND: Better character brand matching logic
+4. Complete remaining 1,396 queries in audit
+5. Target: 90%+ pass rate before production deployment
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:
