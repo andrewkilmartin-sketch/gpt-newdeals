@@ -9,6 +9,7 @@ import SunnyChat from "@/components/SunnyChat";
 import ShopSearch from "@/pages/shop";
 import ShopV2Search from "@/pages/shopv2";
 import TestDashboard from "@/pages/test";
+import VerifyPage from "@/pages/verify";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/shopv2" component={ShopV2Search}/>
       <Route path="/docs" component={HomePage}/>
       <Route path="/test" component={TestDashboard}/>
+      <Route path="/verify" component={VerifyPage}/>
       <Route component={NotFound} />
     </Switch>
   );

@@ -8671,6 +8671,109 @@ ONLY use IDs from the list. Never invent IDs.`
   });
 
   // ============================================================
+  // VERIFICATION ENDPOINTS - Pre-verify search results
+  // ============================================================
+  
+  app.get("/api/verify/stats", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { verifiedResults } = await import('@shared/schema');
+      const { count, eq, ne, isNull, not } = await import('drizzle-orm');
+      
+      const allResults = await db.select().from(verifiedResults);
+      
+      const verified = allResults.filter(r => r.confidence === 'manual').length;
+      const flagged = allResults.filter(r => r.confidence === 'flagged').length;
+      
+      let totalQueries = 0;
+      try {
+        const queriesPath = path.join(process.cwd(), 'data', 'test-queries-500.json');
+        if (fs.existsSync(queriesPath)) {
+          const queries = JSON.parse(fs.readFileSync(queriesPath, 'utf8'));
+          totalQueries = queries.length;
+        }
+      } catch (e) {}
+      
+      res.json({
+        total: totalQueries,
+        verified,
+        flagged,
+        remaining: Math.max(0, totalQueries - verified - flagged)
+      });
+    } catch (error) {
+      console.error('[Verify Stats] Error:', error);
+      res.status(500).json({ error: 'Failed to get stats' });
+    }
+  });
+  
+  app.post("/api/verify/save", async (req, res) => {
+    try {
+      const { query, productIds, productNames, confidence, verifiedBy } = req.body;
+      
+      if (!query || !productIds) {
+        return res.status(400).json({ error: 'Query and productIds are required' });
+      }
+      
+      const { db } = await import('./db');
+      const { verifiedResults } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      const normalizedQuery = query.toLowerCase().trim();
+      
+      const existing = await db.select().from(verifiedResults).where(eq(verifiedResults.query, normalizedQuery)).limit(1);
+      
+      if (existing.length > 0) {
+        await db.update(verifiedResults)
+          .set({
+            verifiedProductIds: JSON.stringify(productIds),
+            verifiedProductNames: JSON.stringify(productNames || []),
+            confidence: confidence || 'manual',
+            verifiedBy: verifiedBy || 'admin',
+            verifiedAt: new Date()
+          })
+          .where(eq(verifiedResults.query, normalizedQuery));
+        
+        console.log(`[Verify] Updated cache for "${normalizedQuery}" (${confidence})`);
+      } else {
+        await db.insert(verifiedResults).values({
+          query: normalizedQuery,
+          verifiedProductIds: JSON.stringify(productIds),
+          verifiedProductNames: JSON.stringify(productNames || []),
+          confidence: confidence || 'manual',
+          verifiedBy: verifiedBy || 'admin'
+        });
+        
+        console.log(`[Verify] Created cache for "${normalizedQuery}" (${confidence})`);
+      }
+      
+      res.json({ success: true, query: normalizedQuery, confidence });
+    } catch (error) {
+      console.error('[Verify Save] Error:', error);
+      res.status(500).json({ error: 'Failed to save verification' });
+    }
+  });
+  
+  app.get("/api/verify/list", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { verifiedResults } = await import('@shared/schema');
+      const { desc } = await import('drizzle-orm');
+      
+      const results = await db.select({
+        query: verifiedResults.query,
+        confidence: verifiedResults.confidence,
+        verifiedBy: verifiedResults.verifiedBy,
+        verifiedAt: verifiedResults.verifiedAt
+      }).from(verifiedResults).orderBy(desc(verifiedResults.verifiedAt)).limit(100);
+      
+      res.json({ results });
+    } catch (error) {
+      console.error('[Verify List] Error:', error);
+      res.status(500).json({ error: 'Failed to list verifications' });
+    }
+  });
+
+  // ============================================================
   // ADMIN EXPORT ENDPOINT - Download all source code as ZIP
   // ============================================================
   app.get("/api/admin/export", async (req, res) => {

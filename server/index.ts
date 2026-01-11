@@ -38,6 +38,7 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 app.use(express.static('public'));
+app.use('/data', express.static('data'));
 
 // Health check endpoint - ALWAYS check this first before any debugging
 const serverStartTime = Date.now();

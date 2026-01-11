@@ -826,6 +826,52 @@ npx tsx scripts/audit-scheduler.ts
 
 ---
 
+## Fix #48: Verified Results Cache System (2026-01-11)
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Need to guarantee correct results for known queries without algorithm changes |
+| **Solution** | Pre-verify search results and cache them for instant, guaranteed-correct responses |
+
+**Architecture:**
+1. **verified_results table** - Stores verified product IDs for each query
+2. **Cache check in search** - Before any algorithm runs, check if query has verified results
+3. **Verification UI** - `/verify` page for manually marking results as correct or flagged
+4. **500 test queries** - Stored in `data/test-queries-500.json` for systematic verification
+
+**Database Table:**
+```sql
+CREATE TABLE verified_results (
+  id SERIAL PRIMARY KEY,
+  query VARCHAR(500) UNIQUE,
+  verified_product_ids TEXT,      -- JSON array of product IDs
+  verified_product_names TEXT,    -- JSON array for debugging
+  verified_by VARCHAR(100),
+  verified_at TIMESTAMPTZ DEFAULT NOW(),
+  confidence VARCHAR(20)          -- 'manual', 'auto', 'flagged'
+);
+```
+
+**Code Locations:**
+- `shared/schema.ts` ~line 729: verifiedResults table schema
+- `server/routes.ts` ~line 4252: Cache check BEFORE all search logic
+- `server/routes.ts` ~line 8676: Verification API endpoints (/api/verify/*)
+- `client/src/pages/verify.tsx`: Verification UI
+- `data/test-queries-500.json`: 500+ realistic UK family queries
+
+**API Endpoints:**
+- `GET /api/verify/stats` - Get verification progress stats
+- `POST /api/verify/save` - Save/update verified results
+- `GET /api/verify/list` - List recent verifications
+
+**How It Works:**
+1. Search checks cache FIRST (before GPT, before any algorithm)
+2. If cached query found with verified_product_ids → return those products directly
+3. If no cache → run normal algorithm
+4. Results can be verified via /verify UI or bulk automation
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:
