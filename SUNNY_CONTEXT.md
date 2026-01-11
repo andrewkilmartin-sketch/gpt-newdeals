@@ -58,11 +58,20 @@ The **Smart Query Interpreter** uses GPT-4o-mini to understand:
 - Price constraints (under £10, budget)
 - Context (gift, party, school)
 
+**Intent Router Categories:**
+| Intent | Description | Status |
+|--------|-------------|--------|
+| **SHOP** | Product search, gift ideas, toys | ✅ Live |
+| **CINEMA** | Now playing, upcoming films, UK ratings | ✅ Live |
+| **STREAMING** | Netflix/Disney+ recommendations | 🔜 Planned |
+| **ATTRACTIONS** | Family days out, Kids Pass venues | 🔜 Planned |
+| **HOTELS** | Family accommodation near attractions | 🔜 Planned |
+
 ### Router Destinations
 
 | API | Purpose | Status |
 |-----|---------|--------|
-| `/api/shop/search` | Product search (1.18M products) | **Live, 90% pass rate** |
+| `/api/shop/search` | Product search (1.18M products) | **Live, 82.6% pass rate (500-query audit)** |
 | `/api/cinema/now-playing` | Current UK cinema listings | **Live** |
 | `/api/attractions` | UK family attractions | **Planned** |
 | `/api/hotels` | Family hotel deals | **Planned** |
@@ -165,7 +174,42 @@ query, product_id, position, time_on_page, device_type
 
 ---
 
-## 4. Known Patterns
+## 4. Key Fixes Summary
+
+### Critical Fixes Applied
+
+| Fix | Problem | Solution | Status |
+|-----|---------|----------|--------|
+| **Word Boundary** | "train" matched "trainer" | PostgreSQL regex `\ytrain\y` + WORD_BOUNDARY_COLLISIONS filter | ✅ Fixed |
+| **Blocklists** | Alcohol, adult content returned | BLOCKED_MERCHANTS, INAPPROPRIATE_TERMS arrays | ✅ Fixed |
+| **Null Brand Bug** | Queries with null brand crashed | Added null checks in brand validation | ✅ Fixed |
+| **Token Matching** | GPT expansions broke AND logic | Use ORIGINAL query terms for tsvector, not GPT expansions | ✅ Fixed |
+| **Brand Check (Fix #57)** | 56-second ILIKE scans | tsvector search: 252ms (220x faster) | ✅ Fixed |
+
+### Systems Built
+
+| System | Purpose | Location |
+|--------|---------|----------|
+| **verified_results cache** | Pre-verified correct results bypass algorithm | `verified_results` table, 1,014 queries |
+| **click_logs** | Track user clicks to measure engagement | `click_logs` table |
+| **auto-audit** | Test 1,701 queries to measure pass rate | `data/test-queries-2000.json`, scripts |
+| **TSVECTOR search** | Sub-100ms full-text search | `products.search_vector` column + GIN index |
+
+### Remaining Fixes Needed
+
+| Fix # | Issue | Impact | Priority |
+|-------|-------|--------|----------|
+| **#50** | Timeout on ILIKE fallback | Generic queries hang | High |
+| **#51** | Token matching for equipment queries | "badminton set" returns 6 not 8 | Medium |
+| **#53** | Costume queries return dolls | "vampire costume" shows Barbie | Medium |
+| **#54** | Book queries return bags | "peppa pig books" shows backpacks | Medium |
+| **#55** | Character variant injection | "Elsa" not in product names | Medium |
+| **#58** | Birthday present LOW_RESULTS | Returns only 2 results | High |
+| **#59** | Party bag timeout | Still hitting ILIKE fallback | High |
+
+---
+
+## 5. Known Patterns
 
 ### Word Boundary Issues
 
@@ -236,12 +280,15 @@ bike → excludes biker
 
 | Metric | Value | Target |
 |--------|-------|--------|
-| **Pass Rate** | 90% (9/10 test queries) | 90%+ |
+| **Pass Rate (100-query sample)** | 87% | 90%+ |
+| **Pass Rate (500-query audit)** | 82.6% (was 59% before Fix #57) | 90%+ |
 | **Cached Queries** | 1,014 | - |
 | **Response Time (cached)** | 53-77ms | <500ms |
+| **Response Time (brand check)** | 252ms (was 56s before Fix #57) | <500ms |
 | **Products Indexed** | 1,196,276 | - |
+| **Timeout/Error Rate** | 2% (was 62% before Fix #57) | <5% |
 
-### Fixes Logged (56 total)
+### Fixes Logged (57 total)
 
 | Category | Count | Key Fixes |
 |----------|-------|-----------|
@@ -299,9 +346,18 @@ All core queries now pass:
 
 ## 7. Critical Rules
 
+### ⚠️ MANDATORY: Before ANY Code Change
+
+```
+1. READ CRITICAL_FIXES.md FIRST - 57 fixes logged, don't reintroduce bugs
+2. Check server health: curl localhost:5000/healthz
+3. Run regression tests: npx tsx scripts/quick-audit.ts
+4. Update CRITICAL_FIXES.md after EVERY fix
+```
+
 ### Before Making Changes
 
-1. **Read CRITICAL_FIXES.md** - 56 fixes are logged, don't reintroduce bugs
+1. **Read CRITICAL_FIXES.md** - 57 fixes are logged, don't reintroduce bugs
 2. **Check server health** - `curl localhost:5000/healthz`
 3. **Run regression tests** - Test key queries before/after changes
 
@@ -358,6 +414,6 @@ WHERE query ILIKE '%frozen%';
 ## Document Maintenance
 
 **Last Updated:** 2026-01-11
-**Fixes Logged:** #1-56
-**Pass Rate:** 90%
-**Next Priority:** Fix remaining timeouts, hit 95% pass rate
+**Fixes Logged:** #1-57
+**Pass Rate:** 82.6% (500-query audit), 87% (100-query sample)
+**Next Priority:** Fix birthday present LOW_RESULTS (#58), party bag timeout (#59), hit 90% pass rate
