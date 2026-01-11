@@ -20,39 +20,111 @@ import {
   isCraftSupply
 } from './brands';
 
+// PHASE 1: CONTENT SAFETY - Blocklist for inappropriate content
+// CTO Audit: Jan 2026 - Comprehensive family platform safety
 export const INAPPROPRIATE_TERMS = [
-  'condom', 'lubricant', 'erectile', 'viagra', 'cialis', 'sex toy', 
-  'adult toy', 'bondage', 'stripper', 'lingerie', 'sti test', 'std test',
-  'hiv test', 'chlamydia', 'gonorrhea', 'herpes', 'syphilis',
-  'vape', 'vaping', 'e-cigarette', 'nicotine', 'tobacco', 'smoking',
-  'betting', 'gambling', 'casino', 'slots', 'poker', 'blackjack',
-  'wine', 'whisky', 'whiskey', 'vodka', 'rum', 'gin', 'beer', 'lager',
-  'champagne', 'prosecco', 'alcohol', 'spirits', 'liquor', 'booze',
-  'weight loss', 'fat burner', 'slimming pills', 'diet pills',
-  'cbd oil', 'cannabis', 'hemp extract', 'thc'
+  // Sexual/Adult content
+  'bedroom confidence', 'erectile', 'viagra', 'sexual health',
+  'reproductive health', 'your status', 'sti test', 'std test',
+  'reclaim your confidence', 'regain confidence', 'dating site',
+  'singles near', 'sexual performance', 'libido', 'erectile dysfunction',
+  'adult toy', 'lingerie', 'sexy', 'erotic', 'intimate moments',
+  // Alcohol - CRITICAL: CTO found 13 instances for kids queries
+  'alcohol gift', 'shop alcohol', 'wine subscription', 'beer delivery',
+  'alcohol delivery', 'gin gift', 'whisky gift', 'vodka gift',
+  'wine gift', 'champagne gift', 'prosecco gift', 'spirits gift',
+  'cocktail gift', 'beer gift', 'ale gift', 'lager gift',
+  'bottle club', 'wine club', 'beer club', 'gin club',
+  'save on gin', 'save on wine', 'save on whisky',
+  // Gambling/Vice
+  'gambling', 'casino', 'betting', 'poker', 'slots',
+  // Health supplements (not for kids platform)
+  'weight loss pill', 'diet pill', 'slimming tablet',
+  'fat burner', 'appetite suppressant',
+  // Vaping/Smoking
+  'cigarette', 'vape juice', 'cbd oil', 'nicotine', 'e-liquid'
 ];
 
+// PHASE 1: MERCHANT KILL-LIST - Block entire merchants
+// MEGA-FIX 6: Expanded Merchant Blocklist - non-family merchants that pollute results
 export const BLOCKED_MERCHANTS = [
-  'naked wines', 'majestic wine', 'virgin wines', 'laithwaites',
-  'the bottle club', 'whisky exchange', 'master of malt', 'drink supermarket',
-  'slimming world', 'holland & barrett diet', 'myprotein',
-  'paddy power', 'bet365', 'william hill', 'ladbrokes', 'coral',
-  'betfair', 'unibet', 'betfred', 'skybet', '888sport', 'bwin',
-  'betway', 'mansion bet', 'genting', 'virgin bet', 'spreadex',
-  'healthspan', 'vitabiotics direct'
+  // ALCOHOL (Critical - 77+ appearances)
+  'bottle club', 'the bottle club', 'wine direct', 'naked wines',
+  'virgin wines', 'laithwaites', 'majestic wine', 'beer hawk',
+  'brewdog', 'whisky exchange', 'master of malt', 'the drink shop',
+  'shop alcohol gifts', 'wine subscription', 'gin subscription',
+  'beer subscription', 'whisky subscription', 'rum subscription',
+  'cocktail subscription', 'spirit subscription',
+  // ED PILLS / ADULT HEALTH (Critical - 23 appearances)
+  'bedroom confidence', 'reclaim your bedroom', 'regain confidence',
+  'erectile', 'viagra', 'cialis', 'sildenafil',
+  // STI TESTING (Critical - 10 appearances)
+  'know your status', 'sti test', 'std test', 'sexual health test',
+  // CAR RENTAL (13 appearances - "book" collisions)
+  'booking.com car rental', 'car rental', 'rental car',
+  // WINDOW BLINDS/SHUTTERS (39 appearances - "blind" collisions)
+  '247 blinds', 'blinds 2go', 'blinds direct', 'make my blinds',
+  'english blinds', 'shutters', 'roller blinds', 'venetian blinds',
+  // HOUSE PAINT (30+ appearances - "paint" collisions)
+  'dulux', 'zinsser', 'albany paint', 'emulsion paint', 'eggshell paint',
+  // WEIGHT LOSS / DATING
+  'slimming world', 'weight watchers', 'noom', 'dating direct',
+  // GAMBLING
+  'bet365', 'ladbrokes', 'william hill', 'paddy power', 'betfair'
 ];
 
+// Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
+// NORMALIZED: no punctuation, lowercase - matching is done after stripping punctuation
 export const KNOWN_FALLBACKS = [
-  'universal stroller', 'stroller liner', 'pushchair', 'buggy',
-  'car seat', 'booster seat', 'isofix', 'travel system',
-  '30 off honor', 'free 5 top up credit', 'vitamin planet rewards',
-  'nosibotanical nulla vest', 'nosibotanical', 'nulla vest',
+  // CTO audit findings - these appear 50-300+ times across queries
+  'gifting at clarks',
+  '10 off organic baby',
+  'organic baby kidswear',
+  'organic baby',
+  'toys from 1p',
+  'poundfun',
+  'free delivery',
+  'clearance save',
+  'free next day delivery',
+  'buy one get one',
+  'any 2 knitwear',
+  'any 2 shirts',
+  'buy 1 get 1',
+  'treetop challenge',
+  'treetop family discount',
+  'save up to 20 on shopping',
+  'save up to 20 on dining',
+  'save up to 30 off hotels',
+  'save up to 55 off theme parks',
+  'save up to 44 or kids go free',
+  'honor choice',
+  'honor magic',
+  'honor pad',
+  '50 off honor',
+  '30 off honor',
+  'free 5 top up credit',
+  'vitamin planet rewards',
+  // Fix #33: CTO identified spam products appearing in 20+ unrelated queries
+  'nosibotanical nulla vest',
+  'nosibotanical',
+  'nulla vest',
   'cotton-blend nosibotanical',
-  'trimits toy eyes', 'trimits stick on wobbly toy eyes',
-  'trimits safety wobbly toy eyes', 'craft factory toy eyes',
-  'craft factory toy safety eyes', 'wobbly toy eyes', 'stick on eyes',
-  'safety eyes', 'toy eyes black', 'toy eyes amber', 'toy eyes blue',
-  'toy eyes yellow', 'toy eyes red', 'toy eyes brown', 'toy safety eyes'
+  // Fix #47: Craft supplies appearing in toy/gift queries - these are DIY craft eyes, not children's toys
+  'trimits toy eyes',
+  'trimits stick on wobbly toy eyes',
+  'trimits safety wobbly toy eyes',
+  'craft factory toy eyes',
+  'craft factory toy safety eyes',
+  'wobbly toy eyes',
+  'stick on eyes',
+  'safety eyes',
+  'toy eyes black',
+  'toy eyes amber', 
+  'toy eyes blue',
+  'toy eyes yellow',
+  'toy eyes red',
+  'toy eyes brown',
+  'toy safety eyes'
 ];
 
 export const WORD_BOUNDARY_COLLISIONS: { [key: string]: string[] } = {

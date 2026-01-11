@@ -44,13 +44,81 @@ import {
   BRAND_CHARACTERS
 } from "./services/queryParser";
 
-// NOTE: Search module files created in server/search/ for future refactoring:
-// - brands.ts: Brand/character constants and validation
-// - filters.ts: All filter functions and constants
-// - dedup.ts: SKU deduplication and merchant caps
-// - ranking.ts: Price sorting and quality intent
-// - promotions.ts: Promotion matching for search results
-// These modules are ready for incremental migration from the inline code below.
+// Import search modules (modularized from routes.ts - Fix #70)
+import {
+  // Brand constants and validation
+  KNOWN_TOY_BRANDS,
+  MAKEUP_COSMETICS_TERMS,
+  CRAFT_SUPPLY_PATTERNS,
+  QUALITY_INTENT_WORDS,
+  DISCOUNT_MERCHANTS,
+  TRAVEL_MERCHANTS,
+  GENDER_EXCLUSION_MAP,
+  isValidBrand,
+  isToyQuery,
+  isCraftSupply,
+  hasQualityIntent,
+  hasGenderContext,
+  // Filter constants
+  INAPPROPRIATE_TERMS,
+  BLOCKED_MERCHANTS,
+  KNOWN_FALLBACKS,
+  WORD_BOUNDARY_COLLISIONS,
+  NON_PRODUCT_EXCLUSIONS,
+  PRODUCT_INTENT_WORDS,
+  CLOTHING_INDICATORS,
+  TOY_QUERY_WORDS,
+  MEDIA_EXCLUSIONS,
+  MEDIA_QUERY_TRIGGERS,
+  WATER_GUN_QUERY_WORDS,
+  WATER_GUN_EXCLUDE_TERMS,
+  COSTUME_QUERY_WORDS,
+  COSTUME_CLOTHING_INDICATORS,
+  COSTUME_NON_WEARABLE_TERMS,
+  COSTUME_POSITIVE_CATEGORIES,
+  FilterResult,
+  // Filter functions
+  filterInappropriateContent,
+  filterWordBoundaryCollisions,
+  filterCraftSuppliesFromToyQueries,
+  filterMakeupFromToyQueries,
+  filterFallbackSpam,
+  hasProductIntent,
+  filterNonProducts,
+  hasToyContext,
+  filterForToyContext,
+  hasMediaExclusionContext,
+  filterMediaFromToyQueries,
+  hasWaterGunContext,
+  filterForWaterGunContext,
+  hasCostumeContext,
+  filterForCostumeContext,
+  hasFilmContext,
+  filterForFilmContext,
+  hasBlindContext,
+  filterForBlindContext,
+  hasStitchContext,
+  filterForStitchContext,
+  filterForGenderContext,
+  hasBookContext,
+  filterForBookContext,
+  hasPartyBagContext,
+  filterForPartyBagContext,
+  hasAgeContext,
+  filterForAgeContext,
+  // Dedup functions
+  extractSKU,
+  normalizeProductName,
+  similarNames,
+  deduplicateResults,
+  deduplicateBySKU,
+  applyMerchantCaps,
+  countUniqueMerchants,
+  // Ranking functions
+  sortByPrice,
+  reorderForQualityIntent,
+  applyPriceSorting
+} from "./search";
 
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
@@ -138,59 +206,8 @@ function sanitizeMediaSuffix(query: string): { sanitized: string; stripped: bool
 // ============================================================
 // SEARCH QUALITY FILTERS - Critical fixes for family platform
 // CTO Audit: Jan 2026 - Fixing 86% fake PASS rate → real 30-40%
+// NOTE: INAPPROPRIATE_TERMS and BLOCKED_MERCHANTS imported from ./search/filters.ts
 // ============================================================
-
-// PHASE 1: CONTENT SAFETY - Blocklist for inappropriate content
-const INAPPROPRIATE_TERMS = [
-  // Sexual/Adult content
-  'bedroom confidence', 'erectile', 'viagra', 'sexual health',
-  'reproductive health', 'your status', 'sti test', 'std test',
-  'reclaim your confidence', 'regain confidence', 'dating site',
-  'singles near', 'sexual performance', 'libido', 'erectile dysfunction',
-  'adult toy', 'lingerie', 'sexy', 'erotic', 'intimate moments',
-  // Alcohol - CRITICAL: CTO found 13 instances for kids queries
-  'alcohol gift', 'shop alcohol', 'wine subscription', 'beer delivery',
-  'alcohol delivery', 'gin gift', 'whisky gift', 'vodka gift',
-  'wine gift', 'champagne gift', 'prosecco gift', 'spirits gift',
-  'cocktail gift', 'beer gift', 'ale gift', 'lager gift',
-  'bottle club', 'wine club', 'beer club', 'gin club',
-  'save on gin', 'save on wine', 'save on whisky',
-  // Gambling/Vice
-  'gambling', 'casino', 'betting', 'poker', 'slots',
-  // Health supplements (not for kids platform)
-  'weight loss pill', 'diet pill', 'slimming tablet',
-  'fat burner', 'appetite suppressant',
-  // Vaping/Smoking
-  'cigarette', 'vape juice', 'cbd oil', 'nicotine', 'e-liquid'
-];
-
-// PHASE 1: MERCHANT KILL-LIST - Block entire merchants
-// MEGA-FIX 6: Expanded Merchant Blocklist - non-family merchants that pollute results
-const BLOCKED_MERCHANTS = [
-  // ALCOHOL (Critical - 77+ appearances)
-  'bottle club', 'the bottle club', 'wine direct', 'naked wines',
-  'virgin wines', 'laithwaites', 'majestic wine', 'beer hawk',
-  'brewdog', 'whisky exchange', 'master of malt', 'the drink shop',
-  'shop alcohol gifts', 'wine subscription', 'gin subscription',
-  'beer subscription', 'whisky subscription', 'rum subscription',
-  'cocktail subscription', 'spirit subscription',
-  // ED PILLS / ADULT HEALTH (Critical - 23 appearances)
-  'bedroom confidence', 'reclaim your bedroom', 'regain confidence',
-  'erectile', 'viagra', 'cialis', 'sildenafil',
-  // STI TESTING (Critical - 10 appearances)
-  'know your status', 'sti test', 'std test', 'sexual health test',
-  // CAR RENTAL (13 appearances - "book" collisions)
-  'booking.com car rental', 'car rental', 'rental car',
-  // WINDOW BLINDS/SHUTTERS (39 appearances - "blind" collisions)
-  '247 blinds', 'blinds 2go', 'blinds direct', 'make my blinds',
-  'english blinds', 'shutters', 'roller blinds', 'venetian blinds',
-  // HOUSE PAINT (30+ appearances - "paint" collisions)
-  'dulux', 'zinsser', 'albany paint', 'emulsion paint', 'eggshell paint',
-  // WEIGHT LOSS / DATING
-  'slimming world', 'weight watchers', 'noom', 'dating direct',
-  // GAMBLING
-  'bet365', 'ladbrokes', 'william hill', 'paddy power', 'betfair'
-];
 
 // MEGA-FIX 2: Promo-only patterns - generic promos that match everything but help no one
 const PROMO_ONLY_PATTERNS = [
@@ -392,621 +409,15 @@ function detectQueryIntent(query: string): QueryIntent {
   return 'PRODUCTS';
 }
 
-// Known fallback spam - appears for unrelated queries (CTO: 37-126 instances each)
-// NORMALIZED: no punctuation, lowercase - matching is done after stripping punctuation
-const KNOWN_FALLBACKS = [
-  // CTO audit findings - these appear 50-300+ times across queries
-  'gifting at clarks',
-  '10 off organic baby',
-  'organic baby kidswear',
-  'organic baby',
-  'toys from 1p',
-  'poundfun',
-  'free delivery',
-  'clearance save',
-  'free next day delivery',
-  'buy one get one',
-  'any 2 knitwear',
-  'any 2 shirts',
-  'buy 1 get 1',
-  'treetop challenge',
-  'treetop family discount',
-  'save up to 20 on shopping',
-  'save up to 20 on dining',
-  'save up to 30 off hotels',
-  'save up to 55 off theme parks',
-  'save up to 44 or kids go free',
-  'honor choice',
-  'honor magic',
-  'honor pad',
-  '50 off honor',
-  '30 off honor',
-  'free 5 top up credit',
-  'vitamin planet rewards',
-  // Fix #33: CTO identified spam products appearing in 20+ unrelated queries
-  'nosibotanical nulla vest',
-  'nosibotanical',
-  'nulla vest',
-  'cotton-blend nosibotanical',
-  // Fix #47: Craft supplies appearing in toy/gift queries - these are DIY craft eyes, not children's toys
-  'trimits toy eyes',
-  'trimits stick on wobbly toy eyes',
-  'trimits safety wobbly toy eyes',
-  'craft factory toy eyes',
-  'craft factory toy safety eyes',
-  'wobbly toy eyes',
-  'stick on eyes',
-  'safety eyes',
-  'toy eyes black',
-  'toy eyes amber', 
-  'toy eyes blue',
-  'toy eyes yellow',
-  'toy eyes red',
-  'toy eyes brown',
-  'toy safety eyes'
-];
-
-// Fix #32: Known toy brands that should trigger toy context filters
-const KNOWN_TOY_BRANDS = [
-  'hot wheels', 'hotwheels', 'super soaker', 'nerf', 'barbie', 'lego', 'duplo',
-  'paw patrol', 'peppa pig', 'bluey', 'frozen', 'disney princess', 'marvel',
-  'spider-man', 'spiderman', 'batman', 'avengers', 'transformers', 'pokemon',
-  'pokémon', 'pikachu', 'minecraft', 'roblox', 'fortnite', 'sonic', 'mario',
-  'playmobil', 'sylvanian', 'lol surprise', 'lol dolls', 'gabby dollhouse',
-  'cocomelon', 'hey duggee', 'thomas tank', 'thomas the tank', 'pj masks',
-  'jurassic world', 'jurassic park', 't-rex', 'dinosaur', 'unicorn'
-];
-
-// Fix #38: Helper to check if GPT brand is valid (not null, "null", undefined, empty)
-function isValidBrand(brand: any): boolean {
-  if (!brand) return false;
-  if (typeof brand !== 'string') return false;
-  const normalized = brand.toLowerCase().trim();
-  if (normalized === '' || normalized === 'null' || normalized === 'undefined' || normalized === 'none') {
-    return false;
-  }
-  return true;
-}
-
-// Fix #39: Makeup/cosmetics terms to exclude from toy queries
-const MAKEUP_COSMETICS_TERMS = [
-  'nyx', 'makeup', 'cosmetic', 'cosmetics', 'lipstick', 'mascara', 
-  'foundation', 'concealer', 'eyeshadow', 'blush', 'bronzer',
-  'moisturiser', 'moisturizer', 'serum', 'skincare', 'skin care',
-  'nail polish', 'nail varnish', 'perfume', 'fragrance', 'cologne',
-  'eye liner', 'eyeliner', 'lip gloss', 'lipgloss', 'primer'
-];
-
-// Fix #47: Craft supply patterns to exclude from toy/gift queries
-// These are DIY craft supplies (safety eyes for making stuffed animals), not children's toys
-const CRAFT_SUPPLY_PATTERNS = [
-  'trimits', 'craft factory', 'wobbly toy eyes', 'safety eyes', 'toy eyes',
-  'stick on eyes', 'wobbly eyes', 'toy safety noses', 'craft eyes'
-];
-
-// Fix #47: Check if product is a craft supply (not a toy)
-function isCraftSupply(productName: string): boolean {
-  const name = productName.toLowerCase();
-  // Check for craft supply patterns
-  for (const pattern of CRAFT_SUPPLY_PATTERNS) {
-    if (name.includes(pattern)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Fix #47: Filter out craft supplies from toy/gift queries
-function filterCraftSuppliesFromToyQueries(results: any[], query: string): any[] {
-  const q = query.toLowerCase();
-  // Only apply to toy/gift/present/kids queries
-  const isToyGiftQuery = q.includes('toy') || q.includes('gift') || q.includes('present') ||
-    q.includes('for kids') || q.includes('year old') || q.includes('stocking filler') ||
-    q.includes('party bag');
-  
-  if (!isToyGiftQuery) return results;
-  
-  return results.filter(r => {
-    const name = r.name || '';
-    if (isCraftSupply(name)) {
-      console.log(`[Fix #47] Excluded craft supply from toy/gift query: "${name.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-}
-
-// Fix #39: Check if query is a toy-related query
-function isToyQuery(query: string): boolean {
-  const q = query.toLowerCase();
-  const toyIndicators = [
-    'toy', 'toys', 'doll', 'dolls', 'figure', 'figures', 'playset',
-    'lol surprise', 'lol dolls', 'barbie', 'action figure'
-  ];
-  // Also check for known toy brands
-  return toyIndicators.some(t => q.includes(t)) || 
-         KNOWN_TOY_BRANDS.some(brand => q.includes(brand));
-}
-
-// Fix #39: Filter out makeup/cosmetics from toy queries
-function filterMakeupFromToyQueries(results: any[], query: string): any[] {
-  if (!isToyQuery(query)) return results;
-  
-  return results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const brand = (r.brand || '').toLowerCase();
-    const desc = (r.description || '').toLowerCase();
-    const text = name + ' ' + brand + ' ' + desc;
-    
-    for (const term of MAKEUP_COSMETICS_TERMS) {
-      if (text.includes(term)) {
-        console.log(`[Fix #39] Excluded makeup/cosmetics from toy query: "${r.name?.substring(0, 50)}..." (matched: ${term})`);
-        return false;
-      }
-    }
-    return true;
-  });
-}
-
-// Fix #31: Word boundary collision patterns - these substring matches should be rejected
-// e.g., "train" should not match "trainer", "case" should not match "bookcase"
-const WORD_BOUNDARY_COLLISIONS: { [key: string]: string[] } = {
-  'train': ['trainer', 'trainers', 'training', 'trainee', 'retrain', 'constraint'],
-  'case': ['bookcase', 'bookcases', 'staircase', 'suitcase', 'pillowcase', 'showcase', 'briefcase'],
-  'set': ['sunset', 'offset', 'reset', 'upset', 'setback', 'subset'],
-  'gun': ['gunmetal', 'begun', 'shotgun'],
-  'water': ['waterproof', 'waterfall', 'underwater', 'watering', 'watercolor', 'freshwater'],
-  'soaker': ['soakers']
-};
-
-// Fix #31: Post-filter to remove results where query terms only match as substrings
-function filterWordBoundaryCollisions(results: any[], query: string): any[] {
-  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-  const collisionChecks: { word: string; collisions: string[] }[] = [];
-  
-  // Build list of words to check for collisions
-  for (const word of queryWords) {
-    if (WORD_BOUNDARY_COLLISIONS[word]) {
-      collisionChecks.push({ word, collisions: WORD_BOUNDARY_COLLISIONS[word] });
-    }
-  }
-  
-  if (collisionChecks.length === 0) return results;
-  
-  return results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const desc = (r.description || '').toLowerCase();
-    const text = name + ' ' + desc;
-    
-    for (const check of collisionChecks) {
-      // Check if the product contains any collision words
-      for (const collision of check.collisions) {
-        if (text.includes(collision)) {
-          // Verify the original word is NOT present as a whole word
-          const wordBoundaryRegex = new RegExp(`\\b${check.word}\\b`, 'i');
-          if (!wordBoundaryRegex.test(text)) {
-            console.log(`[Word Boundary] Excluded "${r.name?.substring(0, 50)}..." - "${check.word}" only matched as "${collision}"`);
-            return false;
-          }
-        }
-      }
-    }
-    return true;
-  });
-}
-
-// Quality intent words - user wants premium, not cheapest
-const QUALITY_INTENT_WORDS = [
-  'best', 'top', 'quality', 'premium', 'timeless', 'heirloom', 
-  'investment', 'luxury', 'high end', 'well made', 'durable',
-  'recommended', 'popular', 'trending', 'must have', 'essential'
-];
-
-// Discount merchants to deprioritize for quality queries (CTO: PoundFun in 126 queries)
-const DISCOUNT_MERCHANTS = [
-  'poundfun', 'poundland', 'poundshop', 'everything5pounds', 'poundworld',
-  'poundtoy', 'the works', 'b&m', 'home bargains'
-];
-
-// Travel/booking merchants to exclude for book context queries
-const TRAVEL_MERCHANTS = [
-  'booking.com', 'hotels.com', 'expedia', 'lastminute', 'trivago', 
-  'travelodge', 'premier inn', 'airbnb', 'jet2', 'easyjet'
-];
-
-// PHASE 3: Gender-specific exclusion words
-const GENDER_EXCLUSION_MAP: { [key: string]: string[] } = {
-  'him': ["women's", 'for her', 'gifts for her', "ladies'", 'feminine'],
-  'he': ["women's", 'for her', 'gifts for her', "ladies'", 'feminine'],
-  'boy': ["women's", 'for her', "ladies'", 'feminine', "girl's dress"],
-  'son': ["women's", 'for her', "ladies'", 'feminine'],
-  'nephew': ["women's", 'for her', "ladies'", 'feminine'],
-  'dad': ["women's", 'for her', "ladies'", 'feminine', 'mum', 'mother'],
-  'father': ["women's", 'for her', "ladies'", 'feminine', 'mum', 'mother'],
-  'grandad': ["women's", 'for her', "ladies'", 'feminine'],
-  'her': ["men's", 'for him', 'gifts for him', "gent's", 'masculine'],
-  'she': ["men's", 'for him', 'gifts for him', "gent's", 'masculine'],
-  'girl': ["men's", 'for him', "gent's", "boy's shirt", 'tie'],
-  'daughter': ["men's", 'for him', "gent's", 'masculine'],
-  'niece': ["men's", 'for him', "gent's", 'masculine'],
-  'mum': ["men's", 'for him', "gent's", 'dad', 'father'],
-  'mother': ["men's", 'for him', "gent's", 'dad', 'father'],
-  'grandma': ["men's", 'for him', "gent's", 'masculine']
-};
-
-// PHASE 1: Filter inappropriate content from search results
-function filterInappropriateContent(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
-    const merchant = (r.merchant || '').toLowerCase();
-    
-    // Check blocked terms in content
-    const hasBadTerm = INAPPROPRIATE_TERMS.some(term => text.includes(term));
-    if (hasBadTerm) {
-      console.log(`[Content Filter] BLOCKED inappropriate term: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    
-    // Check blocked merchants (entire merchant banned)
-    const isBannedMerchant = BLOCKED_MERCHANTS.some(m => merchant.includes(m));
-    if (isBannedMerchant) {
-      console.log(`[Content Filter] BLOCKED merchant: ${r.merchant} - "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    
-    return true;
-  });
-}
-
-// PHASE 2: Remove duplicate products from results
-function deduplicateResults(results: any[]): any[] {
-  const seen = new Set<string>();
-  const deduplicated: any[] = [];
-  
-  for (const r of results) {
-    // Skip entries without a name - can't reliably dedupe
-    if (!r.name || r.name.trim() === '') {
-      deduplicated.push(r);
-      continue;
-    }
-    
-    // Create a unique key from name + merchant (normalized)
-    // Use ID if available for more reliable deduplication
-    const key = r.id 
-      ? `id:${r.id}` 
-      : ((r.name || '') + '|' + (r.merchant || '')).toLowerCase().trim();
-    
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduplicated.push(r);
-    } else {
-      console.log(`[Dedup] Removed duplicate: "${r.name?.substring(0, 50)}..."`);
-    }
-  }
-  
-  return deduplicated;
-}
-
-// =============================================================================
-// FIX #67: GLOBAL SKU DEDUPLICATION - Keep cheapest price when same product from multiple merchants
-// Matches products by SKU in brackets like "(5002111)" or by 90%+ name similarity
-// =============================================================================
-function extractSKU(name: string): string | null {
-  if (!name) return null;
-  // Match numbers in brackets like (5002111), (43265), etc.
-  const match = name.match(/\((\d{4,})\)/);
-  return match ? match[1] : null;
-}
-
-function normalizeProductName(name: string): string {
-  if (!name) return '';
-  // Remove SKU, price info, size info, and normalize
-  return name.toLowerCase()
-    .replace(/\(\d{4,}\)/g, '')  // Remove SKU
-    .replace(/£[\d.]+/g, '')     // Remove prices
-    .replace(/\d+\s*(cm|mm|inch|"|')/gi, '')  // Remove sizes
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function similarNames(a: string, b: string): boolean {
-  const normA = normalizeProductName(a);
-  const normB = normalizeProductName(b);
-  if (!normA || !normB) return false;
-  
-  // Check if one contains the other (90%+ overlap)
-  if (normA.length > 10 && normB.length > 10) {
-    const shorter = normA.length < normB.length ? normA : normB;
-    const longer = normA.length < normB.length ? normB : normA;
-    
-    // If shorter name is 90%+ contained in longer name
-    if (longer.includes(shorter) && shorter.length >= longer.length * 0.8) {
-      return true;
-    }
-  }
-  
-  // Exact match after normalization
-  return normA === normB;
-}
-
-function deduplicateBySKU(results: any[]): any[] {
-  // Group by SKU or similar name
-  const groups = new Map<string, any[]>();
-  const noSKU: any[] = [];
-  
-  for (const r of results) {
-    const sku = extractSKU(r.name);
-    if (sku) {
-      const existing = groups.get(sku) || [];
-      existing.push(r);
-      groups.set(sku, existing);
-    } else {
-      noSKU.push(r);
-    }
-  }
-  
-  // For each SKU group, keep only the cheapest
-  const deduplicated: any[] = [];
-  for (const [sku, items] of groups) {
-    if (items.length === 1) {
-      deduplicated.push(items[0]);
-    } else {
-      // Sort by price ascending, keep cheapest
-      items.sort((a, b) => (parseFloat(a.price) || 999999) - (parseFloat(b.price) || 999999));
-      const cheapest = items[0];
-      console.log(`[Fix #67 SKU Dedup] Kept ${cheapest.merchant} at £${cheapest.price} for SKU (${sku}), removed ${items.length - 1} more expensive options`);
-      deduplicated.push(cheapest);
-    }
-  }
-  
-  // For non-SKU items, check for similar names and keep cheapest
-  const processedNoSKU: any[] = [];
-  const dominated = new Set<number>();
-  
-  for (let i = 0; i < noSKU.length; i++) {
-    if (dominated.has(i)) continue;
-    
-    let cheapestIdx = i;
-    let cheapestPrice = parseFloat(noSKU[i].price) || 999999;
-    
-    for (let j = i + 1; j < noSKU.length; j++) {
-      if (dominated.has(j)) continue;
-      
-      if (similarNames(noSKU[i].name, noSKU[j].name)) {
-        const priceJ = parseFloat(noSKU[j].price) || 999999;
-        if (priceJ < cheapestPrice) {
-          dominated.add(cheapestIdx);
-          cheapestIdx = j;
-          cheapestPrice = priceJ;
-          console.log(`[Fix #67 Name Dedup] Kept ${noSKU[j].merchant} at £${noSKU[j].price}, removed ${noSKU[i].merchant} at £${noSKU[i].price}`);
-        } else {
-          dominated.add(j);
-          console.log(`[Fix #67 Name Dedup] Kept ${noSKU[cheapestIdx].merchant} at £${noSKU[cheapestIdx].price}, removed ${noSKU[j].merchant} at £${noSKU[j].price}`);
-        }
-      }
-    }
-    
-    // Mark the retained item as processed to avoid re-adding
-    dominated.add(cheapestIdx);
-    processedNoSKU.push(noSKU[cheapestIdx]);
-  }
-  
-  return [...deduplicated, ...processedNoSKU];
-}
-
-// =============================================================================
-// FIX #68: GLOBAL PRICE SORTING - Sort results by price ascending (cheapest first)
-// =============================================================================
-function sortByPrice(results: any[]): any[] {
-  return [...results].sort((a, b) => {
-    const priceA = parseFloat(a.price) || 999999;
-    const priceB = parseFloat(b.price) || 999999;
-    return priceA - priceB;
-  });
-}
-
-// =============================================================================
-// FIX #69: GLOBAL NON-PRODUCT EXCLUSION - Remove books, DVDs, posters when searching for toys/sets
-// =============================================================================
-const NON_PRODUCT_EXCLUSIONS = [
-  'book', 'notebook', 'pocket book', 'diary', 'journal', 'calendar', 'annual', 'storybook',
-  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd', 'includes blu',
-  'poster', 'print', 'wall art', 'sticker', 'decal', 'canvas',
-  'costume', 'fancy dress', 'pyjama', 'pajama', 't-shirt', 'tshirt', 'hoodie', 'sweatshirt'
-];
-
-// Words that trigger non-product exclusion
-const PRODUCT_INTENT_WORDS = ['set', 'sets', 'toy', 'toys', 'kit', 'kits', 'playset', 'figure', 'figures'];
-
-function hasProductIntent(query: string): boolean {
-  const q = query.toLowerCase();
-  return PRODUCT_INTENT_WORDS.some(word => {
-    const regex = new RegExp(`\\b${word}\\b`, 'i');
-    return regex.test(q);
-  });
-}
-
-function filterNonProducts(results: any[], query: string): any[] {
-  if (!hasProductIntent(query)) {
-    return results; // Only apply filter when user wants physical products
-  }
-  
-  return results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    
-    // Check if this is a non-product (book, DVD, poster, etc.)
-    const isNonProduct = NON_PRODUCT_EXCLUSIONS.some(exclusion => {
-      const regex = new RegExp(`\\b${exclusion}\\b`, 'i');
-      return regex.test(name) || regex.test(category);
-    });
-    
-    if (isNonProduct) {
-      console.log(`[Fix #69 Non-Product] Excluded: "${r.name?.substring(0, 50)}..." (category: ${category})`);
-      return false;
-    }
-    
-    return true;
-  });
-}
-
-// PHASE 2: Apply merchant caps - max 2 results per merchant
-function applyMerchantCaps(results: any[], maxPerMerchant: number = 2): any[] {
-  const merchantCounts: { [key: string]: number } = {};
-  const capped: any[] = [];
-  
-  for (const r of results) {
-    const merchant = (r.merchant || 'unknown').toLowerCase();
-    const count = merchantCounts[merchant] || 0;
-    
-    if (count < maxPerMerchant) {
-      merchantCounts[merchant] = count + 1;
-      capped.push(r);
-    } else {
-      console.log(`[Merchant Cap] Exceeded ${maxPerMerchant} for ${r.merchant}: "${r.name?.substring(0, 40)}..."`);
-    }
-  }
-  
-  return capped;
-}
-
-// PHASE 3: Check if query has film/movie context
-function hasFilmContext(query: string): boolean {
-  const q = query.toLowerCase();
-  const filmWords = ['film', 'movie', 'watch', 'cinema', 'animated'];
-  const contextWords = ['about', 'with', 'for kids', 'children', 'family', 'disney', 'pixar'];
-  
-  // Has film word AND context word
-  return filmWords.some(f => q.includes(f)) && contextWords.some(c => q.includes(c));
-}
-
-// PHASE 3: Check if query has blind/accessibility context
-function hasBlindContext(query: string): boolean {
-  const q = query.toLowerCase();
-  // "blind character" or "blind kid" = accessibility, not window blinds
-  return q.includes('blind') && (
-    q.includes('character') || q.includes('kid') || q.includes('child') ||
-    q.includes('book') || q.includes('story') || q.includes('person') ||
-    q.includes('toy') || q.includes('doll') || q.includes('disability')
-  );
-}
-
-// PHASE 3: Check if query has gender context
-function hasGenderContext(query: string): string | null {
-  const q = query.toLowerCase();
-  for (const gender of Object.keys(GENDER_EXCLUSION_MAP)) {
-    // Match whole words: "for him", "my son", etc.
-    const regex = new RegExp(`\\b${gender}\\b`, 'i');
-    if (regex.test(q)) {
-      return gender;
-    }
-  }
-  return null;
-}
-
-// PHASE 3: Filter for blind/accessibility context - exclude window blinds
-function filterForBlindContext(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.description || '') + ' ' + (r.category || '')).toLowerCase();
-    const isWindowBlinds = text.includes('window blind') || text.includes('roller blind') ||
-                           text.includes('venetian') || text.includes('day & night blind') ||
-                           text.includes('blackout blind') || text.includes('blinds.');
-    if (isWindowBlinds) {
-      console.log(`[Blind Context] Excluded window blinds: "${r.name?.substring(0, 50)}..."`);
-    }
-    return !isWindowBlinds;
-  });
-}
-
-// Check if query is about Disney's Stitch character
-function hasStitchContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return q.includes('stitch') && (
-    q.includes('plush') || q.includes('toy') || q.includes('soft') ||
-    q.includes('disney') || q.includes('lilo') || q.includes('figure') ||
-    q.includes('gift') || q.includes('kids') || q.includes('child')
-  );
-}
-
-// Filter for Stitch context - exclude clothing/fashion with "stitch" in construction description
-function filterForStitchContext(results: any[]): any[] {
-  return results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const brand = (r.brand || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    const description = (r.description || '').toLowerCase();
-    
-    // Allow if Stitch/Disney is in name or brand
-    if (name.includes('stitch') || brand.includes('disney') || brand.includes('stitch')) {
-      return true;
-    }
-    
-    // Allow if category is toys
-    if (category.includes('toy')) {
-      return true;
-    }
-    
-    // Exclude clothing/fashion where "stitch" is construction term
-    const isClothing = category.includes('cloth') || category.includes('fashion') ||
-                       category.includes('footwear') || category.includes('shoe') ||
-                       category.includes('underwear') || category.includes('apparel');
-    const isConstructionTerm = description.includes('stitch-for-stitch') || 
-                               description.includes('stitched') ||
-                               description.includes('stitching') ||
-                               (description.includes('stitch') && description.includes('cotton'));
-    
-    if (isClothing || isConstructionTerm) {
-      console.log(`[Stitch Context] Excluded non-Disney stitch: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    
-    return true;
-  });
-}
-
-// PHASE 3: Filter for gender context - exclude wrong gender products
-function filterForGenderContext(results: any[], gender: string): any[] {
-  const exclusions = GENDER_EXCLUSION_MAP[gender] || [];
-  if (exclusions.length === 0) return results;
-  
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
-    const hasWrongGender = exclusions.some(ex => text.includes(ex));
-    if (hasWrongGender) {
-      console.log(`[Gender Filter] Wrong gender for "${gender}": "${r.name?.substring(0, 50)}..."`);
-    }
-    return !hasWrongGender;
-  });
-}
-
-// PHASE 2: Filter known fallback spam
-function filterFallbackSpam(results: any[], query: string): any[] {
-  const q = query.toLowerCase();
-  
-  // Helper to normalize text - strip punctuation and extra spaces
-  const normalize = (text: string) => text.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  return results.filter(r => {
-    const normalizedName = normalize(r.name || '');
-    
-    for (const fallback of KNOWN_FALLBACKS) {
-      if (normalizedName.includes(fallback)) {
-        // Check if there's any semantic connection to the query
-        const queryWords = normalize(q).split(/\s+/).filter(w => w.length > 2);
-        const hasConnection = queryWords.some(qw => normalizedName.includes(qw));
-        
-        if (!hasConnection) {
-          console.log(`[Fallback Filter] Removed spam: "${r.name?.substring(0, 50)}..."`);
-          return false;
-        }
-      }
-    }
-    return true;
-  });
-}
+// Search module imports cover: KNOWN_FALLBACKS, KNOWN_TOY_BRANDS, isValidBrand, 
+// MAKEUP_COSMETICS_TERMS, CRAFT_SUPPLY_PATTERNS, isCraftSupply, filterCraftSuppliesFromToyQueries,
+// isToyQuery, filterMakeupFromToyQueries, WORD_BOUNDARY_COLLISIONS, filterWordBoundaryCollisions,
+// QUALITY_INTENT_WORDS, DISCOUNT_MERCHANTS, TRAVEL_MERCHANTS, GENDER_EXCLUSION_MAP,
+// filterInappropriateContent, deduplicateResults, extractSKU, normalizeProductName, similarNames,
+// deduplicateBySKU, sortByPrice, NON_PRODUCT_EXCLUSIONS, PRODUCT_INTENT_WORDS, hasProductIntent,
+// filterNonProducts, applyMerchantCaps, hasFilmContext, hasBlindContext, hasGenderContext,
+// filterForBlindContext, hasStitchContext, filterForStitchContext, filterForGenderContext,
+// filterFallbackSpam - all imported from ./search module
 
 // PHASE 3: Filter for film/movie context - user wants movies, not merchandise
 function filterForFilmContext(results: any[]): any[] {
@@ -1085,484 +496,20 @@ function filterForBreakContext(results: any[]): any[] {
   });
 }
 
-// Check if query has "book" context (children's books, not booking.com)
-function hasBookContext(query: string): boolean {
-  const q = query.toLowerCase();
-  if (!q.includes('book')) return false;
-  
-  const bookContextWords = [
-    'tokens', 'voucher', 'gift', 'about', 'for kids', 'children', 
-    'dentist', 'doctor', 'hospital', 'baby', 'sibling', 'families',
-    'new baby', 'potty', 'bedtime', 'story', 'read'
-  ];
-  return bookContextWords.some(w => q.includes(w));
-}
+// Search module imports also cover: hasBookContext, hasPartyBagContext, hasAgeContext,
+// hasQualityIntent, filterForBookContext, filterForPartyBagContext, filterForAgeContext,
+// reorderForQualityIntent, CLOTHING_INDICATORS, TOY_QUERY_WORDS, hasToyContext, filterForToyContext,
+// MEDIA_EXCLUSIONS, MEDIA_QUERY_TRIGGERS, hasMediaExclusionContext, filterMediaFromToyQueries,
+// WATER_GUN_QUERY_WORDS, WATER_GUN_EXCLUDE_TERMS, hasWaterGunContext, filterForWaterGunContext,
+// COSTUME_QUERY_WORDS, COSTUME_CLOTHING_INDICATORS, COSTUME_NON_WEARABLE_TERMS, COSTUME_POSITIVE_CATEGORIES,
+// hasCostumeContext, FilterResult, filterForCostumeContext, BOOKS_QUERY_PATTERNS, BOOKS_BLOCK_INDICATORS,
+// BOOKS_NEGATIVE_CATEGORIES, hasBooksContext, filterForBooksContext
 
-// Check if query has "party bag" context (party supplies, not fashion)
-function hasPartyBagContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return q.includes('party bag') || q.includes('goody bag') || 
-         q.includes('bag filler') || q.includes('bag bits');
-}
-
-// Check if query has age context (for kids, not warranty)
-function hasAgeContext(query: string): boolean {
-  const q = query.toLowerCase();
-  const agePattern = /(\d+)\s*(year|yr)s?\s*(old)?/i;
-  if (!agePattern.test(q)) return false;
-  
-  // Must also have kid-related words
-  const kidWords = ['old', 'child', 'kid', 'boy', 'girl', 'son', 'daughter', 'essentials'];
-  return kidWords.some(w => q.includes(w));
-}
-
-// Check if query has quality intent
-function hasQualityIntent(query: string): boolean {
-  const q = query.toLowerCase();
-  return QUALITY_INTENT_WORDS.some(w => q.includes(w));
-}
-
-// Filter results for book context - exclude travel/booking results
-function filterForBookContext(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.merchant || '')).toLowerCase();
-    const isTravel = text.includes('car rental') || text.includes('holiday') || 
-                     text.includes('hotel') || text.includes('flight') ||
-                     TRAVEL_MERCHANTS.some(m => text.includes(m));
-    if (isTravel) {
-      console.log(`[Book Context] Excluded travel result: "${r.name?.substring(0, 50)}..."`);
-    }
-    return !isTravel;
-  });
-}
-
-// Filter results for party bag context - exclude fashion bags
-function filterForPartyBagContext(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
-    const isFashionBag = text.includes('handbag') || text.includes("women's bag") ||
-                         text.includes('river island') || text.includes('fashion') ||
-                         (text.includes('bag') && !text.includes('party'));
-    // More lenient - only exclude obvious fashion bags
-    const isObviousFashion = text.includes('river island bag') || 
-                             text.includes("women's bag") || 
-                             text.includes('handbag');
-    if (isObviousFashion) {
-      console.log(`[Party Bag Context] Excluded fashion bag: "${r.name?.substring(0, 50)}..."`);
-    }
-    return !isObviousFashion;
-  });
-}
-
-// Filter results for age context - exclude warranty/plan products
-function filterForAgeContext(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.description || '')).toLowerCase();
-    const isWarranty = text.includes('year plan') || text.includes('year warranty') ||
-                       text.includes('year care') || text.includes('year guarantee') ||
-                       text.includes('year protection');
-    if (isWarranty) {
-      console.log(`[Age Context] Excluded warranty product: "${r.name?.substring(0, 50)}..."`);
-    }
-    return !isWarranty;
-  });
-}
-
-// Reorder results to deprioritize discount merchants for quality queries
-function reorderForQualityIntent(results: any[]): any[] {
-  const discountResults: any[] = [];
-  const otherResults: any[] = [];
-  
-  for (const r of results) {
-    const merchant = (r.merchant || '').toLowerCase();
-    const name = (r.name || '').toLowerCase();
-    const isDiscount = DISCOUNT_MERCHANTS.some(m => merchant.includes(m)) ||
-                       name.includes('from 1p') || name.includes('from 1 p');
-    
-    if (isDiscount) {
-      discountResults.push(r);
-      console.log(`[Quality Intent] Deprioritized: "${r.name?.substring(0, 50)}..."`);
-    } else {
-      otherResults.push(r);
-    }
-  }
-  
-  // Put quality results first, discount last
-  return [...otherResults, ...discountResults];
-}
-
-// =============================================================================
-// P0 BUG 2 FIX: TOY CONTEXT FILTER - Exclude clothing for toy/equipment queries
-// When user searches for toys/figures/equipment, filter out clothing with character prints
-// See CRITICAL_FIXES.md - Fix #10
-// =============================================================================
-const CLOTHING_INDICATORS = [
-  't-shirt', 'tshirt', 'sweatshirt', 'hoodie', 'dress', 'shirt', 
-  'shorts', 'trousers', 'vest', 'jacket', 'coat', 'jumper', 'sweater',
-  'trainers', 'shoes', 'slides', 'sandals', 'socks', 'pyjamas', 'pajamas',
-  'leggings', 'joggers', 'jeans', 'skirt', 'cardigan', 'polo', 'blouse',
-  'bodysuit', 'romper', 'dungarees', 'onesie', 'nightwear', 'underwear',
-  'snowsuit', 'swimsuit', 'swimming costume', 'bikini', 'trunks',
-  'wellingtons', 'wellington', 'boots', 'wellies', 'slippers', 'crocs',
-  'birthday card', 'photo card', 'greeting card', 'handbell', 'bell',
-  'sticker pack', 'lunch bag', 'storage closet', 'wall decor', 'storage bin'
-];
-
-const TOY_QUERY_WORDS = [
-  'toys', 'toy', 'figures', 'figure', 'playset', 'playsets', 'action figure',
-  'helmet', 'bike helmet', 'scooter', 'slide', 'swing', 'trampoline',
-  'climbing frame', 'paddling pool', 'ball', 'doll', 'dolls', 'teddy',
-  'puzzle', 'puzzles', 'game', 'games', 'lego', 'duplo', 'blocks',
-  'craft', 'crayons', 'paint', 'playdough', 'play-doh', 'stickers'
-];
-
-function hasToyContext(query: string): boolean {
-  const q = query.toLowerCase();
-  const words = q.split(/\s+/).filter(w => w.length > 2);
-  
-  // Check for toy query words (toys, figures, dolls, etc.)
-  const hasToyWord = TOY_QUERY_WORDS.some(word => {
-    const regex = new RegExp(`\\b${word}\\b`, 'i');
-    return regex.test(q);
-  });
-  if (hasToyWord) return true;
-  
-  // Fix #32: Also trigger for known toy brands (hot wheels, super soaker, nerf, etc.)
-  const hasToyBrand = KNOWN_TOY_BRANDS.some(brand => q.includes(brand));
-  if (hasToyBrand) {
-    // FIX #45: For single-word franchise queries (e.g., "frozen", "moana"),
-    // DON'T apply toy context filter - user might want any merchandise
-    // Only apply if query has explicit toy intent words (toys, gift, for kids)
-    const toyIntentWords = ['toy', 'toys', 'gift', 'gifts', 'for kids', 'for children', 'figure', 'figures', 'doll', 'dolls', 'plush', 'lego'];
-    const hasToyIntent = toyIntentWords.some(tw => q.includes(tw));
-    
-    if (words.length <= 1 && !hasToyIntent) {
-      console.log(`[Toy Context] Skipping filter for single-word franchise "${query}" (no explicit toy intent)`);
-      return false;
-    }
-    
-    console.log(`[Toy Context] Detected toy brand in query: "${query}"`);
-    return true;
-  }
-  
-  return false;
-}
-
-function filterForToyContext(results: any[]): any[] {
-  const filtered = results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    
-    // Check if this is clothing/footwear/accessories (not toys)
-    const isClothing = CLOTHING_INDICATORS.some(term => name.includes(term)) ||
-                       category.includes('clothing') || 
-                       category.includes('fashion') ||
-                       category.includes('apparel') ||
-                       category.includes('shoes') ||
-                       category.includes('footwear') ||
-                       category.includes('gifts') ||
-                       category.includes('card') ||
-                       category.includes('accessories') ||
-                       category.includes('bags') ||
-                       category.includes('stationery') ||
-                       category.includes('lunch') ||
-                       category.includes('decor') ||
-                       category.includes('baby clothes') ||
-                       category.includes('sleepwear') ||
-                       category.includes('nightwear') ||
-                       category.includes('mugs');
-    
-    if (isClothing) {
-      console.log(`[Toy Context] Excluded non-toy: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-  
-  // SAFETY: If filtering removed ALL results, return original (inventory gap, not filter issue)
-  // User asked for toys but we only have clothing with that character - return what we have
-  if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Toy Context] INVENTORY GAP: All ${results.length} results were clothing, keeping original`);
-    return results;
-  }
-  
-  return filtered;
-}
-
-// =============================================================================
-// Fix #64: MEDIA EXCLUSION FILTER - Exclude DVDs/Blu-rays from toy/gift queries
-// When user searches for "toys" or "gifts", filter out physical media
-// See CRITICAL_FIXES.md - Fix #64
-// =============================================================================
-const MEDIA_EXCLUSIONS = [
-  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd', 'includes blu',
-  '(blu-ray)', '(dvd)', 'movie disc', 'disc set'
-];
-
-const MEDIA_QUERY_TRIGGERS = ['toy', 'toys', 'gift', 'gifts', 'present', 'presents', 'figure', 'figures', 'doll', 'dolls'];
-
-function hasMediaExclusionContext(query: string): boolean {
-  const q = query.toLowerCase();
-  // Only exclude media when user is searching for toys/gifts, not general merchandise
-  return MEDIA_QUERY_TRIGGERS.some(trigger => {
-    const regex = new RegExp(`\\b${trigger}\\b`, 'i');
-    return regex.test(q);
-  });
-}
-
-function filterMediaFromToyQueries(results: any[], query: string): any[] {
-  if (!hasMediaExclusionContext(query)) return results;
-  
-  const filtered = results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    
-    // Check if this is media content (DVD, Blu-ray, etc.)
-    const isMedia = MEDIA_EXCLUSIONS.some(term => name.includes(term)) ||
-                    category.includes('dvd') ||
-                    category.includes('blu-ray') ||
-                    category.includes('film') ||
-                    category.includes('movies');
-    
-    if (isMedia) {
-      console.log(`[Fix #64] Media exclusion: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-  
-  // SAFETY: If filtering removed ALL results, return original
-  if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Fix #64] All results were media, keeping original`);
-    return results;
-  }
-  
-  return filtered;
-}
-
-// =============================================================================
-// Fix #36: WATER GUN CONTEXT FILTER - Exclude bouncy castles for water gun queries
-// When user searches for "water gun", they want standalone water pistols/super soakers
-// NOT bouncy castles that happen to have water guns attached
-// See CRITICAL_FIXES.md - Fix #36
-// =============================================================================
-const WATER_GUN_QUERY_WORDS = ['water gun', 'water guns', 'water pistol', 'water pistols', 'water blaster', 'water blasters'];
-
-// Large play structures that contain water guns but aren't standalone water toys
-const WATER_GUN_EXCLUDE_TERMS = [
-  'bouncy castle', 'bounce house', 'bouncer', 'inflatable castle',
-  'climbing wall', 'trampoline', 'slide pool', 'play structure'
-];
-
-function hasWaterGunContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return WATER_GUN_QUERY_WORDS.some(term => q.includes(term));
-}
-
-function filterForWaterGunContext(results: any[]): any[] {
-  const filtered = results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const desc = (r.description || '').toLowerCase();
-    const text = name + ' ' + desc;
-    
-    // Exclude large play structures (bouncy castles, etc.)
-    const isPlayStructure = WATER_GUN_EXCLUDE_TERMS.some(term => text.includes(term));
-    
-    // Also exclude by high price - standalone water guns are typically under £50
-    const price = parseFloat(r.price) || 0;
-    const isExpensivePlayEquipment = price > 100 && (text.includes('castle') || text.includes('bouncy') || text.includes('trampoline'));
-    
-    if (isPlayStructure || isExpensivePlayEquipment) {
-      console.log(`[Water Gun Context] Excluded play structure: "${r.name?.substring(0, 50)}..." (£${price})`);
-      return false;
-    }
-    return true;
-  });
-  
-  // SAFETY: If filtering removed ALL results, return original
-  if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Water Gun Context] INVENTORY GAP: All ${results.length} results were play structures, keeping original`);
-    return results;
-  }
-  
-  return filtered;
-}
-
-// =============================================================================
-// P1 BUG 4 FIX: COSTUME CONTEXT FILTER - Exclude clothing for costume queries
-// When user searches for costumes, filter out t-shirts/hoodies with "costume" in graphics
-// See CRITICAL_FIXES.md - Fix #11
-// =============================================================================
-const COSTUME_QUERY_WORDS = ['costume', 'costumes', 'fancy dress', 'dress up', 'dressing up'];
-
-// Clothing that should NOT appear for costume queries (has "costume" in graphic, not actual costume)
-const COSTUME_CLOTHING_INDICATORS = [
-  't-shirt', 'tshirt', 'sweatshirt', 'hoodie', 'hoody', 'jumper', 'sweater',
-  'polo', 'vest', 'jacket', 'coat', 'cardigan', 'shorts', 'trousers', 'joggers',
-  'leggings', 'jeans', 'skirt', 'pyjamas', 'pajamas', 'nightwear', 'onesie',
-  'swimsuit', 'bikini', 'trunks', 'swimming costume', // exclude swimming costume results
-  // Foreign-language clothing terms
-  'copricostume', 'cover-up', 'coverup', 'maillot', 'badeanzug',
-  // Baby clothing/sleepwear (not costumes you wear)
-  'bunting', 'swaddle', 'sleep sack', 'sleep bag', 'babywear', 'layette',
-  'romper', 'bodysuit', 'sleeper', 'grow bag', 'growbag'
-];
-
-// Non-wearable items that have "costume" in name (toys, storage, etc.)
-const COSTUME_NON_WEARABLE_TERMS = [
-  'doll', 'figure', 'playset', 'toy', 'figurine', 'action figure',
-  'storage', 'closet', 'hanger', 'organizer', 'wardrobe', 'rack',
-  'barbie', 'bratz', 'monster high', // costume-themed dolls
-  'skating barbie', 'ice skating' // specific doll products
-];
-
-// Categories that indicate real costumes/fancy dress
-// FIX #53: Added 'other toys' and 'toys' because dress-up costumes often categorized there
-const COSTUME_POSITIVE_CATEGORIES = [
-  'fancy dress', 'costumes', 'dress up', 'halloween', 'party', 'role play',
-  'other toys', 'toys', 'general clothing', 'character'
-];
-
-function hasCostumeContext(query: string): boolean {
-  const q = query.toLowerCase();
-  // Don't apply filter for "swimming costume" - that's a valid clothing item
-  if (q.includes('swimming costume') || q.includes('swim costume')) {
-    return false;
-  }
-  return COSTUME_QUERY_WORDS.some(word => q.includes(word));
-}
-
-// Return type for smarter fallback handling
+// Interface needed for local costume context handling
 interface FilterResult {
   items: any[];
   inventoryGap: boolean;
   gapReason?: string;
-}
-
-function filterForCostumeContext(results: any[]): FilterResult {
-  const filtered = results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    
-    // First check: Exclude non-wearable items (dolls, storage, etc.)
-    const isNonWearable = COSTUME_NON_WEARABLE_TERMS.some(term => name.includes(term));
-    if (isNonWearable) {
-      console.log(`[Costume Context] Excluded non-wearable: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    
-    // If it's in a costume/fancy dress category, always keep it
-    const isInCostumeCategory = COSTUME_POSITIVE_CATEGORIES.some(cat => category.includes(cat));
-    if (isInCostumeCategory) {
-      return true;
-    }
-    
-    // Check if this is regular clothing (not a costume)
-    const isClothing = COSTUME_CLOTHING_INDICATORS.some(term => name.includes(term)) ||
-                       category.includes('clothing') || 
-                       category.includes('fashion') ||
-                       category.includes('apparel') ||
-                       category.includes('baby') ||
-                       category.includes('swimwear') ||
-                       category.includes('beachwear');
-    
-    if (isClothing) {
-      console.log(`[Costume Context] Excluded clothing: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-  
-  // SMART FALLBACK: If filtering removed ALL results, return empty with inventory gap flag
-  // Don't show hoodies with "costume" graphics when user wants actual costumes
-  if (filtered.length === 0 && results.length > 0) {
-    console.log(`[Costume Context] INVENTORY GAP: All ${results.length} results were clothing - returning empty`);
-    return { items: [], inventoryGap: true, gapReason: 'No actual costumes found - only clothing with costume graphics' };
-  }
-  
-  return { items: filtered, inventoryGap: false };
-}
-
-// =============================================================================
-// P1 BUG 5 FIX: BOOKS CONTEXT FILTER - Prioritize Books category, exclude bags
-// When user searches for books, filter out backpacks/bags/clothing with "book" in name
-// See CRITICAL_FIXES.md - Fix #12
-// =============================================================================
-const BOOKS_QUERY_PATTERNS = [
-  /\bbooks?\b/i,  // "book" or "books" as whole word
-  /\breaders?\b/i, // "reader" or "readers"
-  /\bstories\b/i,
-  /\bstorybook\b/i
-];
-
-const BOOKS_BLOCK_INDICATORS = [
-  'book bag', 'bookbag', 'backpack', 'rucksack', 'school bag', 'lunch bag',
-  'book end', 'bookend', 'book shelf', 'bookshelf', 'bookmark'
-];
-
-// Categories that are NOT books
-// FIX #54: Removed 'toys', 'gifts', 'creative' as these often contain activity/sticker books
-const BOOKS_NEGATIVE_CATEGORIES = [
-  'bags', 'backpack', 'clothing', 'fashion', 'apparel', 'accessories', 'furniture',
-  'shoes', 'footwear', 'boots', 'wellingtons', 'wellies', 'trainers', 'sandals',
-  'baby products', 'bedding', 'decor', 'dresses', 'skirts',
-  'sale', 'clearance', 'baby clothes', 'audio', 'audio equipment'
-];
-
-function hasBooksContext(query: string): boolean {
-  const q = query.toLowerCase();
-  return BOOKS_QUERY_PATTERNS.some(pattern => pattern.test(q));
-}
-
-function filterForBooksContext(results: any[]): any[] {
-  const filtered = results.filter(r => {
-    const name = (r.name || '').toLowerCase();
-    const category = (r.category || '').toLowerCase();
-    
-    // If it's in Books category, always keep it
-    if (category.includes('book')) {
-      return true;
-    }
-    
-    // If name contains "book", likely a book product - keep it
-    if (name.includes(' book') || name.includes('book ') || name.endsWith(' book')) {
-      return true;
-    }
-    
-    // Check if this is a bag/backpack/clothing/shoes (not a book)
-    const isNotABook = BOOKS_BLOCK_INDICATORS.some(term => name.includes(term)) ||
-                       BOOKS_NEGATIVE_CATEGORIES.some(cat => category.includes(cat));
-    
-    if (isNotABook) {
-      console.log(`[Books Context] Excluded non-book: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-  
-  // SAFETY: If filtering removed ALL results, return original only if there are book-like items
-  if (filtered.length === 0 && results.length > 0) {
-    // Check if there are any actual books in original before falling back
-    const hasAnyBooks = results.some(r => {
-      const name = (r.name || '').toLowerCase();
-      const category = (r.category || '').toLowerCase();
-      return category.includes('book') || name.includes(' book') || name.includes('book ');
-    });
-    
-    if (hasAnyBooks) {
-      // Return only the book items from original
-      return results.filter(r => {
-        const name = (r.name || '').toLowerCase();
-        const category = (r.category || '').toLowerCase();
-        return category.includes('book') || name.includes(' book') || name.includes('book ');
-      });
-    }
-    
-    console.log(`[Books Context] INVENTORY GAP: All ${results.length} results were non-books, returning empty`);
-    return [];
-  }
-  
-  return filtered;
 }
 
 // =============================================================================
