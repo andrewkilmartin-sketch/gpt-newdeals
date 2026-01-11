@@ -693,6 +693,35 @@ npx tsx scripts/click-analysis-daily.ts
 
 ---
 
+## Fix #44: Phrase Synonym Term Replacement (2026-01-11)
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Phrase synonyms ADDED terms instead of REPLACING, causing impossible queries |
+| **Example** | "stem toys" → TSVECTOR `stem & educational & toys` (matches nothing) |
+| **Root Cause** | TSVECTOR used original query words + mustHaveAll (synonym terms), requiring ALL |
+| **Solution** | 1) Use synonym-replaced query for TSVECTOR, 2) Remove original terms from mustHaveAll |
+
+**Pass Rate Improvement:** 92.2% → 96.7%
+
+**Code Locations:**
+- `server/routes.ts` line ~4379: Remove original terms before adding synonyms
+- `server/routes.ts` line ~4881: Use `phraseFixed` for TSVECTOR when synonym applied
+
+**Phrase Synonyms Added:**
+- `kinetic sand` → `play sand` (Spin Master brand → generic)
+- `sensory toys` → `baby toys` (category → inventory we have)
+- `stem toys` → `educational toys` (STEM → broader category)
+- `science kit` → `experiment` (kit → broader term)
+- Note: `fidget toys` NOT remapped (we have fidget products in inventory)
+
+**Remaining Failures (3):**
+- `frozen` - Disney franchise, needs character detection
+- `toys under 10 pounds` - Price filter needs debugging
+- `stuffed animals` - US term, may need `plush` synonym
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:

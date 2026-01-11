@@ -262,6 +262,17 @@ const PHRASE_SYNONYMS: { [key: string]: string } = {
   
   // Activity terms
   'sidewalk chalk': 'pavement chalk',
+  
+  // FIX #44: Edge case product mappings (brand-specific → generic inventory)
+  'kinetic sand': 'play sand',      // Spin Master brand → generic sand toys
+  'sensory toys': 'baby toys',      // Category → inventory we have
+  'sensory toy': 'baby toy',
+  // Note: 'fidget toys' NOT remapped - we have fidget products in inventory
+  'fidget spinner': 'fidget',       // Spinner → broader fidget category
+  'stem toys': 'educational toys',  // STEM category → broader category
+  'stem toy': 'educational toy',
+  'science kit': 'experiment',      // Kit → broader term
+  'science kits': 'experiment',
 };
 
 // Apply phrase synonyms before word-level processing
@@ -4354,13 +4365,28 @@ Format: ["id1", "id2", ...]`
       const interpretation = await interpretQuery(searchQuery, openaiKey);
       console.log(`[Shop Search] TIMING: Interpretation took ${Date.now() - interpretStart}ms`);
       
-      // FIX #19: PHRASE SYNONYM TERM HARMONIZATION
-      // When phrase synonym is applied (e.g., "diaper" → "nappy"), ensure the replacement term
-      // is in mustHaveAll AND searchTerms. GPT might return plural "nappies" but miss singular "nappy".
+      // FIX #19 + FIX #44: PHRASE SYNONYM TERM HARMONIZATION
+      // When phrase synonym is applied (e.g., "stem toys" → "educational toys"), 
+      // REPLACE the original terms with synonym terms, don't just add them.
+      // This prevents impossible queries like "stem & educational & toys" that match nothing.
       if (phraseSynonymApplied) {
+        const originalTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
         const synonymTerms = phraseFixed.split(/\s+/).filter(t => t.length > 2);
+        
+        // FIX #44: Remove original phrase terms from mustHaveAll since they're being replaced
+        if (interpretation.mustHaveAll) {
+          interpretation.mustHaveAll = interpretation.mustHaveAll.filter(t => {
+            const tLower = t.toLowerCase();
+            const isOriginalTerm = originalTerms.some(orig => tLower === orig || tLower.includes(orig));
+            if (isOriginalTerm) {
+              console.log(`[Shop Search] PHRASE SYNONYM: Removed original term "${t}" from mustHaveAll`);
+            }
+            return !isOriginalTerm;
+          });
+        }
+        
         for (const term of synonymTerms) {
-          // Add to mustHaveAll if not already present
+          // Add synonym term to mustHaveAll
           const alreadyInMustHave = interpretation.mustHaveAll?.some(
             t => t.toLowerCase() === term.toLowerCase()
           );
@@ -4846,8 +4872,10 @@ Format: ["id1", "id2", ...]`
             'equipment', 'accessories', 'supplies', 'gear', 'complete'
           ]);
           
-          // Add ORIGINAL query words (e.g., "witch costume")
-          const originalWords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+          // Add query words - use synonym-replaced query if phrase synonym was applied
+          // FIX #44: "stem toys" → uses "educational toys" terms, not "stem toys" terms
+          const queryToUse = phraseSynonymApplied ? phraseFixed : query;
+          const originalWords = queryToUse.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
           const requiredTerms = new Set<string>();
           const optionalTerms = new Set<string>();
           
