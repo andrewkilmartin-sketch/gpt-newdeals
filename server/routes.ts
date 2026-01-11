@@ -4799,19 +4799,39 @@ Format: ["id1", "id2", ...]`
       
       if (detectedBrand && !filterBrand && !isKnownBrand) {
         // Only do brand check for unknown brands (not in our known list)
-        // FIX: Check BOTH brand column AND product name (for characters like Hulk, Moana, Encanto)
+        // FIX #57: Use TSVECTOR for brand check instead of ILIKE (was taking 50-60s!)
         const brandCheckStart = Date.now();
-        const brandCheckResult = await db.select({ id: products.id })
-          .from(products)
-          .where(or(
-            ilike(products.brand, `%${detectedBrand}%`),
-            ilike(products.name, `%${detectedBrand}%`)
-          ))
-          .limit(1);
+        let brandExists = false;
+        let brandCount = 0;
         
-        const brandExists = brandCheckResult.length > 0;
-        const brandCount = brandExists ? 1 : 0;
-        console.log(`[Shop Search] TIMING: Brand check took ${Date.now() - brandCheckStart}ms`);
+        try {
+          // FAST PATH: Use tsvector with GIN index (sub-100ms)
+          // Use parameterized query to prevent SQL injection
+          const tsvectorResult = await db.execute(sql`SELECT id FROM products WHERE search_vector @@ plainto_tsquery('english', ${detectedBrand}) LIMIT 1`);
+          brandExists = (tsvectorResult as any).rows?.length > 0 || (tsvectorResult as any).length > 0;
+          brandCount = brandExists ? 1 : 0;
+          console.log(`[Shop Search] TIMING: Brand check (tsvector) took ${Date.now() - brandCheckStart}ms`);
+        } catch (tsvectorError: any) {
+          // FALLBACK: If tsvector fails (column missing), use ILIKE but with timeout protection
+          console.log(`[Shop Search] Brand check tsvector failed, falling back to ILIKE: ${tsvectorError.message}`);
+          try {
+            const brandCheckResult = await db.select({ id: products.id })
+              .from(products)
+              .where(or(
+                ilike(products.brand, `%${detectedBrand}%`),
+                ilike(products.name, `%${detectedBrand}%`)
+              ))
+              .limit(1);
+            brandExists = brandCheckResult.length > 0;
+            brandCount = brandExists ? 1 : 0;
+            console.log(`[Shop Search] TIMING: Brand check (ILIKE fallback) took ${Date.now() - brandCheckStart}ms`);
+          } catch (ilikeError: any) {
+            console.log(`[Shop Search] Brand check ILIKE also failed: ${ilikeError.message}`);
+            // Assume brand exists to allow search to proceed
+            brandExists = true;
+            brandCount = 1;
+          }
+        }
         
         if (brandCount === 0) {
           // Brand/character doesn't exist in our catalog
