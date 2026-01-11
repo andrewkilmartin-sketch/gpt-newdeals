@@ -44,6 +44,14 @@ import {
   BRAND_CHARACTERS
 } from "./services/queryParser";
 
+// NOTE: Search module files created in server/search/ for future refactoring:
+// - brands.ts: Brand/character constants and validation
+// - filters.ts: All filter functions and constants
+// - dedup.ts: SKU deduplication and merchant caps
+// - ranking.ts: Price sorting and quality intent
+// - promotions.ts: Promotion matching for search results
+// These modules are ready for incremental migration from the inline code below.
+
 const STREAMING_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'Sky', 'NOW', 'MUBI'];
 
 // Build version for deployment verification - increment this when making changes
