@@ -54,6 +54,8 @@ import {
   DISCOUNT_MERCHANTS,
   TRAVEL_MERCHANTS,
   GENDER_EXCLUSION_MAP,
+  JEWELRY_WATCH_MERCHANTS,
+  HOLIDAY_TRAVEL_MERCHANTS,
   isValidBrand,
   isToyQuery,
   isCraftSupply,
@@ -76,6 +78,9 @@ import {
   COSTUME_CLOTHING_INDICATORS,
   COSTUME_NON_WEARABLE_TERMS,
   COSTUME_POSITIVE_CATEGORIES,
+  KEYWORD_COLLISION_RULES,
+  GAMING_KEYWORDS,
+  GAMING_CATEGORY_TERMS,
   FilterResult,
   // Filter functions
   filterInappropriateContent,
@@ -106,6 +111,16 @@ import {
   filterForPartyBagContext,
   hasAgeContext,
   filterForAgeContext,
+  hasWatchOrderContext,
+  filterForWatchOrderContext,
+  hasBreakContext,
+  filterForBreakContext,
+  filterKeywordCollisions,
+  isGamingQuery,
+  filterForGamingQuery,
+  filterPromoOnlyResults,
+  demoteKidsPassResults,
+  isKnownFallback,
   // Dedup functions
   extractSKU,
   normalizeProductName,
@@ -409,225 +424,7 @@ function detectQueryIntent(query: string): QueryIntent {
   return 'PRODUCTS';
 }
 
-// Search module imports cover: KNOWN_FALLBACKS, KNOWN_TOY_BRANDS, isValidBrand, 
-// MAKEUP_COSMETICS_TERMS, CRAFT_SUPPLY_PATTERNS, isCraftSupply, filterCraftSuppliesFromToyQueries,
-// isToyQuery, filterMakeupFromToyQueries, WORD_BOUNDARY_COLLISIONS, filterWordBoundaryCollisions,
-// QUALITY_INTENT_WORDS, DISCOUNT_MERCHANTS, TRAVEL_MERCHANTS, GENDER_EXCLUSION_MAP,
-// filterInappropriateContent, deduplicateResults, extractSKU, normalizeProductName, similarNames,
-// deduplicateBySKU, sortByPrice, NON_PRODUCT_EXCLUSIONS, PRODUCT_INTENT_WORDS, hasProductIntent,
-// filterNonProducts, applyMerchantCaps, hasFilmContext, hasBlindContext, hasGenderContext,
-// filterForBlindContext, hasStitchContext, filterForStitchContext, filterForGenderContext,
-// filterFallbackSpam - all imported from ./search module
-
-// PHASE 3: Filter for film/movie context - user wants movies, not merchandise
-function filterForFilmContext(results: any[]): any[] {
-  return results.filter(r => {
-    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
-    // Allow: DVDs, Blu-rays, streaming, cinema, actual movie products
-    const isMovieRelated = text.includes('dvd') || text.includes('blu-ray') || 
-                           text.includes('movie') || text.includes('film') ||
-                           text.includes('cinema') || text.includes('disney') ||
-                           text.includes('pixar') || text.includes('dreamworks');
-    // Exclude: random products that have nothing to do with films
-    const isIrrelevantProduct = text.includes('heel') || text.includes('shoe sale') ||
-                                 text.includes('handbag') || text.includes('supplement') ||
-                                 text.includes('vitamin') || text.includes('skincare');
-    if (isIrrelevantProduct && !isMovieRelated) {
-      console.log(`[Film Context] Excluded non-film product: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-}
-
-// Check if query is specifically about movie/show watch order (not jewelry or forms)
-function hasWatchOrderContext(query: string): boolean {
-  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  // Must be movie/show context - looking for watch order of a series/franchise
-  const moviePatterns = ['watch order', 'order to watch', 'watching order'];
-  if (!moviePatterns.some(p => q.includes(p))) return false;
-  // Exclude non-movie contexts (forms, accessories)
-  const excludePatterns = ['order form', 'watch strap', 'watch band', 'watch repair'];
-  return !excludePatterns.some(p => q.includes(p));
-}
-
-// Filter for watch order queries - only remove explicit jewelry watch merchants
-const JEWELRY_WATCH_MERCHANTS = [
-  'sekonda', 'fossil', 'casio', 'timex', 'watch shop', 'watchshop',
-  'goldsmiths', 'ernest jones', 'h samuel', 'watches of switzerland'
-];
-function filterForWatchOrderContext(results: any[]): any[] {
-  return results.filter(r => {
-    const merchant = (r.merchant || '').toLowerCase();
-    const isJewelryMerchant = JEWELRY_WATCH_MERCHANTS.some(m => merchant.includes(m));
-    if (isJewelryMerchant) {
-      console.log(`[Watch Order Context] Excluded jewelry merchant: "${r.merchant}"`);
-      return false;
-    }
-    return true;
-  });
-}
-
-// Check if query is specifically about chapter/movie breaks (not holiday breaks)
-function hasBreakContext(query: string): boolean {
-  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  // Specific patterns for movie runtime breaks
-  return (q.includes('chapter break') || q.includes('toilet break') || 
-          q.includes('intermission') || q.includes('movie break'));
-}
-
-// Filter for break context - only remove explicit travel/holiday merchants
-const HOLIDAY_TRAVEL_MERCHANTS = [
-  'lastminute', 'expedia', 'booking.com', 'trivago', 'jet2', 
-  'easyjet', 'ryanair', 'tui', 'haven', 'pontins'
-];
-function filterForBreakContext(results: any[]): any[] {
-  return results.filter(r => {
-    const merchant = (r.merchant || '').toLowerCase();
-    const name = (r.name || '').toLowerCase();
-    // Only exclude if merchant is travel OR product is a holiday package
-    const isTravelMerchant = HOLIDAY_TRAVEL_MERCHANTS.some(m => merchant.includes(m));
-    const isHolidayPackage = name.includes('holiday package') || name.includes('city break deal');
-    if (isTravelMerchant || isHolidayPackage) {
-      console.log(`[Break Context] Excluded travel: "${r.name?.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-}
-
-// Search module imports also cover: hasBookContext, hasPartyBagContext, hasAgeContext,
-// hasQualityIntent, filterForBookContext, filterForPartyBagContext, filterForAgeContext,
-// reorderForQualityIntent, CLOTHING_INDICATORS, TOY_QUERY_WORDS, hasToyContext, filterForToyContext,
-// MEDIA_EXCLUSIONS, MEDIA_QUERY_TRIGGERS, hasMediaExclusionContext, filterMediaFromToyQueries,
-// WATER_GUN_QUERY_WORDS, WATER_GUN_EXCLUDE_TERMS, hasWaterGunContext, filterForWaterGunContext,
-// COSTUME_QUERY_WORDS, COSTUME_CLOTHING_INDICATORS, COSTUME_NON_WEARABLE_TERMS, COSTUME_POSITIVE_CATEGORIES,
-// hasCostumeContext, FilterResult, filterForCostumeContext, BOOKS_QUERY_PATTERNS, BOOKS_BLOCK_INDICATORS,
-// BOOKS_NEGATIVE_CATEGORIES
-
-// Interface needed for local costume context handling
-interface FilterResult {
-  items: any[];
-  inventoryGap: boolean;
-  gapReason?: string;
-}
-
-// =============================================================================
-// MEGA-FIX 7: KEYWORD COLLISION DETECTION
-// Prevents "book" → car rental, "watch" → jewelry, "blind" → shutters
-// =============================================================================
-const KEYWORD_COLLISION_RULES = [
-  {
-    word: 'book',
-    familyContext: ['token', 'voucher', 'reading', 'story', 'picture', 'kids', 'child', 'children', 'baby', 'bedtime', 'dentist', 'doctor', 'sibling'],
-    blockTerms: ['car rental', 'booking.com', 'book your', 'book now', 'book a', 'book online']
-  },
-  {
-    word: 'watch',
-    familyContext: ['film', 'movie', 'order', 'first', 'kids', 'children', 'mcu', 'marvel', 'disney', 'together'],
-    blockTerms: ['watches', 'watch & watch', 'winder', 'sekonda', 'guess watches', 'casio watch', 'analog watch']
-  },
-  {
-    word: 'blind',
-    familyContext: ['character', 'accessibility', 'representation', 'disability', 'visually', 'story', 'book'],
-    blockTerms: ['blinds', 'shutters', 'window', 'day & night', 'roller blind', 'venetian', '247 blinds']
-  },
-  {
-    word: 'confidence',
-    familyContext: ['child', 'kids', 'building', 'self', 'social', 'school', 'anxiety'],
-    blockTerms: ['bedroom', 'erectile', 'viagra', 'cialis', 'reclaim']
-  },
-  {
-    word: 'bedroom',
-    familyContext: ['kids', 'child', 'sharing', 'decor', 'furniture', 'room', 'sibling', 'new baby'],
-    blockTerms: ['confidence', 'erectile', 'adult', 'romantic']
-  },
-  {
-    word: 'paint',
-    familyContext: ['craft', 'art', 'kids', 'finger', 'face paint', 'poster', 'activity', 'toddler'],
-    blockTerms: ['dulux', 'zinsser', 'albany', 'eggshell', 'emulsion', 'interior paint', 'exterior paint', 'primer']
-  },
-  {
-    word: 'brush',
-    familyContext: ['art', 'paint', 'teeth', 'hair', 'kids', 'toddler', 'activity'],
-    blockTerms: ['decorator', 'roller', 'trade', 'professional', 'paint brush set']
-  },
-  {
-    word: 'training',
-    familyContext: ['potty', 'toilet', 'sleep', 'baby', 'toddler', 'child'],
-    blockTerms: ['gym', 'fitness', 'weight', 'muscle', 'athletic', 'workout']
-  }
-];
-
-function filterKeywordCollisions(query: string, results: any[]): any[] {
-  const q = query.toLowerCase();
-  
-  for (const rule of KEYWORD_COLLISION_RULES) {
-    if (!q.includes(rule.word)) continue;
-    
-    // Check if query has family context
-    const hasFamilyContext = rule.familyContext.some(ctx => q.includes(ctx));
-    if (!hasFamilyContext) continue;
-    
-    // Filter out wrong-category results
-    results = results.filter(r => {
-      const text = ((r.name || '') + ' ' + (r.merchant || '') + ' ' + (r.description || '')).toLowerCase();
-      const hasBlockedTerm = rule.blockTerms.some(block => text.includes(block));
-      if (hasBlockedTerm) {
-        console.log(`[Collision Filter] Blocked "${rule.word}" collision: "${r.name?.substring(0, 50)}..."`);
-        return false;
-      }
-      return true;
-    });
-  }
-  
-  return results;
-}
-
-// =============================================================================
-// MEGA-FIX 8: GAMING QUERY ROUTER
-// Detects gaming queries and filters to gaming category
-// =============================================================================
-const GAMING_KEYWORDS = [
-  'game', 'games', 'gaming', 'xbox', 'playstation', 'ps4', 'ps5', 
-  'nintendo', 'switch', 'console', 'video game', 'board game'
-];
-
-const GAMING_CATEGORY_TERMS = [
-  'video game', 'board game', 'game', 'gaming', 'console', 'playstation', 
-  'xbox', 'nintendo', 'switch', 'pc game', 'puzzle', 'jigsaw', 'card game'
-];
-
-function isGamingQuery(query: string): boolean {
-  const q = query.toLowerCase();
-  return GAMING_KEYWORDS.some(kw => q.includes(kw));
-}
-
-function filterForGamingQuery(results: any[]): any[] {
-  // For gaming queries, prioritize products with gaming terms in name/category
-  const gamingResults: any[] = [];
-  const otherResults: any[] = [];
-  
-  for (const r of results) {
-    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
-    const isGamingProduct = GAMING_CATEGORY_TERMS.some(term => text.includes(term));
-    
-    if (isGamingProduct) {
-      gamingResults.push(r);
-    } else {
-      otherResults.push(r);
-    }
-  }
-  
-  // If we found gaming products, return only those (up to 8)
-  if (gamingResults.length >= 3) {
-    console.log(`[Gaming Router] Found ${gamingResults.length} gaming products, excluding ${otherResults.length} non-gaming`);
-    return gamingResults;
-  }
-  
-  // Not enough gaming products, include all but gaming first
-  return [...gamingResults, ...otherResults];
-}
+// All filter functions, constants, and context detectors are imported from ./search module
 
 // =============================================================================
 // MEGA-FIX 9: TYPO TOLERANCE
@@ -688,84 +485,7 @@ function correctTypos(query: string): { corrected: string; wasCorrected: boolean
   return { corrected: query, wasCorrected: false, original: query };
 }
 
-// MEGA-FIX 2: Filter promo-only results (no specific product)
-function filterPromoOnlyResults(results: any[]): any[] {
-  return results.filter(r => {
-    const name = r.name || r.title || '';
-    if (isPromoOnly(name)) {
-      console.log(`[Promo Filter] Removed promo-only: "${name.substring(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-}
-
-// MEGA-FIX 3: Demote/exclude Kids Pass results (unless DAYS_OUT query)
-function demoteKidsPassResults(results: any[], queryIntent: QueryIntent): any[] {
-  // Only demote if NOT a days out query
-  if (queryIntent === 'DAYS_OUT') {
-    return results;
-  }
-  
-  const kidsPassResults: any[] = [];
-  const otherResults: any[] = [];
-  
-  for (const r of results) {
-    const name = (r.name || '').toLowerCase();
-    const merchant = (r.merchant || '').toLowerCase();
-    
-    const isKidsPass = merchant.includes('kids pass') || 
-                       name.includes('kids pass') ||
-                       name.includes('save up to') && (
-                         name.includes('theme park') ||
-                         name.includes('aquarium') ||
-                         name.includes('hotel') ||
-                         name.includes('dining') ||
-                         name.includes('cinema') ||
-                         name.includes('indoor activities') ||
-                         name.includes('toddler friendly')
-                       ) ||
-                       name.includes('treetop challenge');
-    
-    if (isKidsPass) {
-      kidsPassResults.push(r);
-      console.log(`[Kids Pass] Demoted/excluded: "${(r.name || '').substring(0, 50)}..."`);
-    } else {
-      otherResults.push(r);
-    }
-  }
-  
-  // If we have enough non-Kids-Pass results, exclude Kids Pass entirely
-  // Otherwise, put Kids Pass at the end (better than nothing)
-  if (otherResults.length >= 5) {
-    console.log(`[Kids Pass] Excluded ${kidsPassResults.length} Kids Pass results (${otherResults.length} other results available)`);
-    return otherResults;
-  }
-  
-  // Not enough other results - include Kids Pass at end as fallback
-  return [...otherResults, ...kidsPassResults];
-}
-
-// Check if result is a known fallback (generic result for unrelated queries)
-function isKnownFallback(resultName: string, query: string): boolean {
-  const name = (resultName || '').toLowerCase();
-  const q = query.toLowerCase();
-  
-  for (const fallback of KNOWN_FALLBACKS) {
-    if (name.includes(fallback)) {
-      // Check for semantic connection
-      const queryWords = q.split(/\s+/).filter(w => w.length > 3);
-      const fallbackWords = fallback.split(/\s+/);
-      const hasConnection = queryWords.some(qw => 
-        fallbackWords.some(fw => fw.includes(qw) || qw.includes(fw))
-      );
-      if (!hasConnection) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+// filterPromoOnlyResults, demoteKidsPassResults, isKnownFallback imported from ./search
 
 // Main filter function - applies all context-aware filters (ALL 3 PHASES + MEGA-FIXES)
 function applySearchQualityFilters(results: any[], query: string): any[] {

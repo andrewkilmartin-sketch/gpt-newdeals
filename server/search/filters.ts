@@ -16,6 +16,8 @@ import {
   TRAVEL_MERCHANTS,
   GENDER_EXCLUSION_MAP,
   DISCOUNT_MERCHANTS,
+  JEWELRY_WATCH_MERCHANTS,
+  HOLIDAY_TRAVEL_MERCHANTS,
   isToyQuery,
   isCraftSupply
 } from './brands';
@@ -698,4 +700,252 @@ export function filterForAgeContext(results: any[]): any[] {
     }
     return !isWarranty;
   });
+}
+
+// =============================================================================
+// ADDITIONAL FILTERS - Moved from routes.ts for modularization
+// =============================================================================
+
+// Watch Order Context - jewelry watches vs movie watch order
+// JEWELRY_WATCH_MERCHANTS is imported from brands.ts
+
+export function hasWatchOrderContext(query: string): boolean {
+  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const moviePatterns = ['watch order', 'order to watch', 'watching order'];
+  if (!moviePatterns.some(p => q.includes(p))) return false;
+  const excludePatterns = ['order form', 'watch strap', 'watch band', 'watch repair'];
+  return !excludePatterns.some(p => q.includes(p));
+}
+
+export function filterForWatchOrderContext(results: any[]): any[] {
+  return results.filter(r => {
+    const merchant = (r.merchant || '').toLowerCase();
+    const isJewelryMerchant = JEWELRY_WATCH_MERCHANTS.some(m => merchant.includes(m));
+    if (isJewelryMerchant) {
+      console.log(`[Watch Order Context] Excluded jewelry merchant: "${r.merchant}"`);
+      return false;
+    }
+    return true;
+  });
+}
+
+// Break Context - movie breaks vs holiday breaks
+// HOLIDAY_TRAVEL_MERCHANTS is imported from brands.ts
+
+export function hasBreakContext(query: string): boolean {
+  const q = query.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (q.includes('chapter break') || q.includes('toilet break') || 
+          q.includes('intermission') || q.includes('movie break'));
+}
+
+export function filterForBreakContext(results: any[]): any[] {
+  return results.filter(r => {
+    const merchant = (r.merchant || '').toLowerCase();
+    const name = (r.name || '').toLowerCase();
+    const isTravelMerchant = HOLIDAY_TRAVEL_MERCHANTS.some(m => merchant.includes(m));
+    const isHolidayPackage = name.includes('holiday package') || name.includes('city break deal');
+    if (isTravelMerchant || isHolidayPackage) {
+      console.log(`[Break Context] Excluded travel: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
+
+// Keyword Collision Rules - prevents "book" → car rental, "watch" → jewelry, etc.
+export const KEYWORD_COLLISION_RULES = [
+  {
+    word: 'book',
+    familyContext: ['token', 'voucher', 'reading', 'story', 'picture', 'kids', 'child', 'children', 'baby', 'bedtime', 'dentist', 'doctor', 'sibling'],
+    blockTerms: ['car rental', 'booking.com', 'book your', 'book now', 'book a', 'book online']
+  },
+  {
+    word: 'watch',
+    familyContext: ['film', 'movie', 'order', 'first', 'kids', 'children', 'mcu', 'marvel', 'disney', 'together'],
+    blockTerms: ['watches', 'watch & watch', 'winder', 'sekonda', 'guess watches', 'casio watch', 'analog watch']
+  },
+  {
+    word: 'blind',
+    familyContext: ['character', 'accessibility', 'representation', 'disability', 'visually', 'story', 'book'],
+    blockTerms: ['blinds', 'shutters', 'window', 'day & night', 'roller blind', 'venetian', '247 blinds']
+  },
+  {
+    word: 'confidence',
+    familyContext: ['child', 'kids', 'building', 'self', 'social', 'school', 'anxiety'],
+    blockTerms: ['bedroom', 'erectile', 'viagra', 'cialis', 'reclaim']
+  },
+  {
+    word: 'bedroom',
+    familyContext: ['kids', 'child', 'sharing', 'decor', 'furniture', 'room', 'sibling', 'new baby'],
+    blockTerms: ['confidence', 'erectile', 'adult', 'romantic']
+  },
+  {
+    word: 'paint',
+    familyContext: ['craft', 'art', 'kids', 'finger', 'face paint', 'poster', 'activity', 'toddler'],
+    blockTerms: ['dulux', 'zinsser', 'albany', 'eggshell', 'emulsion', 'interior paint', 'exterior paint', 'primer']
+  },
+  {
+    word: 'brush',
+    familyContext: ['art', 'paint', 'teeth', 'hair', 'kids', 'toddler', 'activity'],
+    blockTerms: ['decorator', 'roller', 'trade', 'professional', 'paint brush set']
+  },
+  {
+    word: 'training',
+    familyContext: ['potty', 'toilet', 'sleep', 'baby', 'toddler', 'child'],
+    blockTerms: ['gym', 'fitness', 'weight', 'muscle', 'athletic', 'workout']
+  }
+];
+
+export function filterKeywordCollisions(query: string, results: any[]): any[] {
+  const q = query.toLowerCase();
+  
+  for (const rule of KEYWORD_COLLISION_RULES) {
+    if (!q.includes(rule.word)) continue;
+    
+    const hasFamilyContext = rule.familyContext.some(ctx => q.includes(ctx));
+    if (!hasFamilyContext) continue;
+    
+    results = results.filter(r => {
+      const text = ((r.name || '') + ' ' + (r.merchant || '') + ' ' + (r.description || '')).toLowerCase();
+      const hasBlockedTerm = rule.blockTerms.some(block => text.includes(block));
+      if (hasBlockedTerm) {
+        console.log(`[Collision Filter] Blocked "${rule.word}" collision: "${r.name?.substring(0, 50)}..."`);
+        return false;
+      }
+      return true;
+    });
+  }
+  
+  return results;
+}
+
+// Gaming Query Router
+export const GAMING_KEYWORDS = [
+  'game', 'games', 'gaming', 'xbox', 'playstation', 'ps4', 'ps5', 
+  'nintendo', 'switch', 'console', 'video game', 'board game'
+];
+
+export const GAMING_CATEGORY_TERMS = [
+  'video game', 'board game', 'game', 'gaming', 'console', 'playstation', 
+  'xbox', 'nintendo', 'switch', 'pc game', 'puzzle', 'jigsaw', 'card game'
+];
+
+export function isGamingQuery(query: string): boolean {
+  const q = query.toLowerCase();
+  return GAMING_KEYWORDS.some(kw => q.includes(kw));
+}
+
+export function filterForGamingQuery(results: any[]): any[] {
+  const gamingResults: any[] = [];
+  const otherResults: any[] = [];
+  
+  for (const r of results) {
+    const text = ((r.name || '') + ' ' + (r.category || '')).toLowerCase();
+    const isGamingProduct = GAMING_CATEGORY_TERMS.some(term => text.includes(term));
+    
+    if (isGamingProduct) {
+      gamingResults.push(r);
+    } else {
+      otherResults.push(r);
+    }
+  }
+  
+  if (gamingResults.length >= 3) {
+    console.log(`[Gaming Router] Found ${gamingResults.length} gaming products, excluding ${otherResults.length} non-gaming`);
+    return gamingResults;
+  }
+  
+  return [...gamingResults, ...otherResults];
+}
+
+// Promo-only results filter
+export const PROMO_ONLY_PATTERNS = [
+  'save up to', 'save at', '% off at', 'discount at', 'deal at',
+  'free delivery', 'clearance', 'special offer', 'limited time',
+  'flash sale', 'ends today', 'today only', 'exclusive deal',
+  'shop now', 'buy now pay later'
+];
+
+export function filterPromoOnlyResults(results: any[]): any[] {
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const isPromoOnly = PROMO_ONLY_PATTERNS.some(pattern => name.startsWith(pattern)) &&
+                        !name.match(/\d+\.\d{2}/);
+    if (isPromoOnly) {
+      console.log(`[Promo Filter] Removed promo-only: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
+
+// Kids Pass demotion for specific query intents - Full logic from MEGA-FIX 3
+export function demoteKidsPassResults(results: any[], queryIntent: string): any[] {
+  // Only demote if NOT a days out query - Days out queries should show Kids Pass
+  if (queryIntent === 'DAYS_OUT') {
+    return results;
+  }
+  
+  const kidsPassResults: any[] = [];
+  const otherResults: any[] = [];
+  
+  for (const r of results) {
+    const name = (r.name || '').toLowerCase();
+    const merchant = (r.merchant || '').toLowerCase();
+    
+    // Full Kids Pass detection logic including "save up to" patterns
+    const isKidsPass = merchant.includes('kids pass') || 
+                       name.includes('kids pass') ||
+                       (name.includes('save up to') && (
+                         name.includes('theme park') ||
+                         name.includes('aquarium') ||
+                         name.includes('hotel') ||
+                         name.includes('dining') ||
+                         name.includes('cinema') ||
+                         name.includes('indoor activities') ||
+                         name.includes('toddler friendly')
+                       )) ||
+                       name.includes('treetop challenge');
+    
+    if (isKidsPass) {
+      kidsPassResults.push(r);
+      console.log(`[Kids Pass] Demoted/excluded: "${(r.name || '').substring(0, 50)}..."`);
+    } else {
+      otherResults.push(r);
+    }
+  }
+  
+  // If we have enough non-Kids-Pass results (>=5), exclude Kids Pass entirely
+  // Otherwise, put Kids Pass at the end as fallback (better than nothing)
+  if (otherResults.length >= 5) {
+    console.log(`[Kids Pass] Excluded ${kidsPassResults.length} Kids Pass results (${otherResults.length} other results available)`);
+    return otherResults;
+  }
+  
+  // Not enough other results - include Kids Pass at end as fallback
+  return [...otherResults, ...kidsPassResults];
+}
+
+// Known fallback detection
+export function isKnownFallback(resultName: string, query: string): boolean {
+  const normalizedName = resultName.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  for (const fallback of KNOWN_FALLBACKS) {
+    if (normalizedName.includes(fallback)) {
+      const queryWords = query.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(w => w.length > 2);
+      const hasConnection = queryWords.some(qw => normalizedName.includes(qw));
+      if (!hasConnection) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
