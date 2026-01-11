@@ -802,6 +802,30 @@ npx tsx scripts/audit-scheduler.ts
 
 ---
 
+## Fix #47: Trimits Craft Supply Blocklist (2026-01-11)
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "Trimits Toy Eyes" craft supplies appearing in positions 1-3 for toy queries |
+| **Example** | "toys for 3 year old boy" → Trimits Stick On Wobbly Toy Eyes (position 2) |
+| **Root Cause** | These are DIY craft supplies (safety eyes for making stuffed animals), not children's toys. They match "toy" in TSVECTOR. |
+| **Solution** | Added CRAFT_SUPPLY_PATTERNS blocklist + filterCraftSuppliesFromToyQueries() function |
+
+**Code Locations:**
+- `server/routes.ts` ~line 453: `CRAFT_SUPPLY_PATTERNS` array
+- `server/routes.ts` ~line 470: `filterCraftSuppliesFromToyQueries()` function  
+- `server/routes.ts` ~line 1685: Filter applied after makeup filter
+- `server/routes.ts` ~line 402: Added to `KNOWN_FALLBACKS` for extra protection
+
+**Patterns Blocked:**
+- trimits, craft factory, wobbly toy eyes, safety eyes, toy eyes
+- stick on eyes, wobbly eyes, toy safety noses, craft eyes
+
+**Applies When Query Contains:**
+- toy, toys, gift, present, for kids, year old, stocking filler, party bag
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:

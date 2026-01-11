@@ -395,7 +395,23 @@ const KNOWN_FALLBACKS = [
   'nosibotanical nulla vest',
   'nosibotanical',
   'nulla vest',
-  'cotton-blend nosibotanical'
+  'cotton-blend nosibotanical',
+  // Fix #47: Craft supplies appearing in toy/gift queries - these are DIY craft eyes, not children's toys
+  'trimits toy eyes',
+  'trimits stick on wobbly toy eyes',
+  'trimits safety wobbly toy eyes',
+  'craft factory toy eyes',
+  'craft factory toy safety eyes',
+  'wobbly toy eyes',
+  'stick on eyes',
+  'safety eyes',
+  'toy eyes black',
+  'toy eyes amber', 
+  'toy eyes blue',
+  'toy eyes yellow',
+  'toy eyes red',
+  'toy eyes brown',
+  'toy safety eyes'
 ];
 
 // Fix #32: Known toy brands that should trigger toy context filters
@@ -428,6 +444,45 @@ const MAKEUP_COSMETICS_TERMS = [
   'nail polish', 'nail varnish', 'perfume', 'fragrance', 'cologne',
   'eye liner', 'eyeliner', 'lip gloss', 'lipgloss', 'primer'
 ];
+
+// Fix #47: Craft supply patterns to exclude from toy/gift queries
+// These are DIY craft supplies (safety eyes for making stuffed animals), not children's toys
+const CRAFT_SUPPLY_PATTERNS = [
+  'trimits', 'craft factory', 'wobbly toy eyes', 'safety eyes', 'toy eyes',
+  'stick on eyes', 'wobbly eyes', 'toy safety noses', 'craft eyes'
+];
+
+// Fix #47: Check if product is a craft supply (not a toy)
+function isCraftSupply(productName: string): boolean {
+  const name = productName.toLowerCase();
+  // Check for craft supply patterns
+  for (const pattern of CRAFT_SUPPLY_PATTERNS) {
+    if (name.includes(pattern)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Fix #47: Filter out craft supplies from toy/gift queries
+function filterCraftSuppliesFromToyQueries(results: any[], query: string): any[] {
+  const q = query.toLowerCase();
+  // Only apply to toy/gift/present/kids queries
+  const isToyGiftQuery = q.includes('toy') || q.includes('gift') || q.includes('present') ||
+    q.includes('for kids') || q.includes('year old') || q.includes('stocking filler') ||
+    q.includes('party bag');
+  
+  if (!isToyGiftQuery) return results;
+  
+  return results.filter(r => {
+    const name = r.name || '';
+    if (isCraftSupply(name)) {
+      console.log(`[Fix #47] Excluded craft supply from toy/gift query: "${name.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+}
 
 // Fix #39: Check if query is a toy-related query
 function isToyQuery(query: string): boolean {
@@ -1622,6 +1677,13 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   filtered = filterMakeupFromToyQueries(filtered, query);
   if (filtered.length < preMakeupCount) {
     console.log(`[Fix #39] Makeup filter: ${preMakeupCount} → ${filtered.length} for: "${query}"`);
+  }
+  
+  // Fix #47: Exclude craft supplies from toy/gift queries (Trimits toy eyes are craft supplies, not toys)
+  const preCraftCount = filtered.length;
+  filtered = filterCraftSuppliesFromToyQueries(filtered, query);
+  if (filtered.length < preCraftCount) {
+    console.log(`[Fix #47] Craft supply filter: ${preCraftCount} → ${filtered.length} for: "${query}"`);
   }
   
   // P1 BUG 4 FIX: Costume context - exclude t-shirts/hoodies for costume queries
@@ -4352,7 +4414,27 @@ Format: ["id1", "id2", ...]`
         
         // Sort by score and take top results
         scoredResults.sort((a, b) => b.score - a.score);
-        const topResults = scoredResults.slice(0, safeLimit).filter(r => r.score > -10);
+        let topResults = scoredResults.slice(0, safeLimit * 2).filter(r => r.score > -10);
+        
+        // FIX #47: Filter out craft supplies from toy/gift queries
+        // These are DIY craft eyes (Trimits, Craft Factory), not children's toys
+        const preCraftFilter = topResults.length;
+        topResults = topResults.filter(p => {
+          const name = (p.name || '').toLowerCase();
+          if (name.includes('trimits') || name.includes('craft factory') || 
+              name.includes('wobbly toy eyes') || name.includes('safety eyes') ||
+              name.includes('toy eyes') || name.includes('stick on eyes')) {
+            console.log(`[Fix #47 ULTRA FAST] Excluded craft supply: "${p.name?.substring(0, 50)}..."`);
+            return false;
+          }
+          return true;
+        });
+        if (topResults.length < preCraftFilter) {
+          console.log(`[Fix #47 ULTRA FAST] Filtered ${preCraftFilter} → ${topResults.length}`);
+        }
+        
+        // Take final limit after filtering
+        topResults = topResults.slice(0, safeLimit);
         
         const responseProducts = topResults.map(p => ({
           id: p.id,
