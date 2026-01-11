@@ -699,3 +699,26 @@ export const promotionNetworkMap = pgTable("promotion_network_map", {
 export const insertPromotionNetworkMapSchema = createInsertSchema(promotionNetworkMap).omit({ id: true, createdAt: true });
 export type InsertPromotionNetworkMap = z.infer<typeof insertPromotionNetworkMapSchema>;
 export type PromotionNetworkMap = typeof promotionNetworkMap.$inferSelect;
+
+// Click Logs - comprehensive tracking for search quality improvement
+export const clickLogs = pgTable("click_logs", {
+  id: varchar("id", { length: 100 }).primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id", { length: 255 }),
+  query: varchar("query", { length: 500 }),
+  productId: varchar("product_id", { length: 255 }),
+  productName: varchar("product_name", { length: 500 }),
+  productPrice: numeric("product_price", { precision: 10, scale: 2 }),
+  productMerchant: varchar("product_merchant", { length: 255 }),
+  position: integer("position"),
+  productsShownCount: integer("products_shown_count"),
+  productsShownIds: text("products_shown_ids"),
+  timestamp: timestamp("timestamp", { withTimezone: true }).defaultNow(),
+  timeOnPageMs: integer("time_on_page_ms"),
+  destinationUrl: text("destination_url"),
+  deviceType: varchar("device_type", { length: 50 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const insertClickLogSchema = createInsertSchema(clickLogs).omit({ id: true, timestamp: true, createdAt: true });
+export type InsertClickLog = z.infer<typeof insertClickLogSchema>;
+export type ClickLog = typeof clickLogs.$inferSelect;
