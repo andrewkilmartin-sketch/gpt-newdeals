@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "partial": 0,
+    "fail": 0,
+    "errors": 0,
+    "passRate": "100%",
+    "totalTimeMs": 76,
+    "avgTimePerQuery": 76,
+    "buildVersion": 92
+  },
+  "results": [
+    {
+      "query": "paw patrol toys",
+      "index": 0,
+      "status": "PASS",
+      "score": 100,
+      "resultCount": 7,
+      "parsed": {
+        "character": "paw patrol",
+        "age": null,
+        "priceMax": null,
+        "productType": null
+      },
+      "metrics": {
+        "characterPct": 100,
+        "pricePct": null,
+        "characterMatches": 7,
+        "priceMatches": 0
+      },
+      "topResults": [
+        {
+          "name": "Paw Patrol True Metal Off Road Mud - Chase",
+          "brand": "Paw Patrol",
+          "price": 5.08,
+          "merchant": "Babubas UK"
+        },
+        {
+          "name": "On the Road with the Paw Patrol",
+          "brand": "Nathan",
+          "price": 5.99,
+          "merchant": "JigsawPuzzle.co.uk"
+        },
+        {
+          "name": "Paw Patrol Reversible game",
+          "brand": "Paw Patrol",
+          "price": 6.38,
+          "merchant": "Babubas UK"
+        }
+      ],
+      "timeMs": 76
+    }
+  ]
+}
