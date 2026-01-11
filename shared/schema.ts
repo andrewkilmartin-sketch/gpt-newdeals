@@ -722,3 +722,18 @@ export const clickLogs = pgTable("click_logs", {
 export const insertClickLogSchema = createInsertSchema(clickLogs).omit({ id: true, timestamp: true, createdAt: true });
 export type InsertClickLog = z.infer<typeof insertClickLogSchema>;
 export type ClickLog = typeof clickLogs.$inferSelect;
+
+// Verified Results Cache - pre-verified search results for quality assurance
+export const verifiedResults = pgTable("verified_results", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  query: varchar("query", { length: 500 }).unique().notNull(),
+  verifiedProductIds: text("verified_product_ids"), // JSON array of product IDs
+  verifiedProductNames: text("verified_product_names"), // JSON array of product names (for debugging)
+  verifiedBy: varchar("verified_by", { length: 100 }),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }).defaultNow(),
+  confidence: varchar("confidence", { length: 20 }).default("manual"), // 'manual', 'auto', 'flagged'
+});
+
+export const insertVerifiedResultSchema = createInsertSchema(verifiedResults).omit({ id: true, verifiedAt: true });
+export type InsertVerifiedResult = z.infer<typeof insertVerifiedResultSchema>;
+export type VerifiedResult = typeof verifiedResults.$inferSelect;
