@@ -1,0 +1,450 @@
+Read CRITICAL_FIXES.md, REPLIT_FIX_INSTRUCTIONS.md, and STOP_BLAMING_INVENTORY.md. Tell me what fixes are logged.
+NEW FEATURE: Intent Classification System
+Before any search runs, we need to detect what the user actually wants. This is the foundation for cinema, streaming, attractions, and hotels features coming this week.
+Step 1: Create Intent Types
+Create shared/intents.ts:
+typescriptexport type IntentType = 
+  | 'SHOP'        // Products to buy - affiliate links
+  | 'CINEMA'      // Movie times, nearby cinemas - booking links
+  | 'STREAMING'   // Watch at home - streaming platform links
+  | 'ATTRACTIONS' // Days out, theme parks, zoos - Kids Pass venues
+  | 'HOTELS'      // Family stays, holidays - booking links
+  | 'HYBRID'      // Multiple intents detected
+  | 'UNKNOWN';    // Needs clarification
+
+export interface IntentResult {
+  primary: IntentType;
+  secondary?: IntentType;
+  confidence: number;        // 0-100
+  triggers: string[];        // Which words triggered this intent
+  extractedEntities: {
+    character?: string;      // "paw patrol", "frozen"
+    location?: string;       // "near me", "london"
+    date?: string;           // "today", "saturday"
+    ageGroup?: string;       // "for kids", "family"
+  };
+}
+Step 2: Create Intent Classifier
+Create server/intentClassifier.ts:
+typescriptimport { IntentType, IntentResult } from '../shared/intents';
+
+// Trigger words for each intent
+const INTENT_TRIGGERS: Record<IntentType, string[]> = {
+  SHOP: [
+    'buy', 'toys', 'toy', 'gifts', 'gift', 'present', 'presents',
+    'clothes', 'shoes', 'costume', 'outfit', 'book', 'books',
+    'game', 'games', 'lego', 'doll', 'dolls', 'price', 'cheap',
+    'under £', 'under 10', 'under 20', 'for sale', 'where to buy',
+    'best', 'review', 'stocking filler', 'party bag'
+  ],
+  
+  CINEMA: [
+    'cinema', 'cinemas', 'movie times', 'film times', 'showtimes',
+    'show times', 'what\'s on', 'whats on', 'screening', 'screenings',
+    'odeon', 'vue', 'cineworld', 'showcase', 'picturehouse',
+    'imax', '3d film', 'movie tickets', 'film tickets', 'book tickets',
+    'nearby cinema', 'local cinema', 'films showing', 'movies showing',
+    'kids films', 'family films', 'u rated', 'pg rated'
+  ],
+  
+  STREAMING: [
+    'watch at home', 'streaming', 'stream', 'netflix', 'disney plus',
+    'disney+', 'amazon prime', 'prime video', 'now tv', 'apple tv',
+    'iplayer', 'bbc iplayer', 'itv hub', 'itvx', 'channel 4',
+    'movie night', 'film night', 'staying in', 'night in',
+    'watch online', 'watch from home', 'where to watch', 'available on',
+    'what to watch', 'family movie night', 'kids movie night'
+  ],
+  
+  ATTRACTIONS: [
+    'days out', 'day out', 'things to do', 'activities', 'attractions',
+    'theme park', 'theme parks', 'amusement park', 'zoo', 'zoos',
+    'aquarium', 'museum', 'museums', 'soft play', 'trampoline park',
+    'adventure', 'farm', 'farms', 'park', 'parks', 'playground',
+    'near me', 'nearby', 'local', 'in london', 'in manchester',
+    'kids pass', 'family day', 'weekend', 'half term', 'school holidays',
+    'birthday party venue', 'party venue', 'where to go', 'visit'
+  ],
+  
+  HOTELS: [
+    'hotel', 'hotels', 'family hotel', 'stay', 'overnight',
+    'holiday', 'holidays', 'vacation', 'weekend away', 'break',
+    'family break', 'getaway', 'resort', 'lodge', 'cottage',
+    'airbnb', 'booking', 'accommodation', 'room', 'rooms',
+    'travel', 'trip', 'family trip', 'kids stay free'
+  ],
+  
+  HYBRID: [],
+  UNKNOWN: []
+};
+
+// Strong signals that override other matches
+const STRONG_SHOP_SIGNALS = ['buy', 'price', 'cheap', 'toy', 'toys', 'gift', 'gifts', 'lego', 'doll'];
+const STRONG_CINEMA_SIGNALS = ['cinema', 'movie times', 'film times', 'showtimes', 'odeon', 'vue', 'cineworld'];
+const STRONG_STREAMING_SIGNALS = ['netflix', 'disney plus', 'amazon prime', 'watch at home', 'streaming'];
+const STRONG_ATTRACTIONS_SIGNALS = ['days out', 'theme park', 'zoo', 'things to do', 'near me'];
+const STRONG_HOTELS_SIGNALS = ['hotel', 'holiday', 'stay overnight', 'accommodation'];
+
+export function classifyIntent(query: string): IntentResult {
+  const q = query.toLowerCase().trim();
+  const matches: Record<IntentType, string[]> = {
+    SHOP: [],
+    CINEMA: [],
+    STREAMING: [],
+    ATTRACTIONS: [],
+    HOTELS: [],
+    HYBRID: [],
+    UNKNOWN: []
+  };
+  
+  // Check each intent's triggers
+  for (const [intent, triggers] of Object.entries(INTENT_TRIGGERS)) {
+    for (const trigger of triggers) {
+      if (q.includes(trigger.toLowerCase())) {
+        matches[intent as IntentType].push(trigger);
+      }
+    }
+  }
+  
+  // Count matches per intent
+  const scores: Record<IntentType, number> = {
+    SHOP: matches.SHOP.length,
+    CINEMA: matches.CINEMA.length,
+    STREAMING: matches.STREAMING.length,
+    ATTRACTIONS: matches.ATTRACTIONS.length,
+    HOTELS: matches.HOTELS.length,
+    HYBRID: 0,
+    UNKNOWN: 0
+  };
+  
+  // Boost for strong signals
+  if (STRONG_SHOP_SIGNALS.some(s => q.includes(s))) scores.SHOP += 5;
+  if (STRONG_CINEMA_SIGNALS.some(s => q.includes(s))) scores.CINEMA += 5;
+  if (STRONG_STREAMING_SIGNALS.some(s => q.includes(s))) scores.STREAMING += 5;
+  if (STRONG_ATTRACTIONS_SIGNALS.some(s => q.includes(s))) scores.ATTRACTIONS += 5;
+  if (STRONG_HOTELS_SIGNALS.some(s => q.includes(s))) scores.HOTELS += 5;
+  
+  // Find top two intents
+  const sorted = Object.entries(scores)
+    .filter(([intent]) => !['HYBRID', 'UNKNOWN'].includes(intent))
+    .sort((a, b) => b[1] - a[1]);
+  
+  const [topIntent, topScore] = sorted[0];
+  const [secondIntent, secondScore] = sorted[1] || ['UNKNOWN', 0];
+  
+  // Determine result
+  let primary: IntentType;
+  let secondary: IntentType | undefined;
+  let confidence: number;
+  
+  if (topScore === 0) {
+    // No matches - default to SHOP (most common intent)
+    primary = 'SHOP';
+    confidence = 30;
+  } else if (topScore > 0 && secondScore > 0 && secondScore >= topScore * 0.6) {
+    // Two strong intents - HYBRID
+    primary = 'HYBRID';
+    secondary = secondIntent as IntentType;
+    confidence = 60;
+  } else {
+    primary = topIntent as IntentType;
+    confidence = Math.min(95, 50 + (topScore * 10));
+  }
+  
+  // Extract entities
+  const extractedEntities = extractEntities(q);
+  
+  return {
+    primary,
+    secondary: secondary || (topIntent !== secondIntent ? secondIntent as IntentType : undefined),
+    confidence,
+    triggers: matches[topIntent as IntentType] || [],
+    extractedEntities
+  };
+}
+
+function extractEntities(query: string): IntentResult['extractedEntities'] {
+  const entities: IntentResult['extractedEntities'] = {};
+  
+  // Characters/brands
+  const characters = [
+    'paw patrol', 'peppa pig', 'frozen', 'elsa', 'spiderman', 'spider-man',
+    'batman', 'disney', 'marvel', 'bluey', 'cocomelon', 'pokemon', 'pikachu',
+    'mario', 'minecraft', 'roblox', 'fortnite', 'barbie', 'lol surprise',
+    'harry potter', 'star wars', 'sonic', 'thomas', 'paddington'
+  ];
+  for (const char of characters) {
+    if (query.includes(char)) {
+      entities.character = char;
+      break;
+    }
+  }
+  
+  // Location
+  if (query.includes('near me') || query.includes('nearby')) {
+    entities.location = 'near_me';
+  } else if (query.includes('london')) {
+    entities.location = 'london';
+  } else if (query.includes('manchester')) {
+    entities.location = 'manchester';
+  }
+  // Add more cities as needed
+  
+  // Date
+  if (query.includes('today')) entities.date = 'today';
+  else if (query.includes('tomorrow')) entities.date = 'tomorrow';
+  else if (query.includes('saturday')) entities.date = 'saturday';
+  else if (query.includes('sunday')) entities.date = 'sunday';
+  else if (query.includes('weekend')) entities.date = 'weekend';
+  else if (query.includes('half term')) entities.date = 'half_term';
+  
+  // Age group
+  if (query.includes('for kids') || query.includes('for children')) {
+    entities.ageGroup = 'kids';
+  } else if (query.includes('family')) {
+    entities.ageGroup = 'family';
+  } else if (query.includes('toddler')) {
+    entities.ageGroup = 'toddler';
+  }
+  
+  return entities;
+}
+
+// Helper to get router for intent
+export function getRouterForIntent(intent: IntentType): string {
+  switch (intent) {
+    case 'SHOP': return '/api/shop/search';
+    case 'CINEMA': return '/api/cinema/search';
+    case 'STREAMING': return '/api/streaming/search';
+    case 'ATTRACTIONS': return '/api/attractions/search';
+    case 'HOTELS': return '/api/hotels/search';
+    case 'HYBRID': return '/api/hybrid/search';
+    default: return '/api/shop/search';
+  }
+}
+Step 3: Create Master Search Endpoint
+Update server/routes.ts to add a unified search entry point:
+typescriptimport { classifyIntent, getRouterForIntent } from './intentClassifier';
+
+// Master search endpoint - classifies intent first, then routes
+app.post('/api/search', async (req, res) => {
+  const { query } = req.body;
+  
+  if (!query) {
+    return res.status(400).json({ error: 'Query required' });
+  }
+  
+  // Step 1: Classify intent
+  const intent = classifyIntent(query);
+  console.log(`[Search] Query: "${query}" → Intent: ${intent.primary} (${intent.confidence}% confidence)`);
+  console.log(`[Search] Triggers: ${intent.triggers.join(', ')}`);
+  console.log(`[Search] Entities:`, intent.extractedEntities);
+  
+  // Step 2: Route to appropriate handler
+  try {
+    let results;
+    
+    switch (intent.primary) {
+      case 'SHOP':
+        results = await handleShopSearch(query, intent);
+        break;
+      case 'CINEMA':
+        results = await handleCinemaSearch(query, intent);
+        break;
+      case 'STREAMING':
+        results = await handleStreamingSearch(query, intent);
+        break;
+      case 'ATTRACTIONS':
+        results = await handleAttractionsSearch(query, intent);
+        break;
+      case 'HOTELS':
+        results = await handleHotelsSearch(query, intent);
+        break;
+      case 'HYBRID':
+        results = await handleHybridSearch(query, intent);
+        break;
+      default:
+        results = await handleShopSearch(query, intent);
+    }
+    
+    res.json({
+      query,
+      intent,
+      results
+    });
+  } catch (error) {
+    console.error('[Search] Error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Handler functions (implement as APIs become available)
+async function handleShopSearch(query: string, intent: IntentResult) {
+  // Existing product search logic
+  // Use intent.extractedEntities for character, age filtering
+  return { type: 'SHOP', products: [] }; // Replace with actual search
+}
+
+async function handleCinemaSearch(query: string, intent: IntentResult) {
+  // Cinema API integration
+  return { 
+    type: 'CINEMA',
+    message: 'Cinema search coming soon',
+    character: intent.extractedEntities.character,
+    location: intent.extractedEntities.location,
+    date: intent.extractedEntities.date
+  };
+}
+
+async function handleStreamingSearch(query: string, intent: IntentResult) {
+  // Streaming availability check
+  return {
+    type: 'STREAMING',
+    message: 'Streaming search coming soon',
+    character: intent.extractedEntities.character
+  };
+}
+
+async function handleAttractionsSearch(query: string, intent: IntentResult) {
+  // Attractions/Kids Pass API
+  return {
+    type: 'ATTRACTIONS',
+    message: 'Attractions search coming soon',
+    location: intent.extractedEntities.location,
+    date: intent.extractedEntities.date
+  };
+}
+
+async function handleHotelsSearch(query: string, intent: IntentResult) {
+  // Hotels API
+  return {
+    type: 'HOTELS',
+    message: 'Hotels search coming soon',
+    location: intent.extractedEntities.location,
+    date: intent.extractedEntities.date
+  };
+}
+
+async function handleHybridSearch(query: string, intent: IntentResult) {
+  // Return results from multiple intents
+  const shopResults = await handleShopSearch(query, intent);
+  
+  let secondaryResults = null;
+  if (intent.secondary === 'CINEMA') {
+    secondaryResults = await handleCinemaSearch(query, intent);
+  } else if (intent.secondary === 'ATTRACTIONS') {
+    secondaryResults = await handleAttractionsSearch(query, intent);
+  }
+  
+  return {
+    type: 'HYBRID',
+    primary: shopResults,
+    secondary: secondaryResults
+  };
+}
+Step 4: Test Cases
+Create scripts/test-intent-classifier.ts:
+typescriptimport { classifyIntent } from '../server/intentClassifier';
+
+const testQueries = [
+  // SHOP intent
+  { query: 'paw patrol toys', expected: 'SHOP' },
+  { query: 'frozen doll', expected: 'SHOP' },
+  { query: 'lego for 5 year old', expected: 'SHOP' },
+  { query: 'birthday present', expected: 'SHOP' },
+  { query: 'stocking fillers under 10 pounds', expected: 'SHOP' },
+  
+  // CINEMA intent
+  { query: 'cinema near me', expected: 'CINEMA' },
+  { query: 'paddington movie times', expected: 'CINEMA' },
+  { query: 'what films are showing', expected: 'CINEMA' },
+  { query: 'odeon kids films', expected: 'CINEMA' },
+  { query: 'frozen 3 showtimes', expected: 'CINEMA' },
+  
+  // STREAMING intent
+  { query: 'watch paw patrol at home', expected: 'STREAMING' },
+  { query: 'frozen on disney plus', expected: 'STREAMING' },
+  { query: 'family movie night ideas', expected: 'STREAMING' },
+  { query: 'what to watch on netflix kids', expected: 'STREAMING' },
+  { query: 'is encanto on amazon prime', expected: 'STREAMING' },
+  
+  // ATTRACTIONS intent
+  { query: 'days out near me', expected: 'ATTRACTIONS' },
+  { query: 'theme parks for kids', expected: 'ATTRACTIONS' },
+  { query: 'zoo near london', expected: 'ATTRACTIONS' },
+  { query: 'soft play near me', expected: 'ATTRACTIONS' },
+  { query: 'things to do half term', expected: 'ATTRACTIONS' },
+  
+  // HOTELS intent
+  { query: 'family hotel london', expected: 'HOTELS' },
+  { query: 'weekend away with kids', expected: 'HOTELS' },
+  { query: 'holiday cottages', expected: 'HOTELS' },
+  { query: 'kids stay free hotels', expected: 'HOTELS' },
+  
+  // HYBRID intent
+  { query: 'frozen toys and cinema', expected: 'HYBRID' },
+  { query: 'paw patrol days out and gifts', expected: 'HYBRID' },
+  
+  // Ambiguous (should default to SHOP)
+  { query: 'frozen', expected: 'SHOP' },
+  { query: 'paw patrol', expected: 'SHOP' },
+  { query: 'spiderman', expected: 'SHOP' }
+];
+
+console.log('INTENT CLASSIFIER TEST RESULTS\n');
+console.log('='.repeat(80));
+
+let passed = 0;
+let failed = 0;
+
+for (const test of testQueries) {
+  const result = classifyIntent(test.query);
+  const status = result.primary === test.expected ? '✅ PASS' : '❌ FAIL';
+  
+  if (result.primary === test.expected) {
+    passed++;
+  } else {
+    failed++;
+  }
+  
+  console.log(`${status} | "${test.query}"`);
+  console.log(`       Expected: ${test.expected} | Got: ${result.primary} (${result.confidence}%)`);
+  if (result.triggers.length > 0) {
+    console.log(`       Triggers: ${result.triggers.join(', ')}`);
+  }
+  if (Object.keys(result.extractedEntities).length > 0) {
+    console.log(`       Entities:`, result.extractedEntities);
+  }
+  console.log('');
+}
+
+console.log('='.repeat(80));
+console.log(`TOTAL: ${passed}/${testQueries.length} passed (${Math.round(passed/testQueries.length*100)}%)`);
+Step 5: Update Documentation
+Add to CRITICAL_FIXES.md:
+markdown### Fix #49 - Intent Classification System
+**Date:** [TODAY]
+**Problem:** All queries went to product search. No way to handle cinema, streaming, attractions, hotels.
+**Solution:** Created intent classifier that detects query intent BEFORE searching:
+- SHOP: Product search (affiliate links)
+- CINEMA: Movie times (booking links)
+- STREAMING: Watch at home (platform links)
+- ATTRACTIONS: Days out (Kids Pass venues)
+- HOTELS: Family stays (booking links)
+- HYBRID: Multiple intents detected
+
+**Files:**
+- `shared/intents.ts` - Intent types and interfaces
+- `server/intentClassifier.ts` - Classification logic with trigger words
+- `server/routes.ts` - Master `/api/search` endpoint that routes by intent
+- `scripts/test-intent-classifier.ts` - Test cases
+
+**Trigger examples:**
+- "paw patrol toys" → SHOP
+- "cinema near me" → CINEMA
+- "watch frozen at home" → STREAMING
+- "theme parks near london" → ATTRACTIONS
+- "family hotel manchester" → HOTELS
+
+**Test:** Run `npx tsx scripts/test-intent-classifier.ts`
+After building, run the test script and show me results. Target: 90%+ correct intent classification.
