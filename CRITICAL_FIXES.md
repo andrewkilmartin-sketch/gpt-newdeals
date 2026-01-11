@@ -391,8 +391,9 @@ OR just redeploy - the code now has ILIKE fallbacks that will work without the c
 | **Root Cause 1** | `applyDiversityConstraints` hard-coded max 3 per brand; Decathlon had 7+ products, only 3 kept |
 | **Root Cause 2** | `isAgeAppropriate` marked "Adult Badminton Racket" as age 13+ due to "adult" keyword |
 | **Fix Part 1** | Progressive brand limit relaxation in `applyDiversityConstraints`: 3 → 5 → unlimited |
-| **Fix Part 2** | Added `isSportEquipment` regex check to skip "adult" keyword for sport categories |
-| **Sport Keywords** | badminton, tennis, racket, racquet, golf, swimming, cycling, running, fitness, sport |
+| **Fix Part 2** | Added tightened `isSportEquipment` check: ONLY equipment words, NOT apparel |
+| **Equipment Words** | racket, racquet, shuttlecock, net set, badminton net, tennis net, golf club, cricket bat |
+| **Apparel Exclusions** | shoe, trainer, hoodie, jacket, shorts, shirt, legging, sock, clothing, wear |
 | **File** | `server/services/queryParser.ts` lines 327-343 (age filter), 413-458 (diversity) |
 | **Test Query** | `badminton set` → **8 results**: 2 Sets, 3 Rackets, 3 Nets (includes Adult Racket) |
 | **Result** | Sport equipment queries now return full product range; "adult" sizing not filtered |

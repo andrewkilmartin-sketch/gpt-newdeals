@@ -321,8 +321,13 @@ export function isAgeAppropriate(product: any, parsed: ParsedQuery): boolean {
   }
 
   // Category-based age inference
-  // FIX #41: Skip "adult" keyword for sport equipment (refers to size, not age)
-  const isSportEquipment = /badminton|tennis|racket|racquet|golf|swimming|cycling|running|fitness|sport/i.test(productText);
+  // FIX #41: Skip "adult" keyword ONLY for sport equipment (rackets, nets, clubs) - NOT apparel/shoes
+  // Must have actual equipment keyword, not just sport activity name
+  const SPORT_EQUIPMENT_WORDS = ['racket', 'racquet', 'shuttlecock', 'net set', 'badminton net', 'tennis net', 'golf club', 'golf bag', 'cricket bat', 'hockey stick'];
+  const APPAREL_WORDS = ['shoe', 'trainer', 'hoodie', 'jacket', 'shorts', 'shirt', 't-shirt', 'legging', 'sock', 'clothing', 'wear', 'outfit'];
+  const hasEquipmentWord = SPORT_EQUIPMENT_WORDS.some(w => productText.includes(w));
+  const hasApparelWord = APPAREL_WORDS.some(w => productText.includes(w));
+  const isSportEquipment = hasEquipmentWord && !hasApparelWord;
   
   if (productText.includes('duplo')) {
     productAgeMin = 1;
