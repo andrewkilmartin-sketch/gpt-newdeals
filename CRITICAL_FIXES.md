@@ -6,6 +6,40 @@
 
 ## LATEST FIXES
 
+### 70-71. Learning System Foundation (2026-01-11) - FIXED ✅
+
+| Fix # | Problem | Solution | Result |
+|-------|---------|----------|--------|
+| **70** | Audit ran 1,700 queries but only 5 cached in verified_results | Auto-cache PASS results during bulk audit | Passing queries now auto-saved for cache lookup |
+| **71** | shopv2.tsx had no click tracking (0 rows in click_logs) | Added trackAndRedirect() function | "Buy Now" clicks now logged for learning |
+
+**Auto-Cache Logic (Fix #70):**
+```javascript
+// In audit.ts runSingleQuery(), after determining PASS verdict:
+if (verdict === 'PASS' && products.length >= 3) {
+  await db.insert(verifiedResults).values({
+    query: normalizedQuery,
+    verifiedProductIds: JSON.stringify(products.slice(0, 10).map(p => p.id)),
+    verifiedProductNames: JSON.stringify(products.slice(0, 10).map(p => p.name)),
+    verifiedBy: 'audit-bot',
+    confidence: 'auto'
+  }).onConflictDoNothing();
+}
+```
+**File:** `server/routes/audit.ts` lines 592-611
+
+**Click Tracking (Fix #71):**
+- Added `getSessionId()`, `detectDevice()`, `trackAndRedirect()` to shopv2.tsx
+- Button now calls `/api/track/click` before redirecting to affiliate URL
+- **File:** `client/src/pages/shopv2.tsx` lines 7-24, 108-150, 472-480
+
+**Why These Matter:**
+- Cache grows automatically with each audit run
+- Click data teaches us which results users actually want
+- Breaks the "fix one thing, break another" loop with data-driven learning
+
+---
+
 ### 67-69. Global Search Quality Fixes (2026-01-11) - FIXED ✅
 
 | Fix # | Problem | Solution | Result |

@@ -1,9 +1,28 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search, ShoppingBag, ExternalLink, Loader2, X, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+// FIX #71: Click tracking utilities (copied from shop.tsx)
+function getSessionId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  let sessionId = localStorage.getItem('sunny_session_id');
+  if (!sessionId) {
+    sessionId = 'sess_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    localStorage.setItem('sunny_session_id', sessionId);
+  }
+  return sessionId;
+}
+
+function detectDevice(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  const ua = navigator.userAgent;
+  if (/mobile/i.test(ua)) return 'mobile';
+  if (/tablet/i.test(ua)) return 'tablet';
+  return 'desktop';
+}
 
 interface Product {
   id: string;
@@ -82,6 +101,50 @@ export default function ShopV2Search() {
   const [currentOffset, setCurrentOffset] = useState(0);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
+  
+  // FIX #71: Track page load time for click analytics
+  const pageLoadTime = useRef<number>(Date.now());
+  
+  useEffect(() => {
+    pageLoadTime.current = Date.now();
+  }, [searchQuery]);
+  
+  // FIX #71: Click tracking function (copied from shop.tsx)
+  const trackAndRedirect = (
+    product: Product,
+    position: number,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e.preventDefault();
+    
+    const trackingData = JSON.stringify({
+      session_id: getSessionId(),
+      query: searchQuery || '',
+      product_id: product.id,
+      product_name: product.name,
+      product_price: product.price,
+      product_merchant: product.merchant,
+      position: position + 1,
+      products_shown_count: products.length,
+      products_shown_ids: products.map(p => p.id),
+      time_on_page_ms: Date.now() - pageLoadTime.current,
+      destination_url: product.affiliateLink,
+      device_type: detectDevice()
+    });
+    
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track/click', new Blob([trackingData], { type: 'application/json' }));
+    } else {
+      fetch('/api/track/click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: trackingData,
+        keepalive: true
+      }).catch(() => {});
+    }
+    
+    window.open(product.affiliateLink, '_blank', 'noopener,noreferrer');
+  };
 
   const performSearch = async (searchText: string, appliedFilters: ActiveFilters = {}, offset = 0) => {
     if (!searchText.trim()) return;
@@ -403,18 +466,15 @@ export default function ShopV2Search() {
                         )}
                       </div>
                       
-                      <a
-                        href={product.affiliateLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Button 
+                        className="w-full bg-emerald-600 hover:bg-emerald-700" 
+                        size="sm"
                         data-testid={`link-buy-${product.id}`}
-                        className="block"
+                        onClick={(e) => trackAndRedirect(product, index, e)}
                       >
-                        <Button className="w-full bg-emerald-600 hover:bg-emerald-700" size="sm">
-                          Buy Now
-                          <ExternalLink className="w-3 h-3 ml-1" />
-                        </Button>
-                      </a>
+                        Buy Now
+                        <ExternalLink className="w-3 h-3 ml-1" />
+                      </Button>
                     </div>
                     
                     {product.brand && product.brand !== product.merchant && (

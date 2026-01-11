@@ -586,6 +586,27 @@ export function registerAuditRoutes(app: Express): void {
           const finalScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 70;
           const verdict = finalScore >= 70 ? 'PASS' : finalScore >= 40 ? 'PARTIAL' : 'FAIL';
           
+          // FIX #70: Auto-cache PASS results to verified_results table
+          if (verdict === 'PASS' && products.length >= 3) {
+            try {
+              const { db } = await import('../db');
+              const { verifiedResults } = await import('@shared/schema');
+              const normalizedQuery = query.toLowerCase().trim();
+              
+              await db.insert(verifiedResults).values({
+                query: normalizedQuery,
+                verifiedProductIds: JSON.stringify(products.slice(0, 10).map((p: any) => p.id)),
+                verifiedProductNames: JSON.stringify(products.slice(0, 10).map((p: any) => p.name)),
+                verifiedBy: 'audit-bot',
+                confidence: 'auto'
+              }).onConflictDoNothing();
+              
+              console.log(`[Audit Cache] Saved verified results for "${normalizedQuery}"`);
+            } catch (cacheError) {
+              console.error(`[Audit Cache] Failed to cache "${query}":`, cacheError);
+            }
+          }
+          
           return {
             query,
             index,
