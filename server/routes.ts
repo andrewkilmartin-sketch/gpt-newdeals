@@ -679,6 +679,169 @@ function deduplicateResults(results: any[]): any[] {
   return deduplicated;
 }
 
+// =============================================================================
+// FIX #67: GLOBAL SKU DEDUPLICATION - Keep cheapest price when same product from multiple merchants
+// Matches products by SKU in brackets like "(5002111)" or by 90%+ name similarity
+// =============================================================================
+function extractSKU(name: string): string | null {
+  if (!name) return null;
+  // Match numbers in brackets like (5002111), (43265), etc.
+  const match = name.match(/\((\d{4,})\)/);
+  return match ? match[1] : null;
+}
+
+function normalizeProductName(name: string): string {
+  if (!name) return '';
+  // Remove SKU, price info, size info, and normalize
+  return name.toLowerCase()
+    .replace(/\(\d{4,}\)/g, '')  // Remove SKU
+    .replace(/£[\d.]+/g, '')     // Remove prices
+    .replace(/\d+\s*(cm|mm|inch|"|')/gi, '')  // Remove sizes
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function similarNames(a: string, b: string): boolean {
+  const normA = normalizeProductName(a);
+  const normB = normalizeProductName(b);
+  if (!normA || !normB) return false;
+  
+  // Check if one contains the other (90%+ overlap)
+  if (normA.length > 10 && normB.length > 10) {
+    const shorter = normA.length < normB.length ? normA : normB;
+    const longer = normA.length < normB.length ? normB : normA;
+    
+    // If shorter name is 90%+ contained in longer name
+    if (longer.includes(shorter) && shorter.length >= longer.length * 0.8) {
+      return true;
+    }
+  }
+  
+  // Exact match after normalization
+  return normA === normB;
+}
+
+function deduplicateBySKU(results: any[]): any[] {
+  // Group by SKU or similar name
+  const groups = new Map<string, any[]>();
+  const noSKU: any[] = [];
+  
+  for (const r of results) {
+    const sku = extractSKU(r.name);
+    if (sku) {
+      const existing = groups.get(sku) || [];
+      existing.push(r);
+      groups.set(sku, existing);
+    } else {
+      noSKU.push(r);
+    }
+  }
+  
+  // For each SKU group, keep only the cheapest
+  const deduplicated: any[] = [];
+  for (const [sku, items] of groups) {
+    if (items.length === 1) {
+      deduplicated.push(items[0]);
+    } else {
+      // Sort by price ascending, keep cheapest
+      items.sort((a, b) => (parseFloat(a.price) || 999999) - (parseFloat(b.price) || 999999));
+      const cheapest = items[0];
+      console.log(`[Fix #67 SKU Dedup] Kept ${cheapest.merchant} at £${cheapest.price} for SKU (${sku}), removed ${items.length - 1} more expensive options`);
+      deduplicated.push(cheapest);
+    }
+  }
+  
+  // For non-SKU items, check for similar names and keep cheapest
+  const processedNoSKU: any[] = [];
+  const dominated = new Set<number>();
+  
+  for (let i = 0; i < noSKU.length; i++) {
+    if (dominated.has(i)) continue;
+    
+    let cheapestIdx = i;
+    let cheapestPrice = parseFloat(noSKU[i].price) || 999999;
+    
+    for (let j = i + 1; j < noSKU.length; j++) {
+      if (dominated.has(j)) continue;
+      
+      if (similarNames(noSKU[i].name, noSKU[j].name)) {
+        const priceJ = parseFloat(noSKU[j].price) || 999999;
+        if (priceJ < cheapestPrice) {
+          dominated.add(cheapestIdx);
+          cheapestIdx = j;
+          cheapestPrice = priceJ;
+          console.log(`[Fix #67 Name Dedup] Kept ${noSKU[j].merchant} at £${noSKU[j].price}, removed ${noSKU[i].merchant} at £${noSKU[i].price}`);
+        } else {
+          dominated.add(j);
+          console.log(`[Fix #67 Name Dedup] Kept ${noSKU[cheapestIdx].merchant} at £${noSKU[cheapestIdx].price}, removed ${noSKU[j].merchant} at £${noSKU[j].price}`);
+        }
+      }
+    }
+    
+    // Mark the retained item as processed to avoid re-adding
+    dominated.add(cheapestIdx);
+    processedNoSKU.push(noSKU[cheapestIdx]);
+  }
+  
+  return [...deduplicated, ...processedNoSKU];
+}
+
+// =============================================================================
+// FIX #68: GLOBAL PRICE SORTING - Sort results by price ascending (cheapest first)
+// =============================================================================
+function sortByPrice(results: any[]): any[] {
+  return [...results].sort((a, b) => {
+    const priceA = parseFloat(a.price) || 999999;
+    const priceB = parseFloat(b.price) || 999999;
+    return priceA - priceB;
+  });
+}
+
+// =============================================================================
+// FIX #69: GLOBAL NON-PRODUCT EXCLUSION - Remove books, DVDs, posters when searching for toys/sets
+// =============================================================================
+const NON_PRODUCT_EXCLUSIONS = [
+  'book', 'notebook', 'pocket book', 'diary', 'journal', 'calendar', 'annual', 'storybook',
+  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd', 'includes blu',
+  'poster', 'print', 'wall art', 'sticker', 'decal', 'canvas',
+  'costume', 'fancy dress', 'pyjama', 'pajama', 't-shirt', 'tshirt', 'hoodie', 'sweatshirt'
+];
+
+// Words that trigger non-product exclusion
+const PRODUCT_INTENT_WORDS = ['set', 'sets', 'toy', 'toys', 'kit', 'kits', 'playset', 'figure', 'figures'];
+
+function hasProductIntent(query: string): boolean {
+  const q = query.toLowerCase();
+  return PRODUCT_INTENT_WORDS.some(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'i');
+    return regex.test(q);
+  });
+}
+
+function filterNonProducts(results: any[], query: string): any[] {
+  if (!hasProductIntent(query)) {
+    return results; // Only apply filter when user wants physical products
+  }
+  
+  return results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    
+    // Check if this is a non-product (book, DVD, poster, etc.)
+    const isNonProduct = NON_PRODUCT_EXCLUSIONS.some(exclusion => {
+      const regex = new RegExp(`\\b${exclusion}\\b`, 'i');
+      return regex.test(name) || regex.test(category);
+    });
+    
+    if (isNonProduct) {
+      console.log(`[Fix #69 Non-Product] Excluded: "${r.name?.substring(0, 50)}..." (category: ${category})`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
 // PHASE 2: Apply merchant caps - max 2 results per merchant
 function applyMerchantCaps(results: any[], maxPerMerchant: number = 2): any[] {
   const merchantCounts: { [key: string]: number } = {};
@@ -6261,6 +6424,35 @@ ONLY use IDs from the list. Never invent IDs.`
         if (parsedQuery.character) filterReasons.push(`character=${parsedQuery.character}`);
         if (parsedQuery.priceMax) filterReasons.push(`price≤£${parsedQuery.priceMax}`);
         console.log(`[Shop Search] Age/Context filter: ${preAgeFilterCount} → ${selectedProducts.length} (${filterReasons.join(', ')})`);
+      }
+
+      // =============================================================================
+      // GLOBAL FIXES #67-69: Apply AFTER all other filters, BEFORE final return
+      // =============================================================================
+      
+      // Fix #69: Filter out non-products (books, DVDs, posters) for toy/set searches
+      const preNonProductCount = selectedProducts.length;
+      selectedProducts = filterNonProducts(selectedProducts, query);
+      if (selectedProducts.length < preNonProductCount) {
+        console.log(`[Fix #69] Non-product filter: ${preNonProductCount} → ${selectedProducts.length}`);
+      }
+      
+      // Fix #67: Deduplicate by SKU - keep cheapest when same product from multiple merchants
+      const preSkuDedupCount = selectedProducts.length;
+      selectedProducts = deduplicateBySKU(selectedProducts);
+      if (selectedProducts.length < preSkuDedupCount) {
+        console.log(`[Fix #67] SKU deduplication: ${preSkuDedupCount} → ${selectedProducts.length}`);
+      }
+      
+      // Fix #68: Sort by price ascending (cheapest first) - but NOT for quality intent queries
+      // Quality intent queries like "best toys", "premium gifts", "luxury" should prioritize quality over price
+      // Uses the global hasQualityIntent() function which covers: best, top, quality, premium, timeless, 
+      // heirloom, investment, luxury, high end, well made, durable, recommended, popular, trending, must have, essential
+      if (!hasQualityIntent(query)) {
+        selectedProducts = sortByPrice(selectedProducts);
+        console.log(`[Fix #68] Sorted by price (cheapest first)`);
+      } else {
+        console.log(`[Fix #68] SKIPPED price sort - quality intent detected in: "${query}"`);
       }
 
       const hasMore = (safeOffset + selectedProducts.length) < totalCandidates;

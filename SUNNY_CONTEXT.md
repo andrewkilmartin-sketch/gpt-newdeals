@@ -445,9 +445,9 @@ At the end of EVERY work session, update this document with:
 ## Document Maintenance
 
 **Last Updated:** 2026-01-11
-**Fixes Logged:** #1-66
-**Pass Rate:** 83%+ (500-query audit) - now with correct toy category filtering
-**Next Priority:** Railway stability monitoring, run regression tests, hit 90% pass rate
+**Fixes Logged:** #1-69
+**Pass Rate:** 83%+ (500-query audit) - with SKU deduplication, price sorting, and non-product filtering
+**Next Priority:** Railway stability monitoring, run full audit, hit 90% pass rate
 
 ---
 
@@ -459,15 +459,18 @@ At the end of EVERY work session, update this document with:
 - Fix #64: Media exclusion filter (DVDs/Blu-rays excluded from toy/gift searches)
 - Fix #65: Variety-aware merchant cap relaxation (check 4+ merchants before relaxing)
 - Fix #66: Toy category filter - "Disney toys £15-25" now returns actual toys (LEGO, puzzles, dolls) instead of T-shirts
+- Fix #67: Global SKU deduplication - keeps cheapest price when same product from multiple merchants
+- Fix #68: Global price sorting - results sorted by cheapest first
+- Fix #69: Global non-product exclusion - books/DVDs/posters filtered from toy/set searches
 
 **Broke:**
 - None
 
 **Tests Passed:**
-- "Disney toys £15-25" → LEGO Disney Frozen Castle, puzzles, dolls (6+ merchants)
+- "LEGO sets" → Actual LEGO sets, no books, sorted by price (£12.99 first)
+- "LEGO Friends pocket book" → Only 1 result at £5.49 (was 2 duplicates before)
+- "Disney toys £15-25" → Puzzles, LEGO at £15.99, £17.99 (sorted by price)
 - "Disney t-shirt" → Still returns T-shirts (didn't break clothing search)
-- "Paw Patrol toys" → Returns puzzles and games
-- "school shoes size 10" → Still returns shoes
 
 **Next Priorities:**
 1. Deploy to Railway and verify stability

@@ -6,6 +6,36 @@
 
 ## LATEST FIXES
 
+### 67-69. Global Search Quality Fixes (2026-01-11) - FIXED ✅
+
+| Fix # | Problem | Solution | Result |
+|-------|---------|----------|--------|
+| **67** | Same product from multiple merchants (duplicate SKUs) | Extract SKU from brackets like (5002111), keep cheapest price | "LEGO Friends Mini Pocket Book" shows once at £5.49 instead of twice |
+| **68** | Results not sorted by value | Sort all results by price ascending (cheapest first) | Best deals appear at top of results |
+| **69** | Books/DVDs/posters in toy searches | Global exclusion list for non-products when query contains "set", "sets", "toy", "toys" | "LEGO sets" returns actual LEGO sets, not pocket books |
+
+**SKU Deduplication Logic (Fix #67):**
+```javascript
+function extractSKU(name) {
+  const match = name.match(/\((\d{4,})\)/); // Match 4+ digit numbers in brackets
+  return match ? match[1] : null;
+}
+
+// Group by SKU, keep cheapest from each group
+```
+
+**Non-Product Exclusions (Fix #69):**
+```javascript
+const NON_PRODUCT_EXCLUSIONS = [
+  'book', 'notebook', 'pocket book', 'diary', 'journal', 'calendar', 'annual',
+  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd',
+  'poster', 'print', 'wall art', 'sticker', 'decal', 'canvas',
+  'costume', 'fancy dress', 'pyjama', 't-shirt', 'hoodie', 'sweatshirt'
+];
+```
+
+---
+
 ### 66. Toy Category Filter - Disney Toys Query Fix (2026-01-11) - FIXED ✅
 
 | Aspect | Details |
