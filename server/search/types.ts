@@ -62,4 +62,8 @@ export type QueryIntent =
   | 'MOVIE_NIGHT'
   | 'NIGHTS_IN'
   | 'TIPS'
-  | 'GENERAL';
+  | 'GENERAL'
+  | 'GAMING'
+  | 'ENTERTAINMENT'
+  | 'PARTY'
+  | 'BOOKS';

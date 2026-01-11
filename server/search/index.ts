@@ -25,3 +25,4 @@ export * from './promotions';
 export * from './cache';
 export * from './categories';
 export * from './interpreter';
+export * from './utilities';
