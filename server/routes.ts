@@ -1119,6 +1119,57 @@ function filterForToyContext(results: any[]): any[] {
 }
 
 // =============================================================================
+// Fix #64: MEDIA EXCLUSION FILTER - Exclude DVDs/Blu-rays from toy/gift queries
+// When user searches for "toys" or "gifts", filter out physical media
+// See CRITICAL_FIXES.md - Fix #64
+// =============================================================================
+const MEDIA_EXCLUSIONS = [
+  'dvd', 'blu-ray', 'bluray', '4k ultra', 'ultra hd', 'includes blu',
+  '(blu-ray)', '(dvd)', 'movie disc', 'disc set'
+];
+
+const MEDIA_QUERY_TRIGGERS = ['toy', 'toys', 'gift', 'gifts', 'present', 'presents', 'figure', 'figures', 'doll', 'dolls'];
+
+function hasMediaExclusionContext(query: string): boolean {
+  const q = query.toLowerCase();
+  // Only exclude media when user is searching for toys/gifts, not general merchandise
+  return MEDIA_QUERY_TRIGGERS.some(trigger => {
+    const regex = new RegExp(`\\b${trigger}\\b`, 'i');
+    return regex.test(q);
+  });
+}
+
+function filterMediaFromToyQueries(results: any[], query: string): any[] {
+  if (!hasMediaExclusionContext(query)) return results;
+  
+  const filtered = results.filter(r => {
+    const name = (r.name || '').toLowerCase();
+    const category = (r.category || '').toLowerCase();
+    
+    // Check if this is media content (DVD, Blu-ray, etc.)
+    const isMedia = MEDIA_EXCLUSIONS.some(term => name.includes(term)) ||
+                    category.includes('dvd') ||
+                    category.includes('blu-ray') ||
+                    category.includes('film') ||
+                    category.includes('movies');
+    
+    if (isMedia) {
+      console.log(`[Fix #64] Media exclusion: "${r.name?.substring(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+  
+  // SAFETY: If filtering removed ALL results, return original
+  if (filtered.length === 0 && results.length > 0) {
+    console.log(`[Fix #64] All results were media, keeping original`);
+    return results;
+  }
+  
+  return filtered;
+}
+
+// =============================================================================
 // Fix #36: WATER GUN CONTEXT FILTER - Exclude bouncy castles for water gun queries
 // When user searches for "water gun", they want standalone water pistols/super soakers
 // NOT bouncy castles that happen to have water guns attached
@@ -1715,6 +1766,13 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
     console.log(`[Fix #47] Craft supply filter: ${preCraftCount} → ${filtered.length} for: "${query}"`);
   }
   
+  // Fix #64: Exclude DVDs/Blu-rays from toy/gift queries
+  const preMediaCount = filtered.length;
+  filtered = filterMediaFromToyQueries(filtered, query);
+  if (filtered.length < preMediaCount) {
+    console.log(`[Fix #64] Media exclusion filter: ${preMediaCount} → ${filtered.length} for: "${query}"`);
+  }
+  
   // P1 BUG 4 FIX: Costume context - exclude t-shirts/hoodies for costume queries
   if (hasCostumeContext(query)) {
     console.log(`[Search Quality] Applying costume context filters for: "${query}"`);
@@ -1739,18 +1797,29 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
     console.log(`[Word Boundary] Filtered ${preBoundaryCount} → ${filtered.length} for: "${query}"`);
   }
   
-  // Fix #30 + Fix #40: Apply merchant caps with aggressive relaxation
+  // Fix #30 + Fix #40 + Fix #65: Apply merchant caps with variety-aware relaxation
   // Target 8-10 results - raise cap if merchant dominance is reducing variety
+  // Fix #65: Count unique merchants BEFORE relaxing - if we have 4+ merchants, maintain strict cap
   const TARGET_MIN_RESULTS = 8;
   const preMerchantCapCount = filtered.length;
+  
+  // Count unique merchants in the result set
+  const uniqueMerchants = new Set(filtered.map(r => (r.merchant || 'unknown').toLowerCase()));
+  const merchantCount = uniqueMerchants.size;
   
   // Start with cap of 2 per merchant
   let cappedFiltered = applyMerchantCaps(filtered, 2);
   
-  // FILTER RELAXATION: If merchant cap reduced results too much, progressively raise cap
-  if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
-    // First try cap of 4
-    console.log(`[Filter Relaxation] Merchant cap too aggressive (${cappedFiltered.length} < ${TARGET_MIN_RESULTS}), raising cap to 4`);
+  // Fix #65: Only relax merchant cap if we have LOW merchant diversity (< 4 merchants)
+  // If we have plenty of merchants, the cap is doing its job - enforce variety!
+  const hasGoodMerchantDiversity = merchantCount >= 4;
+  
+  if (hasGoodMerchantDiversity) {
+    console.log(`[Fix #65] Good merchant diversity (${merchantCount} merchants), maintaining strict cap of 2`);
+    // Keep the strict cap - we have variety
+  } else if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
+    // Low merchant diversity - relax cap progressively
+    console.log(`[Filter Relaxation] Low merchant diversity (${merchantCount}), cap too aggressive (${cappedFiltered.length} < ${TARGET_MIN_RESULTS}), raising cap to 4`);
     cappedFiltered = applyMerchantCaps(filtered, 4);
     
     // If still below target and we have more results available, try cap of 6
@@ -1759,7 +1828,7 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
       cappedFiltered = applyMerchantCaps(filtered, 6);
     }
     
-    // For equipment/set queries, allow even more from single merchant if needed
+    // For equipment/set queries with truly limited inventory, allow more from single merchant
     if (cappedFiltered.length < TARGET_MIN_RESULTS && preMerchantCapCount > cappedFiltered.length) {
       console.log(`[Filter Relaxation] Removing merchant cap to maximize results (${cappedFiltered.length} → ${preMerchantCapCount})`);
       cappedFiltered = filtered; // No merchant cap - show all results
@@ -5287,19 +5356,45 @@ Format: ["id1", "id2", ...]`
               ...filterConditions
             ];
             
-            // FIX #45g: For toy queries, exclude clothing categories to prevent Toy Story t-shirts
-            // dominating results when searching for actual toys
-            const TOY_RELATED_WORDS = ['toy', 'toys', 'plaything', 'playthings'];
-            const queryIsToyFocused = tsvectorQuery.split(/[&|() ]+/).some(term => 
-              TOY_RELATED_WORDS.includes(term.trim().toLowerCase())
-            );
-            if (queryIsToyFocused) {
-              // Exclude clothing categories - these often contain "Toy Story" merchandise
+            // FIX #45g + Fix #66: For toy queries, PREFER toy categories and exclude clothing
+            // Check ORIGINAL query for toy intent, not just tsvector query
+            // "Disney toys" should search Disney products in Toy categories, not Disney t-shirts
+            const TOY_RELATED_WORDS = ['toy', 'toys', 'plaything', 'playthings', 'figure', 'figures', 'doll', 'dolls', 'playset', 'playsets'];
+            const GIFT_WORDS = ['gift', 'gifts', 'present', 'presents'];
+            const originalQueryLower = query.toLowerCase();
+            
+            // Check if original query (not tsvector) contains toy/gift intent
+            const queryHasToyIntent = TOY_RELATED_WORDS.some(word => {
+              const regex = new RegExp(`\\b${word}\\b`, 'i');
+              return regex.test(originalQueryLower);
+            });
+            const queryHasGiftIntent = GIFT_WORDS.some(word => {
+              const regex = new RegExp(`\\b${word}\\b`, 'i');
+              return regex.test(originalQueryLower);
+            });
+            
+            // Also check GPT-extracted categoryFilter
+            const hasToysCategoryFilter = interpretation?.context?.categoryFilter === 'Toys';
+            
+            // Fix #66: Apply toy category filtering when user explicitly wants toys
+            if (queryHasToyIntent || hasToysCategoryFilter) {
+              // PREFER toy categories - add positive filter for toy-related categories
+              tsvectorConditions.push(sql`(
+                ${products.category} ILIKE '%toy%' OR 
+                ${products.category} ILIKE '%game%' OR 
+                ${products.category} ILIKE '%puzzle%' OR 
+                ${products.category} ILIKE '%figure%' OR 
+                ${products.category} ILIKE '%playset%' OR
+                ${products.category} ILIKE '%doll%'
+              )`);
+              console.log(`[Shop Search] TSVECTOR (Fix #66): Added toy category filter for toy query`);
+            } else if (queryHasGiftIntent) {
+              // For gift queries, just exclude clothing (don't require toy category)
               tsvectorConditions.push(sql`${products.category} NOT ILIKE '%t-shirt%'`);
               tsvectorConditions.push(sql`${products.category} NOT ILIKE '%sweatshirt%'`);
               tsvectorConditions.push(sql`${products.category} NOT ILIKE '%hoodie%'`);
-              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%clothing%'`);
-              console.log(`[Shop Search] TSVECTOR: Added clothing category exclusions for toy query`);
+              tsvectorConditions.push(sql`${products.category} NOT ILIKE '%clothing accessor%'`);
+              console.log(`[Shop Search] TSVECTOR: Added clothing exclusions for gift query`);
             }
             
             if (effectiveMinPrice !== undefined) {

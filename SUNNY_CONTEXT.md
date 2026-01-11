@@ -445,15 +445,37 @@ At the end of EVERY work session, update this document with:
 ## Document Maintenance
 
 **Last Updated:** 2026-01-11
-**Fixes Logged:** #1-63
-**Pass Rate:** 83% (500-query audit)
-**Next Priority:** Railway stability monitoring, hit 90% pass rate
+**Fixes Logged:** #1-66
+**Pass Rate:** 83%+ (500-query audit) - now with correct toy category filtering
+**Next Priority:** Railway stability monitoring, run regression tests, hit 90% pass rate
 
 ---
 
 ## Session Log
 
-### Session: 2026-01-11
+### Session: 2026-01-11 (continued)
+
+**Fixed:**
+- Fix #64: Media exclusion filter (DVDs/Blu-rays excluded from toy/gift searches)
+- Fix #65: Variety-aware merchant cap relaxation (check 4+ merchants before relaxing)
+- Fix #66: Toy category filter - "Disney toys £15-25" now returns actual toys (LEGO, puzzles, dolls) instead of T-shirts
+
+**Broke:**
+- None
+
+**Tests Passed:**
+- "Disney toys £15-25" → LEGO Disney Frozen Castle, puzzles, dolls (6+ merchants)
+- "Disney t-shirt" → Still returns T-shirts (didn't break clothing search)
+- "Paw Patrol toys" → Returns puzzles and games
+- "school shoes size 10" → Still returns shoes
+
+**Next Priorities:**
+1. Deploy to Railway and verify stability
+2. Run 500-query audit to measure new pass rate
+3. Fix remaining LOW_RESULTS (Marvel sub-characters, Barbie accessories)
+4. Hit 90% pass rate target
+
+### Session: 2026-01-11 (early)
 
 **Fixed:**
 - Fix #57: Brand check tsvector optimization (56s → 252ms, 220x speedup)
@@ -466,9 +488,3 @@ At the end of EVERY work session, update this document with:
 - None
 
 **Pass Rate:** 83% (500-query audit) - up from 59.3% baseline
-
-**Next Priorities:**
-1. Deploy to Railway and verify stability
-2. Fix remaining LOW_RESULTS (Marvel sub-characters, Barbie accessories)
-3. Complete full 1,701 query audit
-4. Hit 90% pass rate target

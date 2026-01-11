@@ -6,6 +6,55 @@
 
 ## LATEST FIXES
 
+### 66. Toy Category Filter - Disney Toys Query Fix (2026-01-11) - FIXED ✅
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | "Disney toys £15-25" returned 50 T-shirts instead of actual toys |
+| **Symptom** | User sees clothing items when explicitly searching for "toys" |
+| **Root Cause** | Fix #45g only checked if tsvector query contained "toy", but for "Disney toys" the tsvector query was just "disney" |
+| **Solution** | Check ORIGINAL query for toy intent + GPT categoryFilter, then add positive category filter |
+| **File** | `server/routes.ts` lines 5362-5401 |
+| **Result** | Now returns LEGO toys, puzzles, dolls from 6+ merchants |
+
+**The Fix:**
+```javascript
+// Check ORIGINAL query for toy intent (not just tsvector query)
+const queryHasToyIntent = TOY_RELATED_WORDS.some(word => {
+  const regex = new RegExp(`\\b${word}\\b`, 'i');
+  return regex.test(originalQueryLower);
+});
+const hasToysCategoryFilter = interpretation?.context?.categoryFilter === 'Toys';
+
+// When toy intent detected, add positive category filter
+if (queryHasToyIntent || hasToysCategoryFilter) {
+  tsvectorConditions.push(sql`(
+    ${products.category} ILIKE '%toy%' OR 
+    ${products.category} ILIKE '%game%' OR 
+    ${products.category} ILIKE '%puzzle%' OR 
+    ${products.category} ILIKE '%figure%' OR 
+    ${products.category} ILIKE '%playset%' OR
+    ${products.category} ILIKE '%doll%'
+  )`);
+}
+```
+
+**Tests:**
+- "Disney toys £15-25" → LEGO, puzzles, dolls (PASS)
+- "Disney t-shirt" → Still returns T-shirts (PASS - didn't break)
+- "Paw Patrol toys" → Games and puzzles (PASS)
+
+---
+
+### 64-65. Media Exclusion + Merchant Variety (2026-01-11) - FIXED ✅
+
+| Fix # | Problem | Solution |
+|-------|---------|----------|
+| **64** | DVDs/Blu-rays appearing in toy results | Added MEDIA_EXCLUSIONS filter when query contains toy/gift keywords |
+| **65** | Single merchant dominating results | Check unique merchant count ≥4 before relaxing caps |
+
+---
+
 ### 61-63. Server Stability - Railway Crash Fixes (2026-01-11) - FIXED ✅
 
 | Fix # | Problem | Root Cause | Solution | File |
