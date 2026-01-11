@@ -1,0 +1,66 @@
+Read CRITICAL_FIXES.md and STOP_BLAMING_INVENTORY.md.
+
+Your fix log only shows 20 fixes but we did 69+ today. Most are missing from documentation.
+
+VERIFY EACH OF THESE EXISTS IN CODE. For each one tell me: EXISTS (file + line) or MISSING (needs building):
+
+FIX #31 - Word boundary collisions
+Does WORD_BOUNDARY_COLLISIONS object exist with entries like 'train': ['trainer', 'trainers']?
+
+FIX #32 - Known toy brands  
+Does KNOWN_TOY_BRANDS array exist with 'hot wheels', 'nerf', 'barbie', etc?
+
+FIX #33 - NosiBotanical blocklist
+Is 'nosibotanical' in KNOWN_FALLBACKS or a blocklist array?
+
+FIX #36 - Water gun context filter
+Does WATER_GUN_EXCLUDES array exist with 'bouncy castle', etc?
+
+FIX #38 - Null brand bug
+Is there a check that ignores brand when it equals 'null', 'undefined', or empty string?
+
+FIX #40/#47 - Trimits Toy Eyes blocklist
+Is 'trimits toy eyes', 'wobbly toy eyes', 'safety eyes' in a blocklist?
+
+FIX #43 - Click tracking system
+Run: SELECT COUNT(*) FROM click_logs;
+Does POST /api/track/click endpoint exist?
+Does trackAndRedirect() function exist in frontend?
+
+FIX #45 - Verified results cache
+Run: SELECT COUNT(*) FROM verified_results;
+Does search check this cache BEFORE running algorithm?
+
+FIX #48 - Product value ranking + daily rotation
+Does calculateValueScore() function exist?
+Does applyDailyRotation() function exist?
+
+FIX #49 - Intent classification system
+Does classifyIntent() function exist?
+Does IntentType include SHOP, CINEMA, STREAMING, ATTRACTIONS, HOTELS?
+Is /api/search routing by intent?
+
+FIX #50 - Timeout cap
+Are database queries wrapped with 3-5 second timeout?
+
+FIX #53 - Costume filter
+Why do costume queries return ZERO_RESULTS when products exist?
+
+FIX #54 - Books filter  
+Is there a filter blocking book results incorrectly?
+
+FIX #55 - Pixar/Marvel characters
+Are these in character mappings: nemo, dory, mike wazowski, sulley, groot, rocket, star lord?
+
+FIX #57 - Server stability
+Is there a global error handler preventing crashes?
+Are database connections being released properly?
+
+FIX #60-69 - You logged these, verify they're working
+
+After checking, give me a table:
+| Fix # | Feature | Status | File:Line or MISSING |
+
+Update CRITICAL_FIXES.md with the COMPLETE fix history from #1 to #69.
+
+This is critical - we need to know what's actually built vs just discussed.
