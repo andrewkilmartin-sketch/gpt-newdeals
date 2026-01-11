@@ -4246,6 +4246,81 @@ Format: ["id1", "id2", ...]`
       const hasFilters = filterCategory || filterMerchant || filterBrand || filterMinPrice !== undefined || filterMaxPrice !== undefined;
       const openaiKey = process.env.OPENAI_API_KEY;
       
+      // ============================================================================
+      // FIX #48: VERIFIED RESULTS CACHE - Check pre-verified results FIRST
+      // This bypasses all algorithm logic for queries that have been manually verified
+      // ============================================================================
+      if (!hasFilters && offset === 0) {
+        try {
+          const { db } = await import('./db');
+          const { verifiedResults } = await import('@shared/schema');
+          const { eq } = await import('drizzle-orm');
+          
+          const normalizedQuery = query.toLowerCase().trim();
+          const cached = await db.select().from(verifiedResults).where(eq(verifiedResults.query, normalizedQuery)).limit(1);
+          
+          if (cached.length > 0 && cached[0].verifiedProductIds) {
+            console.log(`[Shop Search] CACHE HIT: Returning verified results for "${query}"`);
+            
+            const productIds = JSON.parse(cached[0].verifiedProductIds);
+            const productNames = cached[0].verifiedProductNames ? JSON.parse(cached[0].verifiedProductNames) : [];
+            
+            // Fetch the actual products by ID
+            const { products } = await import('@shared/schema');
+            const { inArray } = await import('drizzle-orm');
+            
+            const cachedProducts = await db.select({
+              id: products.id,
+              name: products.name,
+              description: products.description,
+              price: products.price,
+              merchant: products.merchant,
+              brand: products.brand,
+              category: products.category,
+              affiliateLink: products.affiliateLink,
+              imageUrl: products.imageUrl,
+              inStock: products.inStock
+            }).from(products).where(inArray(products.id, productIds)).limit(safeLimit);
+            
+            // Sort by original verified order
+            const sortedProducts = productIds.slice(0, safeLimit).map((id: string) => 
+              cachedProducts.find(p => p.id === id)
+            ).filter(Boolean);
+            
+            const responseProducts = sortedProducts.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              description: (p.description || '').substring(0, 200),
+              price: parseFloat(String(p.price)) || 0,
+              currency: 'GBP',
+              merchant: p.merchant,
+              brand: p.brand,
+              category: p.category,
+              imageUrl: p.imageUrl,
+              affiliateLink: p.affiliateLink,
+              inStock: p.inStock
+            }));
+            
+            return res.json({
+              success: true,
+              query,
+              count: responseProducts.length,
+              totalCount: productIds.length,
+              hasMore: productIds.length > safeLimit,
+              products: responseProducts,
+              interpretation: {
+                expanded: ['verified'],
+                context: { source: 'cache', verifiedBy: cached[0].verifiedBy, verifiedAt: cached[0].verifiedAt }
+              },
+              cached: true
+            });
+          }
+        } catch (cacheError) {
+          console.log(`[Shop Search] Cache check failed (non-fatal): ${cacheError}`);
+          // Continue with normal search
+        }
+      }
+      
       // MEGA-FIX 10: QUERY PARSING - Extract age, gender, character from query
       // This prevents "toys for newborn" and "toys for teenager" returning identical results
       const parsedQuery: ParsedQuery = parseQuery(query);

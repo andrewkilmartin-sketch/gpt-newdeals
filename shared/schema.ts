@@ -731,7 +731,7 @@ export const verifiedResults = pgTable("verified_results", {
   verifiedProductNames: text("verified_product_names"), // JSON array of product names (for debugging)
   verifiedBy: varchar("verified_by", { length: 100 }),
   verifiedAt: timestamp("verified_at", { withTimezone: true }).defaultNow(),
-  confidence: varchar("confidence", { length: 20 }).default("manual"), // 'manual', 'auto', 'flagged'
+  confidence: varchar("confidence", { length: 20 }), // 'manual', 'auto', 'flagged'
 });
 
 export const insertVerifiedResultSchema = createInsertSchema(verifiedResults).omit({ id: true, verifiedAt: true });
