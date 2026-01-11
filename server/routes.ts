@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { searchQuerySchema } from "@shared/schema";
+import { searchQuerySchema, clickLogs } from "@shared/schema";
 import { fetchAwinProducts, isAwinConfigured, getAllActivePromotions, getPromotionsForMerchant, ProductPromotion } from "./services/awin";
 import { decodeTag, getAgeRange, getCategoryFromTags } from "./data/family-playbook";
 // Note: CSV product feed loading removed - now using PostgreSQL database directly
@@ -10318,6 +10318,114 @@ ONLY use IDs from the list. Never invent IDs.`
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================
+  // CLICK TRACKING SYSTEM - Fix #43
+  // Track product clicks to improve search relevance
+  // ============================================================
+
+  app.post('/api/track/click', async (req, res) => {
+    try {
+      const {
+        session_id,
+        query,
+        product_id,
+        product_name,
+        product_price,
+        product_merchant,
+        position,
+        products_shown_count,
+        products_shown_ids,
+        time_on_page_ms,
+        destination_url,
+        device_type
+      } = req.body;
+
+      await db.insert(clickLogs).values({
+        sessionId: session_id || 'anonymous',
+        query: query || '',
+        productId: product_id || '',
+        productName: product_name || '',
+        productPrice: product_price?.toString() || '0',
+        productMerchant: product_merchant || '',
+        position: position || 0,
+        productsShownCount: products_shown_count || 0,
+        productsShownIds: JSON.stringify(products_shown_ids || []),
+        timeOnPageMs: time_on_page_ms || 0,
+        destinationUrl: destination_url || '',
+        deviceType: device_type || 'unknown'
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('[Click Tracking] Error:', error.message);
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  app.get('/api/track/analysis', async (req, res) => {
+    try {
+      // Queries where users click result #3+ instead of #1 (ranking issues)
+      const rankingIssues = await db.execute(sql.raw(`
+        SELECT query, ROUND(AVG(position)::numeric, 1) as avg_click_position, COUNT(*) as click_count
+        FROM click_logs
+        WHERE position > 2
+        GROUP BY query
+        HAVING COUNT(*) > 5
+        ORDER BY AVG(position) DESC
+        LIMIT 50
+      `));
+
+      // Most clicked products per query (what users actually want)
+      const topChoices = await db.execute(sql.raw(`
+        SELECT query, product_name, COUNT(*) as clicks
+        FROM click_logs
+        GROUP BY query, product_name
+        ORDER BY clicks DESC
+        LIMIT 100
+      `));
+
+      // Products shown 10+ times but never clicked (potential bad results)
+      const neverClicked = await db.execute(sql.raw(`
+        WITH shown_products AS (
+          SELECT query, product_name, COUNT(*) as times_shown
+          FROM click_logs
+          GROUP BY query, product_name
+        ),
+        clicked_products AS (
+          SELECT DISTINCT query, product_name
+          FROM click_logs
+          WHERE position IS NOT NULL AND position > 0
+        )
+        SELECT s.query, s.product_name, s.times_shown
+        FROM shown_products s
+        LEFT JOIN clicked_products c ON s.query = c.query AND s.product_name = c.product_name
+        WHERE c.product_name IS NULL AND s.times_shown >= 5
+        ORDER BY s.times_shown DESC
+        LIMIT 50
+      `));
+
+      // Summary stats
+      const stats = await db.execute(sql.raw(`
+        SELECT 
+          COUNT(*) as total_clicks,
+          COUNT(DISTINCT query) as unique_queries,
+          COUNT(DISTINCT session_id) as unique_sessions,
+          ROUND(AVG(position)::numeric, 2) as avg_click_position
+        FROM click_logs
+      `));
+
+      res.json({
+        stats: (stats as any[])[0] || {},
+        ranking_issues: rankingIssues,
+        top_choices: topChoices,
+        never_clicked: neverClicked
+      });
+    } catch (error: any) {
+      console.error('[Click Analysis] Error:', error.message);
+      res.status(500).json({ error: 'Analysis failed', details: error.message });
     }
   });
 
