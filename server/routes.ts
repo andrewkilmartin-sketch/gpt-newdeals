@@ -1195,8 +1195,10 @@ const COSTUME_NON_WEARABLE_TERMS = [
 ];
 
 // Categories that indicate real costumes/fancy dress
+// FIX #53: Added 'other toys' and 'toys' because dress-up costumes often categorized there
 const COSTUME_POSITIVE_CATEGORIES = [
-  'fancy dress', 'costumes', 'dress up', 'halloween', 'party', 'role play'
+  'fancy dress', 'costumes', 'dress up', 'halloween', 'party', 'role play',
+  'other toys', 'toys', 'general clothing', 'character'
 ];
 
 function hasCostumeContext(query: string): boolean {
@@ -1277,11 +1279,11 @@ const BOOKS_BLOCK_INDICATORS = [
 ];
 
 // Categories that are NOT books
+// FIX #54: Removed 'toys', 'gifts', 'creative' as these often contain activity/sticker books
 const BOOKS_NEGATIVE_CATEGORIES = [
   'bags', 'backpack', 'clothing', 'fashion', 'apparel', 'accessories', 'furniture',
   'shoes', 'footwear', 'boots', 'wellingtons', 'wellies', 'trainers', 'sandals',
-  'toys', 'games', 'puzzles', 'baby products', 'bedding', 'decor',
-  'gifts', 'creative', 'construction', 'soft toy', 'plush', 'dresses', 'skirts',
+  'baby products', 'bedding', 'decor', 'dresses', 'skirts',
   'sale', 'clearance', 'baby clothes', 'audio', 'audio equipment'
 ];
 
@@ -1691,9 +1693,12 @@ function applySearchQualityFilters(results: any[], query: string): any[] {
   }
   
   // P0 BUG 2 FIX: Toy context - exclude clothing for toy/equipment queries
-  if (hasToyContext(query)) {
+  // FIX #53: Skip toy context filter for costume queries - costumes ARE clothing but valid
+  if (hasToyContext(query) && !hasCostumeContext(query)) {
     console.log(`[Search Quality] Applying toy context filters for: "${query}"`);
     filtered = filterForToyContext(filtered);
+  } else if (hasToyContext(query) && hasCostumeContext(query)) {
+    console.log(`[Search Quality] Skipping toy context filter for costume query: "${query}"`);
   }
   
   // Fix #39: Exclude makeup/cosmetics from toy queries (lol dolls should not return NYX makeup)
@@ -4714,16 +4719,19 @@ Format: ["id1", "id2", ...]`
         // Disney/characters
         'disney', 'frozen', 'elsa', 'anna', 'moana', 'encanto', 'mirabel', 'coco', 'luca',
         'toy story', 'woody', 'buzz', 'buzz lightyear', 'finding nemo', 'finding dory',
+        'nemo', 'dory', 'marlin', 'gill', 'crush', 'squirt',  // FIX #55: Finding Nemo individual characters
         'cars', 'lightning mcqueen', 'incredibles', 'monsters inc', 'inside out', 'up',
+        'mike wazowski', 'mike', 'sulley', 'sully', 'boo', 'randall',  // FIX #55: Monsters Inc characters
         'tangled', 'rapunzel', 'cinderella', 'snow white', 'sleeping beauty', 'ariel',
         'little mermaid', 'aladdin', 'jasmine', 'beauty and the beast', 'belle', 'mulan',
         'pocahontas', 'brave', 'merida', 'raya', 'turning red', 'soul', 'onward', 'elemental',
         'wish', 'zootopia', 'big hero 6', 'wreck it ralph', 'lilo and stitch', 'stitch',
-        // Marvel
+        // Marvel - FIX #55: Added miles morales, spider-verse, mike/sulley, nemo/dory variants
         'marvel', 'avengers', 'spider-man', 'spiderman', 'iron man', 'hulk', 'thor', 'captain america',
         'black panther', 'black widow', 'hawkeye', 'scarlet witch', 'doctor strange', 'ant-man',
         'guardians of the galaxy', 'groot', 'rocket', 'thanos', 'loki', 'venom', 'deadpool',
         'wolverine', 'x-men', 'fantastic four', 'captain marvel', 'shang-chi', 'eternals',
+        'miles morales', 'spider-verse', 'into the spider-verse', 'across the spider-verse', 'gwen stacy',
         // DC
         'dc', 'batman', 'superman', 'wonder woman', 'aquaman', 'flash', 'green lantern',
         'justice league', 'joker', 'harley quinn', 'catwoman', 'robin', 'batgirl', 'supergirl',
@@ -5021,59 +5029,65 @@ Format: ["id1", "id2", ...]`
           }
         }
         
-        // CRITICAL: Apply mustHaveAll as hard SQL filters (e.g., "star wars" must appear in results)
-        // FIX: Split multi-word terms and require EACH word separately
-        // "sophie giraffe" → requires "sophie" AND "giraffe" (not exact phrase)
-        // WORD BOUNDARY FIX: Use PostgreSQL regex \y for word boundaries
-        // AGE STOPLIST: Skip age-related words that don't appear in product names
+        // =============================================================================
+        // FIX #51: RELAXED TOKEN MATCHING - OR logic with ranking
+        // OLD: "frozen elsa doll" requires ALL tokens → 0 results
+        // NEW: "frozen" OR "elsa" OR "doll" with products matching more tokens ranked higher
+        // First token (usually character/brand) is REQUIRED, additional tokens boost ranking
+        // =============================================================================
         const ageStopWords = new Set([
           'year', 'years', 'old', 'age', 'ages', 'aged', 'month', 'months',
           'toddler', 'toddlers', 'baby', 'babies', 'infant', 'infants',
           'newborn', 'newborns', 'teen', 'teens', 'teenager', 'teenagers',
-          'child', 'children', 'kid', 'kids', 'boy', 'boys', 'girl', 'girls'
+          'child', 'children', 'kid', 'kids', 'boy', 'boys', 'girl', 'girls',
+          'toy', 'toys', 'gift', 'gifts', 'for', 'and', 'the', 'with'
         ]);
+        
+        // Collect all mustHaveAll words for later ranking (FIX #51)
+        const mustHaveAllWords: string[] = [];
+        
         if (interpretation.mustHaveAll && interpretation.mustHaveAll.length > 0) {
+          // Collect all words from all terms
           for (const term of interpretation.mustHaveAll) {
-            // CRITICAL FIX: Do NOT skip character terms even if they match brand
-            // GPT often sets brand="Spiderman" but products have brand="Marvel"
-            // We MUST still require "spider-man" in product name to avoid DOG TOYS SPIDERMAN
-            // Only skip if it's a REAL brand (not a character/franchise)
             const isCharacterBrand = /spider|man|patrol|patrol|frozen|disney|marvel|dc|star\s*wars|pokemon|harry\s*potter|peppa|bluey/i.test(term);
             if (!isCharacterBrand && interpretation.attributes?.brand && 
                 term.toLowerCase() === interpretation.attributes.brand.toLowerCase()) {
               continue;
             }
-            // Split term into individual words, require each one EXCEPT age stopwords
             const words = term.toLowerCase().split(/\s+/).filter(w => 
               w.length >= 2 && !ageStopWords.has(w) && !/^\d+$/.test(w)
             );
-            if (words.length === 0) {
-              console.log(`[Shop Search] Skipping mustHaveAll term "${term}" (all words are age/numeric stopwords)`);
-              continue;
+            mustHaveAllWords.push(...words);
+          }
+          
+          if (mustHaveAllWords.length > 0) {
+            // FIX #51: Only FIRST word is required, rest are used for ranking
+            const primaryWord = mustHaveAllWords[0];
+            const boostWords = mustHaveAllWords.slice(1);
+            
+            // Build condition for primary word (REQUIRED)
+            const primaryVariants = [primaryWord];
+            if (primaryWord.includes('-')) {
+              primaryVariants.push(primaryWord.replace(/-/g, ''));
+            } else if (/spider|man|iron|bat|super/.test(primaryWord)) {
+              const hyphenated = primaryWord.replace(/(spider|iron|bat|super)(man|woman|girl|boy)/i, '$1-$2');
+              if (hyphenated !== primaryWord) primaryVariants.push(hyphenated);
             }
-            for (const word of words) {
-              // CRITICAL FIX: Handle hyphenated variants (spider-man vs spiderman)
-              // Create OR condition that matches EITHER variant
-              const wordVariants = [word];
-              if (word.includes('-')) {
-                wordVariants.push(word.replace(/-/g, '')); // spider-man → spiderman
-              } else if (/spider|man|iron|bat|super/.test(word)) {
-                // Common superhero words that might have hyphenated variants
-                const hyphenated = word.replace(/(spider|iron|bat|super)(man|woman|girl|boy)/i, '$1-$2');
-                if (hyphenated !== word) wordVariants.push(hyphenated);
-              }
-              
-              // Build OR condition for all variants
-              const variantConditions = wordVariants.flatMap(variant => [
-                ilike(products.name, `%${variant}%`),
-                ilike(products.brand, `%${variant}%`)
-              ]);
-              const mustHaveCondition = or(...variantConditions);
-              if (mustHaveCondition) {
-                filterConditions.push(mustHaveCondition as any);
-              }
+            
+            const primaryConditions = primaryVariants.flatMap(variant => [
+              ilike(products.name, `%${variant}%`),
+              ilike(products.brand, `%${variant}%`)
+            ]);
+            const primaryCondition = or(...primaryConditions);
+            if (primaryCondition) {
+              filterConditions.push(primaryCondition as any);
             }
-            console.log(`[Shop Search] Requiring each word of "${term}" in results: ${words.join(' AND ')}`);
+            
+            if (boostWords.length > 0) {
+              console.log(`[Shop Search] FIX #51: Requiring "${primaryWord}", will boost by: ${boostWords.join(', ')}`);
+            } else {
+              console.log(`[Shop Search] Requiring "${primaryWord}" in results`);
+            }
           }
         }
         
@@ -5191,7 +5205,19 @@ Format: ["id1", "id2", ...]`
             // FIX #51: Relaxed token matching - first token required, rest boost score
             // "lego frozen" → search "lego", rank by "frozen" presence
             // This prevents strict AND matching from returning 0 results
-            if (requiredTermsArray.length > 1) {
+            
+            // FIX #56: For costume queries, require BOTH brand AND costume term
+            // "frozen costume" → search "frozen & (costume | dress | outfit)" 
+            const isCostumeQuery = hasCostumeContext(query);
+            const COSTUME_SEARCH_TERMS = ['costume', 'dress', 'outfit', 'fancy'];
+            
+            if (isCostumeQuery && requiredTermsArray.length > 0) {
+              // For costume queries, require brand AND costume term
+              const brandTerm = requiredTermsArray[0];
+              const costumeTerms = COSTUME_SEARCH_TERMS.join(' | ');
+              tsvectorQuery = `${brandTerm} & (${costumeTerms})`;
+              console.log(`[Shop Search] TSVECTOR (FIX #56): Costume query "${tsvectorQuery}"`);
+            } else if (requiredTermsArray.length > 1) {
               // First term (usually brand) is required, rest are optional boosters
               const primaryTerm = requiredTermsArray[0];
               const boostTerms = requiredTermsArray.slice(1);
