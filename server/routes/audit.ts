@@ -2,8 +2,10 @@ import type { Express } from "express";
 import * as fs from "fs";
 import * as path from "path";
 import { parseQuery, BRAND_CHARACTERS } from "../services/queryParser";
+import { db } from "../db";
+import { verifiedResults } from "@shared/schema";
 
-const BUILD_VERSION = 91;
+const BUILD_VERSION = 92;
 
 export function registerAuditRoutes(app: Express): void {
   app.get("/api/audit/db-check", async (req, res) => {
@@ -606,13 +608,13 @@ export function registerAuditRoutes(app: Express): void {
           
           // FIX #70: Auto-cache PASS results to verified_results table
           // FIX #72: Use production database when target_db_url is provided
+          // FIX #73: Use static imports to avoid dynamic import issues on production
           if (verdict === 'PASS' && products.length >= 3) {
             try {
-              const { verifiedResults } = await import('@shared/schema');
               const normalizedQuery = query.toLowerCase().trim();
               
               // Use production database if provided, otherwise use local db
-              const targetDb = productionDb || (await import('../db')).db;
+              const targetDb = productionDb || db;
               
               await targetDb.insert(verifiedResults).values({
                 query: normalizedQuery,
