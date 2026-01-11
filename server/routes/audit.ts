@@ -506,10 +506,27 @@ export function registerAuditRoutes(app: Express): void {
         workers = 5, 
         limit = 10,
         start_index = 0,
-        max_queries = 1000
+        max_queries = 1000,
+        target_url,
+        target_db_url
       } = req.body;
       
-      console.log(`[Bulk Audit] Starting bulk audit: batch_size=${batch_size}, workers=${workers}, limit=${limit}, start=${start_index}, max=${max_queries}`);
+      const isProductionAudit = !!target_url || !!target_db_url;
+      console.log(`[Bulk Audit] Starting bulk audit: batch_size=${batch_size}, workers=${workers}, limit=${limit}, start=${start_index}, max=${max_queries}${isProductionAudit ? ' (PRODUCTION MODE)' : ''}`);
+      
+      let productionDb: any = null;
+      if (target_db_url) {
+        try {
+          const { drizzle } = await import('drizzle-orm/postgres-js');
+          const postgres = (await import('postgres')).default;
+          const schema = await import('@shared/schema');
+          const prodClient = postgres(target_db_url, { max: 5, connect_timeout: 10 });
+          productionDb = drizzle(prodClient, { schema });
+          console.log(`[Bulk Audit] Connected to production database for cache writes`);
+        } catch (dbErr) {
+          console.error(`[Bulk Audit] Failed to connect to production database:`, dbErr);
+        }
+      }
       
       const queriesPath = path.join(process.cwd(), 'data', 'bulk_audit_queries.json');
       if (!fs.existsSync(queriesPath)) {
@@ -526,6 +543,7 @@ export function registerAuditRoutes(app: Express): void {
       const progressPath = path.join(process.cwd(), 'data', 'bulk_audit_progress.json');
       
       const port = process.env.PORT || 5000;
+      const baseUrl = target_url || `http://localhost:${port}`;
       const results: any[] = [];
       let passCount = 0, partialCount = 0, failCount = 0, errorCount = 0;
       let processed = 0;
@@ -534,7 +552,7 @@ export function registerAuditRoutes(app: Express): void {
       const runSingleQuery = async (query: string, index: number): Promise<any> => {
         const queryStart = Date.now();
         try {
-          const searchResponse = await fetch(`http://localhost:${port}/api/shop/search`, {
+          const searchResponse = await fetch(`${baseUrl}/api/shop/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query, limit })
@@ -587,13 +605,16 @@ export function registerAuditRoutes(app: Express): void {
           const verdict = finalScore >= 70 ? 'PASS' : finalScore >= 40 ? 'PARTIAL' : 'FAIL';
           
           // FIX #70: Auto-cache PASS results to verified_results table
+          // FIX #72: Use production database when target_db_url is provided
           if (verdict === 'PASS' && products.length >= 3) {
             try {
-              const { db } = await import('../db');
               const { verifiedResults } = await import('@shared/schema');
               const normalizedQuery = query.toLowerCase().trim();
               
-              await db.insert(verifiedResults).values({
+              // Use production database if provided, otherwise use local db
+              const targetDb = productionDb || (await import('../db')).db;
+              
+              await targetDb.insert(verifiedResults).values({
                 query: normalizedQuery,
                 verifiedProductIds: JSON.stringify(products.slice(0, 10).map((p: any) => p.id)),
                 verifiedProductNames: JSON.stringify(products.slice(0, 10).map((p: any) => p.name)),
@@ -601,7 +622,7 @@ export function registerAuditRoutes(app: Express): void {
                 confidence: 'auto'
               }).onConflictDoNothing();
               
-              console.log(`[Audit Cache] Saved verified results for "${normalizedQuery}"`);
+              console.log(`[Audit Cache] Saved verified results for "${normalizedQuery}"${productionDb ? ' (PRODUCTION)' : ''}`);
             } catch (cacheError) {
               console.error(`[Audit Cache] Failed to cache "${query}":`, cacheError);
             }

@@ -6,6 +6,34 @@
 
 ## LATEST FIXES
 
+### 72. Production Database Cache Write (2026-01-11) - FIXED ✅
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Audit running on dev but writing cache to development DB instead of production |
+| **Symptom** | Production verified_results had 0 rows while dev had 113 |
+| **Root Cause** | Bulk audit used local `db` import which always connects to dev DATABASE_URL |
+| **Solution** | Added `target_url` and `target_db_url` params to /api/audit/bulk |
+| **File** | `server/routes/audit.ts` lines 512-531, 617-618 |
+| **Result** | Audit can now write cache directly to production database |
+
+**New Parameters for /api/audit/bulk:**
+- `target_url`: Production API URL (e.g., `https://gpt-newdeals-production.up.railway.app`)
+- `target_db_url`: Production DATABASE_URL to write cache to
+
+**Example Usage:**
+```javascript
+POST /api/audit/bulk
+{
+  "target_url": "https://gpt-newdeals-production.up.railway.app",
+  "target_db_url": "postgresql://...",
+  "batch_size": 10,
+  "workers": 5
+}
+```
+
+---
+
 ### 70-71. Learning System Foundation (2026-01-11) - FIXED ✅
 
 | Fix # | Problem | Solution | Result |
