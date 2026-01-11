@@ -1,0 +1,363 @@
+# SUNNY CONTEXT - Read This First Every Session
+
+> **AI Assistant**: Read this document at the START of every conversation. It gives you immediate context about what Sunny is, how it works, and what problems we're solving.
+
+---
+
+## 1. System Overview
+
+### What is Sunny?
+
+**Sunny VS01** is a voice-first AI shopping concierge for UK families. It's the backend for a ChatGPT GPT integration that helps parents find:
+- Toys and gifts (1.18M+ products)
+- Cinema showings (TMDB API)
+- UK attractions with Kids Pass discounts
+- Family activities and days out
+- Nights-in ideas (streaming, movie nights)
+- Money-saving tips
+
+### Who is it for?
+
+| Audience | Scale | Primary Use Case |
+|----------|-------|------------------|
+| **Kids Pass members** | 2M UK families | Find discounted attractions, family deals |
+| **UK parents** | Primary market | Shopping, activities, gift ideas |
+| **GPT users** | ChatGPT integration | Natural language product search |
+
+### Sponsor Integration
+
+**Kids Pass** is the primary sponsor. The system:
+- Prioritises Kids Pass partner attractions in results
+- Shows Kids Pass discount pricing alongside standard prices
+- Excludes inappropriate content (alcohol, adult products)
+- Maintains family-safe search at all times
+
+### Core Promise
+
+**Zero hallucination, database-backed results.** Every result comes from our PostgreSQL database with verified affiliate links. The AI interprets queries but NEVER invents products.
+
+---
+
+## 2. Architecture
+
+### High-Level Flow
+
+```
+User Query → Intent Classifier → Router → API Handler → Database → Response
+                   ↓
+            GPT-4o-mini
+         (query understanding)
+```
+
+### Intent Classification
+
+The **Smart Query Interpreter** uses GPT-4o-mini to understand:
+- Product type (toy, book, costume, etc.)
+- Brand/Character (LEGO, Frozen, Spiderman)
+- Age range (for 3 year old, age 5-7)
+- Price constraints (under £10, budget)
+- Context (gift, party, school)
+
+### Router Destinations
+
+| API | Purpose | Status |
+|-----|---------|--------|
+| `/api/shop/search` | Product search (1.18M products) | **Live, 90% pass rate** |
+| `/api/cinema/now-playing` | Current UK cinema listings | **Live** |
+| `/api/attractions` | UK family attractions | **Planned** |
+| `/api/hotels` | Family hotel deals | **Planned** |
+| `/api/streaming` | What to watch tonight | **Planned** |
+
+### Search Architecture
+
+```
+Query → Cache Check → TSVECTOR Fast Path → Quality Filters → GPT Reranker → Results
+           ↓                  ↓                    ↓
+    verified_results    PostgreSQL GIN      Clothing/Context
+       (instant)         (sub-100ms)           Filters
+```
+
+**Three-Stage Search:**
+1. **Cache Check** - If query has verified results, return instantly
+2. **TSVECTOR Fast Path** - PostgreSQL full-text search with GIN index
+3. **Quality Filters** - Remove clothing leaks, blocked products, apply merchant caps
+4. **GPT Reranker** - (optional) Re-order results for relevance
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `server/routes.ts` | All API endpoints, search logic, filters (~11K lines) |
+| `server/storage.ts` | Database abstraction layer |
+| `shared/schema.ts` | Drizzle ORM schemas, type definitions |
+| `client/src/pages/shop.tsx` | Shopping UI with click tracking |
+| `client/src/components/SunnyChat.tsx` | Chat interface |
+
+---
+
+## 3. Key Decisions
+
+### Why verified_results Cache?
+
+**Problem:** Search algorithms are fragile. Every "fix" can break 5 other queries.
+
+**Solution:** Pre-verify correct results for known queries and serve them directly from cache, bypassing all algorithm logic.
+
+```sql
+-- verified_results table
+query VARCHAR(500) UNIQUE,
+verified_product_ids TEXT,      -- JSON array of correct product IDs
+verified_product_names TEXT,    -- For debugging
+confidence VARCHAR(20)          -- 'manual', 'auto', 'flagged'
+```
+
+**Benefits:**
+- Guaranteed correct results for cached queries
+- Instant response (no algorithm execution)
+- Safe deployment (cache survives code changes)
+- 1,014 queries currently cached
+
+### Why Click Tracking?
+
+**Problem:** We don't know if users actually want the products we show.
+
+**Solution:** Track every product click to measure real engagement.
+
+```sql
+-- click_logs table
+query, product_id, position, time_on_page, device_type
+```
+
+**Insights:**
+- Queries where users click past result #3 = ranking problem
+- Products shown but never clicked = potential bad results
+- High-engagement products = ground truth for training
+
+### Why Pre-built Queries (test-queries-2000.json)?
+
+**Problem:** Random testing misses real user queries.
+
+**Solution:** 1,700+ realistic UK family queries based on actual search patterns.
+
+**Categories:**
+- Brand queries (lego, barbie, disney)
+- Character queries (frozen, spiderman, paw patrol)
+- Age queries (toys for 3 year old)
+- Price queries (toys under 10 pounds)
+- Seasonal (christmas gifts, easter eggs)
+- Edge cases (costume, books, party bag fillers)
+
+### Why TSVECTOR over ILIKE?
+
+**Problem:** ILIKE on 1.1M rows = 10-22 seconds per query.
+
+**Solution:** PostgreSQL full-text search with GIN index.
+
+| Method | Performance |
+|--------|-------------|
+| `ILIKE '%lego%'` | 8-15 seconds |
+| `search_vector @@ to_tsquery('lego')` | **53-77ms** |
+
+**Key Files:**
+- Column: `products.search_vector` (populated by migration)
+- Index: `idx_products_search_vector` (GIN)
+- Fallback: ILIKE runs if tsvector returns 0 results
+
+---
+
+## 4. Known Patterns
+
+### Word Boundary Issues
+
+**Problem:** "train" matches "trainer", "book" matches "booking.com"
+
+**Solution:** PostgreSQL regex with word boundaries OR post-filter
+
+```sql
+-- Word boundary regex (slow but accurate)
+name ~* '\ytrain\y'
+
+-- WORD_BOUNDARY_COLLISIONS filter (fast, applied post-query)
+train → excludes trainer, training
+case → excludes bookcase, briefcase
+bike → excludes biker
+```
+
+**File:** `server/routes.ts` ~line 393-438
+
+### Clothing Leak
+
+**Problem:** Character queries (Frozen, Spiderman) return t-shirts instead of toys
+
+**Root Cause:** Products named "Frozen T-Shirt" match "frozen" keyword
+
+**Solution:** Context-aware filters
+
+| Query Context | Filter Applied |
+|---------------|----------------|
+| Toy query (dinosaur figures) | Exclude clothing categories |
+| Costume query (witch costume) | Exclude t-shirts, include fancy dress |
+| Book query (peppa pig books) | Exclude bags, backpacks |
+
+**Key Filters:**
+- `filterForToyContext()` - excludes clothing for toy queries
+- `filterForCostumeContext()` - excludes t-shirts for costume queries  
+- `filterForBooksContext()` - excludes bags for book queries
+
+**File:** `server/routes.ts` ~line 762-930
+
+### Blocked Products
+
+**Always blocked:**
+- Alcohol merchants (Bottle Club, Naked Wines, etc.)
+- Adult content (ED pills, STI testing)
+- Known spam (NosiBotanical Nulla Vest)
+- Craft supplies in toy results (Trimits Toy Eyes)
+
+**File:** `server/routes.ts` BLOCKED_MERCHANTS, INAPPROPRIATE_TERMS ~line 200
+
+### Timeout Patterns
+
+**Problem:** Some queries trigger 50+ second ILIKE fallbacks
+
+**Pattern:** Generic queries (party bag fillers, cheap toys) find no TSVECTOR match, trigger expensive ILIKE scan
+
+**Current Mitigation:**
+- 3-second timeout on ILIKE fallback (Fix #50)
+- Return controlled ZERO_RESULTS instead of ERROR
+
+**Still Failing:** 429 queries timeout in bulk audit (62% of failures)
+
+---
+
+## 5. What's Working
+
+### Current Metrics (2026-01-11)
+
+| Metric | Value | Target |
+|--------|-------|--------|
+| **Pass Rate** | 90% (9/10 test queries) | 90%+ |
+| **Cached Queries** | 1,014 | - |
+| **Response Time (cached)** | 53-77ms | <500ms |
+| **Products Indexed** | 1,196,276 | - |
+
+### Fixes Logged (56 total)
+
+| Category | Count | Key Fixes |
+|----------|-------|-----------|
+| Performance | 12 | TSVECTOR, ULTRA FAST PATH, brand cache |
+| Search Quality | 18 | Word boundaries, clothing filters, costume context |
+| Production Stability | 8 | try/catch fallbacks, ILIKE timeout |
+| Data Integrity | 6 | Alcohol removal, noimage filter, cache validation |
+| UI/Tracking | 4 | Click tracking, verification UI |
+
+### Regression Test Results
+
+All core queries now pass:
+- [x] spiderman toys → Marvel products
+- [x] paw patrol toys → Paw Patrol products
+- [x] lol dolls → LOL Surprise products
+- [x] witch costume → Wicked Witch costume
+- [x] toys for 5 year old → Age-appropriate toys
+- [x] frozen costume → Frozen 2 Anna Dress Up Costume
+- [x] lego frozen → LEGO Frozen sets (not Mario Kart)
+
+---
+
+## 6. What's Coming
+
+### Planned APIs
+
+| API | Purpose | Priority |
+|-----|---------|----------|
+| **Cinema API** | Now playing + upcoming films with UK ratings | High |
+| **Attractions API** | UK family attractions with Kids Pass pricing | High |
+| **Hotels API** | Family hotel deals near attractions | Medium |
+| **Streaming API** | What to watch on Netflix/Disney+ tonight | Medium |
+
+### AI-Expanded Query System
+
+**Current:** GPT-4o-mini expands queries but expansions often cause zero results (AND logic too strict)
+
+**Planned:**
+- Phrase synonym system (calico critters → sylvanian families)
+- Character variant injection (Elsa → Frozen)
+- Equipment synonym expansion (set → kit, pack, bundle)
+- Price interpretation (under £10 → maxPrice filter)
+
+### Search Quality Improvements
+
+**Target:** 95% pass rate on 1,700 query test suite
+
+**Priorities:**
+1. Fix remaining 429 timeout errors (ILIKE fallback too slow)
+2. Improve LEGO + franchise queries (lego marvel, lego frozen)
+3. Add more phrase synonyms for US → UK terminology
+4. Implement click-through rate boosting
+
+---
+
+## 7. Critical Rules
+
+### Before Making Changes
+
+1. **Read CRITICAL_FIXES.md** - 56 fixes are logged, don't reintroduce bugs
+2. **Check server health** - `curl localhost:5000/healthz`
+3. **Run regression tests** - Test key queries before/after changes
+
+### Never Do
+
+- `ORDER BY RANDOM()` on products table (13s full table scan)
+- `ILIKE '%word%'` without timeout (10-22s per query)
+- Assume `search_vector` column exists (wrap in try/catch)
+- Blame "inventory gap" without running raw SQL first
+- Deploy without testing production URL directly
+
+### Always Do
+
+- Wrap database operations in try/catch with fallbacks
+- Update CRITICAL_FIXES.md after every fix
+- Test with cached AND uncached queries
+- Log which code path is executing
+
+---
+
+## 8. Quick Reference
+
+### Test a Query
+
+```bash
+curl -X POST http://localhost:5000/api/shop/search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"frozen costume","limit":5}'
+```
+
+### Check Database Products
+
+```sql
+SELECT name, brand, category FROM products 
+WHERE name ILIKE '%frozen%' AND in_stock = true 
+LIMIT 10;
+```
+
+### Run Audit
+
+```bash
+npx tsx scripts/quick-audit.ts
+```
+
+### Check Cache
+
+```sql
+SELECT query, verified_product_names FROM verified_results 
+WHERE query ILIKE '%frozen%';
+```
+
+---
+
+## Document Maintenance
+
+**Last Updated:** 2026-01-11
+**Fixes Logged:** #1-56
+**Pass Rate:** 90%
+**Next Priority:** Fix remaining timeouts, hit 95% pass rate
