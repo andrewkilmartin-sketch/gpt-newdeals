@@ -653,6 +653,46 @@ Alcohol, ED pills, STI testing content filtered via INAPPROPRIATE_TERMS array.
 
 ---
 
+## Fix #43 - Click Tracking System (2026-01-11)
+
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | Track every product click to improve search relevance |
+| **Components Added** | Database table, API endpoints, frontend tracking, analysis script |
+| **Database** | `click_logs` table with indexes on query, product_id, timestamp |
+| **API Endpoints** | `POST /api/track/click` - log click; `GET /api/track/analysis` - analyze patterns |
+| **Frontend** | `trackAndRedirect()` in shop.tsx captures session, position, time on page |
+| **Analysis Script** | `scripts/click-analysis-daily.ts` - run after collecting data |
+
+**Key Metrics Tracked:**
+- Session ID (persisted in localStorage)
+- Search query that led to click
+- Product position in results (1-indexed)
+- Time spent on page before clicking
+- All products shown for that query
+- Device type (mobile/tablet/desktop)
+
+**Usage:**
+```bash
+# View analysis (after collecting data)
+curl http://localhost:5000/api/track/analysis | jq
+
+# Run daily summary
+npx tsx scripts/click-analysis-daily.ts
+```
+
+**Insights Provided:**
+1. **Ranking Issues** - Queries where users click past result #3 (ranking problem)
+2. **Top Choices** - Products users actually want (ground truth)
+3. **Never Clicked** - Products shown but never clicked (potential bad results)
+
+**Future Improvements:**
+- Use click data to train reranker
+- Auto-demote products with low click-through rate
+- Boost products with high engagement
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:
@@ -663,4 +703,4 @@ Before making changes:
 
 ---
 
-*Last updated: 2026-01-10*
+*Last updated: 2026-01-11*

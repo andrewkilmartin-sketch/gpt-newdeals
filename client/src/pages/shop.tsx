@@ -195,34 +195,37 @@ export default function ShopSearch() {
     pageLoadTime.current = Date.now();
   }, [searchQuery]);
 
-  const trackAndRedirect = async (
+  const trackAndRedirect = (
     product: Product,
     position: number,
     e: React.MouseEvent<HTMLButtonElement>
   ) => {
     e.preventDefault();
     
-    try {
-      await fetch('/api/track/click', {
+    const trackingData = JSON.stringify({
+      session_id: getSessionId(),
+      query: searchQuery || '',
+      product_id: product.id,
+      product_name: product.name,
+      product_price: product.price,
+      product_merchant: product.merchant,
+      position: position + 1,
+      products_shown_count: products.length,
+      products_shown_ids: products.map(p => p.id),
+      time_on_page_ms: Date.now() - pageLoadTime.current,
+      destination_url: product.affiliateLink,
+      device_type: detectDevice()
+    });
+    
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/track/click', new Blob([trackingData], { type: 'application/json' }));
+    } else {
+      fetch('/api/track/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: getSessionId(),
-          query: searchQuery || '',
-          product_id: product.id,
-          product_name: product.name,
-          product_price: product.price,
-          product_merchant: product.merchant,
-          position: position + 1,
-          products_shown_count: products.length,
-          products_shown_ids: products.map(p => p.id),
-          time_on_page_ms: Date.now() - pageLoadTime.current,
-          destination_url: product.affiliateLink,
-          device_type: detectDevice()
-        })
-      });
-    } catch (err) {
-      console.error('[Click tracking error]', err);
+        body: trackingData,
+        keepalive: true
+      }).catch(() => {});
     }
     
     window.open(product.affiliateLink, '_blank', 'noopener,noreferrer');
