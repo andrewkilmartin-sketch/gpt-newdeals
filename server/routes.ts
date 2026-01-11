@@ -7839,11 +7839,15 @@ ONLY use IDs from the list. Never invent IDs.`
         const expected_character = isStringQuery ? undefined : testQuery.expected_character;
         const category = isStringQuery ? undefined : testQuery.category;
         
+        // FIX #46: Strip quotes from query before processing
+        // CSV parsing can add extra quotes around queries like "toys for 3 year old boy"
+        const cleanQuery = query.replace(/^["']+|["']+$/g, '').replace(/,+$/, '').trim();
+        
         // V2: Parse query to extract age, gender, character, price, productType
-        const parsed = parseQuery(query);
+        const parsed = parseQuery(cleanQuery);
         
         // Skip empty queries
-        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        if (!cleanQuery || typeof cleanQuery !== 'string' || cleanQuery.trim().length === 0) {
           console.log(`[Audit] Skipping invalid query:`, testQuery);
           continue;
         }
@@ -7859,17 +7863,19 @@ ONLY use IDs from the list. Never invent IDs.`
           const { db } = await import('./db');
           const { sql: sqlTag } = await import('drizzle-orm');
           
-          // FIX: Use AND logic to match what search actually does (not OR which inflates counts)
+          // FIX #46: Use cleanQuery (stripped of quotes) for DB check
+          // Use AND logic to match what search actually does (not OR which inflates counts)
           const kwConditions = requiredKws.length > 0
             ? requiredKws.map((kw: string) => `(LOWER(name) LIKE '%${kw.replace(/'/g, "''")}%' OR LOWER(brand) LIKE '%${kw.replace(/'/g, "''")}%')`).join(' AND ')
-            : `LOWER(name) LIKE '%${query.toLowerCase().replace(/'/g, "''").split(' ')[0]}%'`;
+            : `LOWER(name) LIKE '%${cleanQuery.toLowerCase().replace(/'/g, "''").split(' ')[0]}%'`;
           
           const priceCondition = max_price ? ` AND price <= ${parseFloat(max_price)}` : '';
           const countResult = await db.execute(sqlTag.raw(`SELECT COUNT(*) as total FROM products WHERE (${kwConditions})${priceCondition}`)) as any;
           dbCount = parseInt(countResult[0]?.total || countResult.rows?.[0]?.total || '0');
           dbExists = dbCount > 0;
+          console.log(`[Audit] DB check for "${cleanQuery}": ${dbCount} products found`);
         } catch (e) {
-          console.error(`[Audit] DB check failed for "${query}":`, e);
+          console.error(`[Audit] DB check failed for "${cleanQuery}":`, e);
         }
         
         // Step 2: Run ACTUAL search API to test the full pipeline (including MEGA-FIX 10)
@@ -7880,10 +7886,11 @@ ONLY use IDs from the list. Never invent IDs.`
           // Call actual /api/shop/search endpoint internally via HTTP
           // FIX: Use PORT env var for production compatibility (Railway uses different ports)
           const port = process.env.PORT || 5000;
+          // FIX #46: Use cleanQuery for search API
           const searchResponse = await fetch(`http://localhost:${port}/api/shop/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, limit })
+            body: JSON.stringify({ query: cleanQuery, limit })
           });
           
           if (searchResponse.ok) {
@@ -7907,7 +7914,7 @@ ONLY use IDs from the list. Never invent IDs.`
             console.error(`[Audit] Search API returned ${searchResponse.status}`);
           }
         } catch (e) {
-          console.error(`[Audit] Search API failed for "${query}":`, e);
+          console.error(`[Audit] Search API failed for "${cleanQuery}":`, e);
         }
         
         // Step 3: V2 Score relevance using queryParser extracted data

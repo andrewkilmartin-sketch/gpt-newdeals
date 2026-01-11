@@ -782,6 +782,26 @@ npx tsx scripts/audit-scheduler.ts
 
 ---
 
+## Fix #46: Audit Tool dbCount Bug (2026-01-11)
+
+| Aspect | Details |
+|--------|---------|
+| **Problem** | Audit tool marked queries as INVENTORY_GAP when dbCount=0, but search returned results |
+| **Example** | "toys for 3 year old boy" → dbCount=0, searchCount=6, incorrectly marked as INVENTORY_GAP |
+| **Root Cause** | CSV parsing adds extra quotes to queries; `query.split(' ')[0]` on `"toys for...` returns `"toys` which matches nothing |
+| **Solution** | Added `cleanQuery` that strips quotes and trailing commas before processing |
+
+**Code Location:** `server/routes.ts` ~line 7844-7847 in `/api/audit/run` endpoint
+
+**Changes:**
+1. Added `cleanQuery = query.replace(/^["']+|["']+$/g, '').replace(/,+$/, '').trim()`
+2. Use `cleanQuery` for DB count query, search API call, and logging
+3. Added logging: `[Audit] DB check for "${cleanQuery}": ${dbCount} products found`
+
+**This is NOT a search regression - it was an audit tool scoring bug.**
+
+---
+
 ## SESSION START CHECKLIST
 
 Before making changes:
