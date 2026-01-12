@@ -53,6 +53,55 @@ import {
   detectQueryIntent, TYPO_CORRECTIONS, correctTypos, applySearchQualityFilters
 } from "../search";
 
+// FIX #73: Map character names to their franchise for search expansion
+// When someone searches "chase" alone, we expand to "paw patrol chase"
+const CHARACTER_TO_FRANCHISE: Record<string, string> = {
+  // Paw Patrol characters
+  'chase': 'paw patrol',
+  'marshall': 'paw patrol',
+  'skye': 'paw patrol',
+  'rubble': 'paw patrol',
+  'rocky': 'paw patrol',
+  'zuma': 'paw patrol',
+  'everest': 'paw patrol',
+  'tracker': 'paw patrol',
+  'ryder': 'paw patrol',
+  // Thomas and Friends
+  'percy': 'thomas',
+  'gordon': 'thomas',
+  'james': 'thomas',
+  'henry': 'thomas',
+  'edward': 'thomas',
+  'toby': 'thomas',
+  'emily': 'thomas',
+  // PJ Masks
+  'catboy': 'pj masks',
+  'owlette': 'pj masks',
+  'gekko': 'pj masks',
+  // Bluey
+  'bingo': 'bluey',
+  'bandit': 'bluey',
+  'chilli': 'bluey',
+  // Peppa Pig
+  'george': 'peppa pig',
+  'george pig': 'peppa pig',
+  // In The Night Garden
+  'iggle piggle': 'in the night garden',
+  'upsy daisy': 'in the night garden',
+  'makka pakka': 'in the night garden',
+  // Monsters Inc
+  'sulley': 'monsters inc',
+  'sully': 'monsters inc',
+  'mike wazowski': 'monsters inc',
+  // Finding Nemo
+  'dory': 'finding nemo',
+  'marlin': 'finding nemo',
+  'nemo': 'finding nemo',
+  // Trolls
+  'poppy': 'trolls',
+  'branch': 'trolls'
+};
+
 async function interpretQuery(query: string, options?: { skipCache?: boolean; maxBudget?: number }): Promise<QueryInterpretation> {
   const deps: InterpreterDeps = {
     db,
@@ -438,6 +487,18 @@ Format: ["id1", "id2", ...]`
         if (parsedQuery.character) {
           console.log(`[Shop Search] Clearing original character "${parsedQuery.character}" after phrase synonym`);
           parsedQuery.character = null;
+        }
+      }
+      
+      // FIX #73: Expand character names to include their franchise
+      // "chase" → "paw patrol chase", "marshall" → "paw patrol marshall"
+      // This ensures character-only queries find products branded under the franchise name
+      if (parsedQuery.character) {
+        const charLower = parsedQuery.character.toLowerCase();
+        const franchise = CHARACTER_TO_FRANCHISE[charLower];
+        if (franchise && !workingQuery.toLowerCase().includes(franchise)) {
+          workingQuery = `${franchise} ${workingQuery}`;
+          console.log(`[Shop Search] FIX #73: Expanded character "${charLower}" to "${workingQuery}" (franchise: ${franchise})`);
         }
       }
       

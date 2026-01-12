@@ -6,6 +6,57 @@
 
 ## LATEST FIXES
 
+### 73-76. Character Mapping & Price Filters (2026-01-12) - FIXED ✅
+
+| Fix # | Problem | Solution | Result |
+|-------|---------|----------|--------|
+| **73** | Paw Patrol character names (chase, marshall, skye) returning 0 results | Added CHARACTER_TO_FRANCHISE mapping to expand character queries to franchise | "chase toys" → "paw patrol chase toys" finds 7+ products |
+| **74** | Price filter queries failing ("under 10 pounds") | Added "pounds?", "quid", "up to" patterns to pricePatterns regex | "under 10 pounds toys" now parses priceMax=£10 |
+| **75** | Costume/dress up queries tested OK | Already working - verified "frozen elsa costume" returns 2 products | N/A |
+| **76** | Thomas and Friends queries tested OK | Already working - verified "thomas and friends" returns 3 products | N/A |
+
+**FIX #73 - Character to Franchise Mapping:**
+```javascript
+// server/routes/shop.ts (top of file)
+const CHARACTER_TO_FRANCHISE: Record<string, string> = {
+  'chase': 'paw patrol', 'marshall': 'paw patrol', 'skye': 'paw patrol',
+  'rubble': 'paw patrol', 'rocky': 'paw patrol', 'zuma': 'paw patrol',
+  'everest': 'paw patrol', 'tracker': 'paw patrol', 'ryder': 'paw patrol',
+  'percy': 'thomas', 'gordon': 'thomas', 'james': 'thomas',
+  'catboy': 'pj masks', 'owlette': 'pj masks', 'gekko': 'pj masks',
+  'bingo': 'bluey', 'bandit': 'bluey', 'chilli': 'bluey',
+  // ... more mappings
+};
+
+// Applied at line ~496-506:
+if (parsedQuery.character) {
+  const franchise = CHARACTER_TO_FRANCHISE[charLower];
+  if (franchise && !workingQuery.includes(franchise)) {
+    workingQuery = `${franchise} ${workingQuery}`;
+  }
+}
+```
+
+**FIX #74 - Price Pattern Update:**
+```javascript
+// server/services/queryParser.ts lines 216-224
+const pricePatterns = [
+  /under\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,  // "under 10 pounds"
+  /less\s*than\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+  /up\s*to\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,  // NEW: "up to £5"
+  /(\d+)\s*(?:pounds?|quid)\s*or\s*(?:less|under)/i  // NEW: "10 pounds or less"
+];
+```
+
+**Test Results:**
+- "chase toys" → 5 products (includes Paw Patrol Chase)
+- "marshall toys" → 7 products (all Paw Patrol)
+- "under 10 pounds toys" → priceMax=£10 parsed correctly
+- "frozen elsa costume" → 2 products
+- "thomas and friends" → 3 products
+
+---
+
 ### 72. Production Database Cache Write (2026-01-11) - FIXED ✅
 
 | Aspect | Details |

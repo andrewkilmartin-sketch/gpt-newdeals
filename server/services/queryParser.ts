@@ -209,12 +209,15 @@ export function parseQuery(query: string): ParsedQuery {
   }
 
   // 5. EXTRACT PRICE
+  // FIX #74: Added patterns for "under 10 pounds", "under 1 pound", "up to £5"
   const pricePatterns = [
-    /under\s*[£$]?\s*(\d+)/i,
-    /less\s*than\s*[£$]?\s*(\d+)/i,
-    /max\s*[£$]?\s*(\d+)/i,
-    /budget\s*[£$]?\s*(\d+)/i,
-    /[£$]\s*(\d+)\s*or\s*less/i
+    /under\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+    /less\s*than\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+    /max\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+    /budget\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+    /[£$]\s*(\d+)\s*or\s*less/i,
+    /up\s*to\s*[£$]?\s*(\d+)\s*(?:pounds?|quid)?/i,
+    /(\d+)\s*(?:pounds?|quid)\s*or\s*(?:less|under)/i
   ];
   
   for (const pattern of pricePatterns) {

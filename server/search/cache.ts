@@ -70,6 +70,12 @@ export async function getDbCachedInterpretation(
   eq: any
 ): Promise<QueryInterpretation | null> {
   try {
+    // FIX: Guard against undefined db to prevent TypeError
+    if (!db || !db.select) {
+      console.log(`[Query Cache] DB lookup error: db is undefined or missing select method`);
+      return null;
+    }
+    
     const normalized = normalizeQueryForCache(query);
     const hash = hashQuery(normalized);
     
