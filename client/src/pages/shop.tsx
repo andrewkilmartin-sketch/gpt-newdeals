@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff, Copy, Check } from "lucide-react";
+import { Search, ExternalLink, Loader2, X, Sparkles, Tag, Ticket, ImageOff, Copy, Check, Film, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -150,6 +150,25 @@ interface DealOnly {
   deepLink?: string;
 }
 
+interface CinemaMovie {
+  type: string;
+  id: number;
+  title: string;
+  overview: string;
+  poster: string;
+  backdrop: string;
+  releaseDate: string;
+  rating: number;
+  genres: string[];
+  certification: string;
+  contentType: string;
+}
+
+interface CinemaResults {
+  content: CinemaMovie[];
+  attribution: string;
+}
+
 interface SearchResponse {
   success: boolean;
   query: string;
@@ -160,6 +179,7 @@ interface SearchResponse {
   filters?: Filters;
   dealsOnly?: DealOnly[];
   message?: string;
+  cinemaResults?: CinemaResults;
 }
 
 const SUGGESTIONS = [
@@ -188,6 +208,7 @@ export default function ShopSearch() {
   const [searchTime, setSearchTime] = useState<number | null>(null);
   const [dealsOnly, setDealsOnly] = useState<DealOnly[]>([]);
   const [dealsMessage, setDealsMessage] = useState<string | null>(null);
+  const [cinemaResults, setCinemaResults] = useState<CinemaMovie[]>([]);
   
   const pageLoadTime = useRef<number>(Date.now());
   
@@ -288,6 +309,14 @@ export default function ShopSearch() {
           setProducts(data.products);
           setSearchQuery(data.query);
           if (data.filters) setFilters(data.filters);
+          
+          // Handle cinema results
+          if (data.cinemaResults?.content && data.cinemaResults.content.length > 0) {
+            setCinemaResults(data.cinemaResults.content);
+          } else {
+            setCinemaResults([]);
+          }
+          
           // Only show deals-only when no products, otherwise clear
           if (data.products.length === 0 && data.dealsOnly && data.dealsOnly.length > 0) {
             setDealsOnly(data.dealsOnly);
@@ -578,9 +607,70 @@ export default function ShopSearch() {
               return null;
             })()}
             
-            <p className="text-white text-center mb-6" data-testid="text-results-count">
-              Showing <strong>{products.length}</strong> of <strong>{totalCount}</strong> products for "{searchQuery}"
-            </p>
+            {/* Cinema Results - displayed as movie tiles */}
+            {cinemaResults.length > 0 ? (
+              <>
+                <p className="text-white text-center mb-6" data-testid="text-cinema-count">
+                  <strong>{cinemaResults.length}</strong> movies now showing at the cinema
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                  {cinemaResults.map((movie) => (
+                    <Card key={movie.id} className="overflow-hidden h-full flex flex-col" data-testid={`card-movie-${movie.id}`}>
+                      <div className="aspect-[2/3] bg-gray-900 relative">
+                        {movie.poster ? (
+                          <img 
+                            src={movie.poster} 
+                            alt={movie.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <Film className="w-12 h-12 mb-2" />
+                            <span className="text-xs">No poster</span>
+                          </div>
+                        )}
+                        {movie.certification && (
+                          <Badge className="absolute top-2 right-2 bg-black/80 text-white">
+                            {movie.certification}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-2" data-testid={`text-movie-title-${movie.id}`}>
+                          {movie.title}
+                        </h3>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {movie.genres.slice(0, 2).map(genre => (
+                            <Badge key={genre} variant="secondary" className="text-xs">
+                              {genre}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-3 mb-3">
+                          {movie.overview}
+                        </p>
+                        <div className="mt-auto flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                            <span className="text-sm font-medium">{movie.rating.toFixed(1)}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(movie.releaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                <p className="text-white/60 text-center text-xs mb-6">
+                  Movie data provided by TMDB
+                </p>
+              </>
+            ) : (
+              <p className="text-white text-center mb-6" data-testid="text-results-count">
+                Showing <strong>{products.length}</strong> of <strong>{totalCount}</strong> products for "{searchQuery}"
+              </p>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {products.map((product, index) => (
