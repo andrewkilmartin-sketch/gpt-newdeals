@@ -607,7 +607,7 @@ export default function ShopSearch() {
               return null;
             })()}
             
-            {/* Cinema Results - displayed as movie tiles */}
+            {/* Cinema Results - displayed as movie tiles (same layout as shopping) */}
             {cinemaResults.length > 0 ? (
               <>
                 <p className="text-white text-center mb-6" data-testid="text-cinema-count">
@@ -616,47 +616,51 @@ export default function ShopSearch() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
                   {cinemaResults.map((movie) => (
                     <Card key={movie.id} className="overflow-hidden h-full flex flex-col" data-testid={`card-movie-${movie.id}`}>
-                      <div className="aspect-[2/3] bg-gray-900 relative">
+                      {/* Poster - like product image */}
+                      <div className="aspect-square bg-gray-50 p-4 flex items-center justify-center relative">
                         {movie.poster ? (
                           <img 
                             src={movie.poster} 
                             alt={movie.title}
-                            className="w-full h-full object-cover"
+                            className="max-h-full max-w-full object-contain"
                           />
                         ) : (
-                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                          <div className="flex flex-col items-center text-gray-400">
                             <Film className="w-12 h-12 mb-2" />
                             <span className="text-xs">No poster</span>
                           </div>
                         )}
-                        {movie.certification && (
-                          <Badge className="absolute top-2 right-2 bg-black/80 text-white">
-                            {movie.certification}
-                          </Badge>
-                        )}
                       </div>
                       <div className="p-4 flex-1 flex flex-col">
+                        {/* Certificate badge - like merchant badge */}
+                        <Badge variant="secondary" className="mb-2 text-xs w-fit">
+                          {movie.certification || 'TBC'}
+                        </Badge>
+                        {/* Title - like product name */}
                         <h3 className="font-semibold text-sm line-clamp-2 mb-2" data-testid={`text-movie-title-${movie.id}`}>
                           {movie.title}
                         </h3>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {movie.genres.slice(0, 2).map(genre => (
-                            <Badge key={genre} variant="secondary" className="text-xs">
-                              {genre}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-3 mb-3">
-                          {movie.overview}
-                        </p>
-                        <div className="mt-auto flex items-center justify-between">
+                        {/* Rating and genres */}
+                        <div className="flex items-center gap-2 mb-2">
                           <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                             <span className="text-sm font-medium">{movie.rating.toFixed(1)}</span>
                           </div>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(movie.releaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {movie.genres.slice(0, 2).join(' / ')}
                           </span>
+                        </div>
+                        {/* Book Now button - like Buy Now */}
+                        <div className="mt-auto">
+                          <Button 
+                            className="w-full" 
+                            size="sm"
+                            data-testid={`link-book-${movie.id}`}
+                            onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(movie.title + ' cinema tickets near me')}`, '_blank')}
+                          >
+                            Book Now
+                            <ExternalLink className="w-3 h-3 ml-1" />
+                          </Button>
                         </div>
                       </div>
                     </Card>
