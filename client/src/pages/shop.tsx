@@ -217,15 +217,25 @@ export default function ShopSearch() {
       device_type: detectDevice()
     });
     
+    // FIX: sendBeacon can silently return false - must check and fallback
+    let beaconSent = false;
     if (navigator.sendBeacon) {
-      navigator.sendBeacon('/api/track/click', new Blob([trackingData], { type: 'application/json' }));
-    } else {
+      beaconSent = navigator.sendBeacon('/api/track/click', new Blob([trackingData], { type: 'application/json' }));
+      if (!beaconSent) {
+        console.warn('[Click Tracking] sendBeacon returned false, using fetch fallback');
+      }
+    }
+    
+    // Always use fetch as fallback or redundancy
+    if (!beaconSent) {
       fetch('/api/track/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: trackingData,
         keepalive: true
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error('[Click Tracking] Fetch fallback failed:', err);
+      });
     }
     
     window.open(product.affiliateLink, '_blank', 'noopener,noreferrer');

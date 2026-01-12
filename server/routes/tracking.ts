@@ -417,6 +417,9 @@ export function registerTrackingRoutes(app: Express): void {
   // Click tracking endpoint
   app.post('/api/track/click', async (req, res) => {
     try {
+      // FIX #77: Add logging to debug production click tracking issues
+      console.log('[Click Tracking] Received request, body type:', typeof req.body, 'keys:', Object.keys(req.body || {}));
+      
       const {
         session_id,
         query,
